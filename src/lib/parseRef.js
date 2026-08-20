@@ -77,3 +77,12 @@ export function parseReference(input) {
 
   return { bookId: book.id, bookName: book.name, chapter, verseStart, verseEnd }
 }
+
+// A short English label for a parsed reference, e.g. "John 3:16-18".
+export function formatLabel(parsed) {
+  if (!parsed) return ''
+  const { bookName, chapter, verseStart, verseEnd } = parsed
+  if (verseStart == null) return `${bookName} ${chapter}`
+  if (verseEnd == null || verseEnd === verseStart) return `${bookName} ${chapter}:${verseStart}`
+  return `${bookName} ${chapter}:${verseStart}-${verseEnd}`
+}
