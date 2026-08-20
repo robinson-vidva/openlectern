@@ -44,7 +44,7 @@ create or replace function public.cleanup_expired_sessions()
 returns void
 language sql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
   delete from public.sessions where expires_at < now();
 $$;
@@ -70,7 +70,7 @@ create or replace function public.create_session(pin text, config jsonb)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   alphabet constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -105,7 +105,7 @@ create or replace function public.join_session(code text, pin text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   s public.sessions;
@@ -136,7 +136,7 @@ create or replace function public.update_session(code text, pin text, patch json
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   s public.sessions;
