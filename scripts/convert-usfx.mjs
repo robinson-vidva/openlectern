@@ -137,13 +137,16 @@ async function main() {
 
   await mkdir(OUT_DIR, { recursive: true })
   const index = []
+  const structure = {}
   for (const b of books) {
     b.name = b.name.trim()
     const out = { id: b.id, name: b.name, chapters: b.chapters }
     await writeFile(join(OUT_DIR, `${b.id}.json`), JSON.stringify(out))
     index.push({ id: b.id, name: b.name, chapters: b.chapters.length })
+    structure[b.id] = b.chapters.map((c) => c.length)
   }
   await writeFile(join(OUT_DIR, 'index.json'), JSON.stringify(index, null, 2))
+  await writeFile(join(OUT_DIR, 'structure.json'), JSON.stringify(structure))
   await upsertManifest(root, VERSION)
 
   verify(books)

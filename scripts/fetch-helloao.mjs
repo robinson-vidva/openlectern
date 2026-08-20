@@ -47,6 +47,7 @@ async function download(id) {
   await mkdir(outDir, { recursive: true })
 
   const index = []
+  const structure = {}
   for (const book of data.books || []) {
     if (!BOOK_BY_ID[book.id]) continue
     const chapters = []
@@ -62,8 +63,10 @@ async function download(id) {
     const name = book.commonName || book.name || book.id
     await writeFile(join(outDir, `${book.id}.json`), JSON.stringify({ id: book.id, name, chapters }))
     index.push({ id: book.id, name, chapters: chapters.length })
+    structure[book.id] = chapters.map((c) => c.length)
   }
   await writeFile(join(outDir, 'index.json'), JSON.stringify(index, null, 2))
+  await writeFile(join(outDir, 'structure.json'), JSON.stringify(structure))
 
   const version = {
     id,
