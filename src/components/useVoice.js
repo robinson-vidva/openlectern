@@ -152,6 +152,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       } else if (e.error === 'network') {
         setError('Speech service unreachable. Voice needs internet; retrying...')
         setMicState('error')
+      } else if (e.error === 'language-not-supported' || e.error === 'bad-grammar') {
+        setError('This browser cannot transcribe the selected language. Try Chrome, or pick another recognition language.')
+        stop()
       } else {
         setError(`Voice error: ${e.error}`)
         setMicState('error')
@@ -217,15 +220,22 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     if (runningRef.current) {
       const rec = recRef.current
       recRef.current = null
+      clearTimeout(restartRef.current)
       if (rec) {
-        rec.onend = null
+        // Recreate with the new language only after the current session has
+        // fully ended -- starting a new recognition while the old one is still
+        // releasing throws in Chrome and would silently kill transcription.
+        rec.onend = () => {
+          if (runningRef.current) makeRecognition()
+        }
         try {
           rec.stop()
         } catch {
-          /* ignore */
+          makeRecognition()
         }
+      } else {
+        makeRecognition()
       }
-      makeRecognition()
     }
   }
 
