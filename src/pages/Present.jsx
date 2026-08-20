@@ -2,13 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { subscribeSession } from '../lib/session.js'
 
-function VerseBlock({ block, className }) {
+function VerseBlock({ block, className, hideNumber }) {
   if (!block) return null
   return (
     <div className={className} lang={block.language}>
       {block.verses.map((v) => (
         <span key={v.n}>
-          <span className="present-verse-n">{v.n}</span>
+          {!hideNumber && <span className="present-verse-n">{v.n}</span>}
           {v.text}{' '}
         </span>
       ))}
@@ -73,8 +73,8 @@ function Stage({ state, code }) {
         {!blank && current ? (
           <div className="present-block" ref={blockRef}>
             <div className="present-ref">{current.reference}</div>
-            <VerseBlock block={current.primary} className="present-primary" />
-            <VerseBlock block={current.secondary} className="present-secondary" />
+            <VerseBlock block={current.primary} className="present-primary" hideNumber={current.step} />
+            <VerseBlock block={current.secondary} className="present-secondary" hideNumber={current.step} />
           </div>
         ) : blank ? (
           <div className="present-block" ref={blockRef} />

@@ -412,3 +412,65 @@ select:focus {
   flex: 1;
   min-width: 7rem;
 }
+
+/* ---------- now showing / verse stepping ---------- */
+.nowshowing {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+}
+
+.ns-ref {
+  font-family: var(--serif-latin);
+}
+
+.ns-ref .pos {
+  color: var(--accent);
+  font-weight: 700;
+  font-family: var(--sans);
+}
+
+.verse-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.vchip {
+  min-width: 2rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.vchip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.icon-btn.mode.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.plan-hint {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 5.25rem;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  pointer-events: none;
+  opacity: 0.92;
+}

@@ -3,7 +3,7 @@ import JoinForm from '../components/JoinForm.jsx'
 import { updateSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
-import { resolveCurrent } from '../lib/resolve.js'
+import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount } from '../lib/resolve.js'
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -18,9 +18,10 @@ function Console({ row, creds }) {
   const versions = row.config?.versions || []
   const code = row.code
   const [state, setState] = useState(row.state)
+  // Mirror of the latest state so rapid Next/Back taps read fresh values.
+  const stateRef = useRef(row.state)
   const [presence, setPresence] = useState([])
   const [status, setStatus] = useState('')
-  const channelRef = useRef(null)
 
   // Realtime + presence.
   useEffect(() => {
@@ -31,7 +32,10 @@ function Console({ row, creds }) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'sessions', filter: `code=eq.${code}` },
       (payload) => {
-        if (payload.new?.state) setState(payload.new.state)
+        if (payload.new?.state) {
+          stateRef.current = payload.new.state
+          setState(payload.new.state)
+        }
       }
     )
     channel.on('presence', { event: 'sync' }, () => {
@@ -44,13 +48,14 @@ function Console({ row, creds }) {
         await channel.track({ name: creds.name || 'Guest', at: Date.now() })
       }
     })
-    channelRef.current = channel
     return () => channel.unsubscribe()
   }, [code, creds.name])
 
   // Push a patch to the shared state (server merges shallowly into state).
   async function patchState(patch) {
-    setState((prev) => ({ ...prev, ...patch })) // optimistic
+    const next = { ...stateRef.current, ...patch }
+    stateRef.current = next
+    setState(next)
     try {
       await updateSession(code, creds.pin, { state: patch })
       setStatus('')
@@ -58,6 +63,12 @@ function Console({ row, creds }) {
       setStatus(friendlyError(err))
     }
   }
+
+  const queue = state.queue || []
+  const current = state.current || null
+  const cursor = state.cursor || null // { queueId, verseIndex } | null
+
+  const itemById = (id) => queue.find((q) => q.id === id) || null
 
   // ---- reference input + preview ----
   const [input, setInput] = useState('')
@@ -85,28 +96,149 @@ function Console({ row, creds }) {
     }
   }, [parsed, debounced])
 
-  const queue = state.queue || []
-  const current = state.current || null
+  // Resolve the verses of the item currently being shown, for the jump list.
+  const [curResults, setCurResults] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    const id = cursor?.queueId
+    const item = id ? itemById(id) : null
+    const p = item ? parseReference(item.input) : null
+    if (!p) {
+      setCurResults(null)
+      return
+    }
+    resolveItem(versions, p)
+      .then((r) => !cancelled && setCurResults({ id, results: r }))
+      .catch(() => !cancelled && setCurResults(null))
+    return () => {
+      cancelled = true
+    }
+  }, [cursor?.queueId, queue])
+
+  // ---- boundary hint (this controller only, never touches the presenter) ----
+  const [hint, setHint] = useState('')
+  const hintTimer = useRef(null)
+  function flash(kind) {
+    setHint(kind)
+    clearTimeout(hintTimer.current)
+    hintTimer.current = setTimeout(() => setHint(''), 2500)
+  }
+
+  // ---- showing helpers ----
+  async function showItemAtVerse(item, verseIndex) {
+    const p = parseReference(item.input)
+    if (!p) return setStatus('That queue item could not be read.')
+    try {
+      const results = await resolveItem(versions, p)
+      const c = stepCurrent(results, p, verseIndex)
+      await patchState({ current: c, cursor: { queueId: item.id, verseIndex: c.verseIndex ?? null }, blank: false })
+    } catch (e) {
+      setStatus(e.message)
+    }
+  }
+
+  async function showItemWhole(item) {
+    const p = parseReference(item.input)
+    if (!p) return setStatus('That queue item could not be read.')
+    try {
+      const results = await resolveItem(versions, p)
+      await patchState({ current: wholeCurrent(results), cursor: { queueId: item.id, verseIndex: null }, blank: false })
+    } catch (e) {
+      setStatus(e.message)
+    }
+  }
+
+  function enterItemStart(item) {
+    return item.whole ? showItemWhole(item) : showItemAtVerse(item, 0)
+  }
+
+  async function enterItemEnd(item) {
+    if (item.whole) return showItemWhole(item)
+    const p = parseReference(item.input)
+    if (!p) return setStatus('That queue item could not be read.')
+    try {
+      const results = await resolveItem(versions, p)
+      const last = Math.max(0, verseCount(results) - 1)
+      const c = stepCurrent(results, p, last)
+      await patchState({ current: c, cursor: { queueId: item.id, verseIndex: c.verseIndex ?? null }, blank: false })
+    } catch (e) {
+      setStatus(e.message)
+    }
+  }
+
+  async function countOf(item) {
+    const p = parseReference(item.input)
+    if (!p) return 0
+    try {
+      return verseCount(await resolveItem(versions, p))
+    } catch {
+      return 0
+    }
+  }
 
   async function showNow() {
     if (!parsed) return
-    const c = await resolveCurrent(versions, parsed, -1)
-    patchState({ current: c, blank: false })
+    try {
+      const results = await resolveItem(versions, parsed)
+      await patchState({ current: wholeCurrent(results), cursor: { queueId: null, verseIndex: null }, blank: false })
+    } catch (e) {
+      setStatus(e.message)
+    }
   }
 
+  // ---- Back / Next navigation ----
+  async function goNext() {
+    const st = stateRef.current
+    const q = st.queue || []
+    const cur = st.cursor || null
+    if (!st.current) {
+      if (q.length) return enterItemStart(q[0])
+      return
+    }
+    if (!cur || cur.queueId == null) {
+      if (q.length) return enterItemStart(q[0])
+      return flash('end')
+    }
+    const i = q.findIndex((x) => x.id === cur.queueId)
+    if (i === -1) {
+      if (q.length) return enterItemStart(q[0])
+      return flash('end')
+    }
+    const item = q[i]
+    if (!item.whole && cur.verseIndex != null) {
+      const count = await countOf(item)
+      if (cur.verseIndex < count - 1) return showItemAtVerse(item, cur.verseIndex + 1)
+    }
+    if (i < q.length - 1) return enterItemStart(q[i + 1])
+    return flash('end')
+  }
+
+  async function goBack() {
+    const st = stateRef.current
+    const q = st.queue || []
+    const cur = st.cursor || null
+    if (!st.current || !cur || cur.queueId == null) return flash('start')
+    const i = q.findIndex((x) => x.id === cur.queueId)
+    if (i === -1) return flash('start')
+    const item = q[i]
+    if (!item.whole && cur.verseIndex != null && cur.verseIndex > 0) {
+      return showItemAtVerse(item, cur.verseIndex - 1)
+    }
+    if (i > 0) return enterItemEnd(q[i - 1])
+    return flash('start')
+  }
+
+  function toggleBlank() {
+    patchState({ blank: !state.blank })
+  }
+
+  // ---- queue editing ----
   function addToQueue() {
     if (!parsed) return
-    const item = { id: crypto.randomUUID(), input: debounced.trim(), label: formatLabel(parsed) }
+    const item = { id: crypto.randomUUID(), input: debounced.trim(), label: formatLabel(parsed), whole: false }
     patchState({ queue: [...queue, item] })
     setInput('')
     setPreview(null)
-  }
-
-  async function showItem(item, index) {
-    const p = parseReference(item.input)
-    if (!p) return setStatus('That queue item could not be read.')
-    const c = await resolveCurrent(versions, p, index)
-    patchState({ current: c, blank: false })
   }
 
   function removeItem(id) {
@@ -121,16 +253,13 @@ function Console({ row, creds }) {
     patchState({ queue: next })
   }
 
-  const currentIndex = current?.index ?? -1
-
-  async function step(delta) {
-    const target = currentIndex + delta
-    if (target < 0 || target >= queue.length) return
-    await showItem(queue[target], target)
-  }
-
-  function toggleBlank() {
-    patchState({ blank: !state.blank })
+  async function toggleWhole(item) {
+    const updated = { ...item, whole: !item.whole }
+    await patchState({ queue: queue.map((q) => (q.id === item.id ? updated : q)) })
+    if (cursor?.queueId === item.id) {
+      if (updated.whole) await showItemWhole(updated)
+      else await showItemAtVerse(updated, 0)
+    }
   }
 
   // ---- import / export ----
@@ -139,7 +268,7 @@ function Console({ row, creds }) {
     const data = {
       openlectern: 'queue',
       version: 1,
-      items: queue.map((q) => ({ input: q.input, label: q.label }))
+      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole }))
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -162,7 +291,7 @@ function Console({ row, creds }) {
           .map((it) => {
             const p = parseReference(it.input || it.label || '')
             if (!p) return null
-            return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p) }
+            return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p), whole: !!it.whole }
           })
           .filter(Boolean)
         if (!items.length) return setStatus('No readable references in that file.')
@@ -173,6 +302,12 @@ function Console({ row, creds }) {
     }
     reader.readAsText(file)
   }
+
+  // ---- derived UI bits ----
+  const activeItem = cursor?.queueId ? itemById(cursor.queueId) : null
+  const stepping = activeItem && !activeItem.whole && cursor?.verseIndex != null
+  const stepResults = curResults && curResults.id === cursor?.queueId ? curResults.results : null
+  const stepTotal = stepResults ? verseCount(stepResults) : 0
 
   return (
     <div className="control">
@@ -241,18 +376,50 @@ function Console({ row, creds }) {
           </div>
         </div>
 
+        {current && (
+          <div className="nowshowing">
+            <div className="ns-ref">
+              Now showing: <strong>{current.reference}</strong>
+              {stepping && stepTotal ? <span className="pos"> {cursor.verseIndex + 1} / {stepTotal}</span> : null}
+            </div>
+            {stepping && stepResults && (
+              <div className="verse-chips">
+                {stepResults[0].verses.map((v, k) => (
+                  <button
+                    key={v.n}
+                    className={`vchip${k === cursor.verseIndex ? ' on' : ''}`}
+                    onClick={() => showItemAtVerse(activeItem, k)}
+                  >
+                    {v.n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <div className="section-title">Queue ({queue.length})</div>
           <div className="queue">
-            {queue.map((item, i) => (
-              <div className={`queue-item${i === currentIndex ? ' active' : ''}`} key={item.id}>
-                <button className="icon-btn" title="Move up" onClick={() => move(i, -1)}>up</button>
-                <button className="icon-btn" title="Move down" onClick={() => move(i, 1)}>dn</button>
-                <span className="label">{item.label}</span>
-                <button className="icon-btn" onClick={() => showItem(item, i)}>Show</button>
-                <button className="icon-btn" onClick={() => removeItem(item.id)}>x</button>
-              </div>
-            ))}
+            {queue.map((item, i) => {
+              const active = cursor?.queueId === item.id
+              return (
+                <div className={`queue-item${active ? ' active' : ''}`} key={item.id}>
+                  <button className="icon-btn" title="Move up" onClick={() => move(i, -1)}>up</button>
+                  <button className="icon-btn" title="Move down" onClick={() => move(i, 1)}>dn</button>
+                  <span className="label">{item.label}</span>
+                  <button
+                    className={`icon-btn mode${item.whole ? '' : ' on'}`}
+                    title={item.whole ? 'Showing whole passage' : 'Stepping verse by verse'}
+                    onClick={() => toggleWhole(item)}
+                  >
+                    {item.whole ? 'Whole' : 'Step'}
+                  </button>
+                  <button className="icon-btn" onClick={() => enterItemStart(item)}>Show</button>
+                  <button className="icon-btn" onClick={() => removeItem(item.id)}>x</button>
+                </div>
+              )
+            })}
             {!queue.length && <p className="muted">Nothing queued yet.</p>}
           </div>
           <div className="toolbar" style={{ marginTop: '0.6rem' }}>
@@ -269,18 +436,16 @@ function Console({ row, creds }) {
         </div>
       </div>
 
+      {hint && (
+        <div className="plan-hint">{hint === 'end' ? 'End of plan' : 'Start of plan'}</div>
+      )}
+
       <div className="bottom-bar">
-        <button className="btn" onClick={() => step(-1)} disabled={currentIndex <= 0}>Back</button>
+        <button className="btn" onClick={goBack}>Back</button>
         <button className={`btn blank${state.blank ? ' on' : ''}`} onClick={toggleBlank}>
           {state.blank ? 'Unblank' : 'Blank'}
         </button>
-        <button
-          className="btn"
-          onClick={() => step(1)}
-          disabled={currentIndex >= queue.length - 1 || !queue.length}
-        >
-          Next
-        </button>
+        <button className="btn" onClick={goNext}>Next</button>
       </div>
     </div>
   )

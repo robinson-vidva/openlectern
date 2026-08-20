@@ -69,11 +69,21 @@ no accounts, no installs. MIT license.
 ## Data shapes
 
 - config = { versions: [{ id, name, language, helloaoId }] } (1 or 2 entries).
-- state.current = { id, index, reference, primary, secondary }, where each of
-  primary/secondary is { versionId, language, reference, verses: [{ n, text }] }.
-  index is the queue position being shown, or -1 for an ad-hoc "Show now".
-- state.queue = [{ id, input, label }]. state.blank = boolean.
-- Back/Next step the shown item through the queue by index; Blank toggles.
+- state.current = { id, step, reference, primary, secondary }, where primary/
+  secondary is { language, verses: [{ n, text }] }. In step mode `step` is true,
+  `verses` holds a single verse, and `reference` includes the verse number
+  (e.g. "Psalm 23:4"). The presenter renders `current` verbatim; it needs no
+  knowledge of stepping.
+- state.queue = [{ id, input, label, whole }]. `whole` false (default) = step
+  verse-by-verse; true = show the whole passage as one screen.
+- state.cursor = { queueId, verseIndex } marks what is being shown. queueId null
+  = an ad-hoc "Show now" (not from the queue); verseIndex null = whole passage.
+  Older sessions may lack cursor/whole/step; all readers default them safely.
+- state.blank = boolean.
+- Back/Next step verse-by-verse within an item, then cross item boundaries
+  (Next past the last verse -> next item's start; Back before the first verse ->
+  previous item's end). At the plan's ends they only flash a controller-only
+  "End/Start of plan" hint and never change the presenter by surprise.
 
 ## Notable decisions
 
@@ -95,12 +105,20 @@ no accounts, no installs. MIT license.
   by design (a no-auth, PIN-guarded public API). Internal helpers
   (cleanup_expired_sessions, session_public) have EXECUTE revoked from clients.
 
+## Shipped after v1
+
+- Verse-by-verse stepping inside a passage (STEP is the default; per-item
+  "whole passage" toggle). Controller shows a "n / total" indicator and a
+  tappable verse list to jump directly. Presenter shows the single current verse
+  in both languages. See Data shapes (cursor) above.
+
 ## Parked for later (do not build now)
 
+- Themes (NEXT planned item: presenter background + type-size options synced
+  from the controller).
 - Voice mode (Web Speech API; suggestions tap-to-show before any auto mode).
-- Verse-by-verse stepping inside a passage.
+  Note: needs a secure context (https), which is already satisfied via Cloudflare.
 - Named/saved service plans.
-- Themes.
 - Accounts via linking anonymous auth to email.
 - Stage display.
 - OBS overlay route.
