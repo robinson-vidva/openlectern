@@ -41,7 +41,11 @@ export function useVoice({ versions, defaultLang, onShow }) {
   async function ensureIndex() {
     if (indexRef.current) return indexRef.current
     const primary = versions[0]
-    const structure = (await loadStructure(primary.id)) || {}
+    // Detection validates against the primary version's structure. If a
+    // switched-to (e.g. online) version has no local structure, degrade to the
+    // bundled WEB structure -- best available, never the wrong version silently.
+    let structure = primary ? await loadStructure(primary.id) : null
+    if (!structure || !Object.keys(structure).length) structure = (await loadStructure('eng-web')) || {}
     let tamilNames
     const tamil = versions.find((v) => v.language === 'ta')
     if (tamil) {
@@ -51,6 +55,13 @@ export function useVoice({ versions, defaultLang, onShow }) {
     indexRef.current = buildBookIndex(structure, tamilNames)
     return indexRef.current
   }
+
+  // Rebuild the book index when the active translations change.
+  const versionsKey = versions.map((v) => v.id).join(',')
+  useEffect(() => {
+    indexRef.current = null
+    if (runningRef.current) ensureIndex()
+  }, [versionsKey])
 
   async function requestWake() {
     try {

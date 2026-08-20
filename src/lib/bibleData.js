@@ -38,6 +38,26 @@ export async function loadIndex(versionId) {
   return res.json()
 }
 
+// Translations available only via the HelloAO API (network-dependent). Marked
+// online so the picker can flag them.
+export async function loadHelloaoList() {
+  try {
+    const res = await fetch(`${HELLOAO}/available_translations.json`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.translations || []).map((t) => ({
+      id: t.id,
+      name: t.englishName || t.name || t.id,
+      language: (t.language || 'xx').slice(0, 2),
+      languageName: t.languageEnglishName || '',
+      helloaoId: t.id,
+      online: true
+    }))
+  } catch {
+    return []
+  }
+}
+
 // Fallback: fetch one chapter from HelloAO and adapt it to our shape.
 // HelloAO chapter endpoint returns { chapter: { content: [ { type:'verse', number, content:[...] }, ... ] } }.
 async function loadHelloaoChapter(helloaoId, bookId, chapter) {

@@ -8,7 +8,7 @@ import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
 import { pageOfVerse } from '../lib/paginate.js'
-import { loadStructure } from '../lib/bibleData.js'
+import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
 
 function useDebounced(value, ms) {
@@ -21,8 +21,9 @@ function useDebounced(value, ms) {
 }
 
 function Console({ row, creds }) {
-  const versions = row.config?.versions || []
   const code = row.code
+  const [config, setConfig] = useState(row.config || {})
+  const versions = config?.versions || []
   const [state, setState] = useState(row.state)
   // Mirror of the latest state so rapid Next/Back taps read fresh values.
   const stateRef = useRef(row.state)
@@ -55,6 +56,7 @@ function Console({ row, creds }) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'sessions', filter: `code=eq.${code}` },
       (payload) => {
+        if (payload.new?.config) setConfig(payload.new.config)
         const incoming = payload.new?.state
         if (!incoming) return
         // Ignore our own stale echo arriving after a newer optimistic write.
@@ -92,6 +94,43 @@ function Console({ row, creds }) {
     }
   }
 
+  // Change the session translations (syncs to all) and re-resolve the shown
+  // verse in place. On failure keep the old text and surface an error; never
+  // blank the presenter over a translation switch.
+  async function patchConfig(newConfig) {
+    const prev = config
+    setConfig(newConfig)
+    try {
+      await updateSession(code, creds.pin, { config: newConfig })
+    } catch (err) {
+      setConfig(prev)
+      return setStatus(friendlyError(err))
+    }
+    await reresolveCurrent(newConfig.versions)
+  }
+
+  async function reresolveCurrent(newVersions) {
+    const c = stateRef.current.current
+    if (!c) return
+    const rf = c.ref || parseReference(c.reference)
+    if (!rf) return
+    try {
+      const results = await resolveItem(newVersions, rf)
+      let next
+      if (c.step) {
+        next = stepCurrent(results, rf, 0)
+      } else {
+        next = wholeCurrent(results, rf)
+        const oldPages = passagePages(c)
+        const firstIdx = oldPages[Math.min(c.page || 0, oldPages.length - 1)]?.[0] ?? 0
+        next.page = pageOfVerse(passagePages(next), firstIdx)
+      }
+      await patchState({ current: next })
+    } catch {
+      setStatus('That translation would not load (check the network); keeping the current text.')
+    }
+  }
+
   const queue = state.queue || []
   const current = state.current || null
   const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
@@ -104,6 +143,40 @@ function Console({ row, creds }) {
     defaultLang: versions[0]?.language === 'ta' ? 'ta-IN' : 'en-US',
     onShow: showDetected
   })
+
+  // ---- available translations for the Display pickers ----
+  const [allVersions, setAllVersions] = useState([])
+  useEffect(() => {
+    let cancel = false
+    Promise.all([loadManifest().catch(() => ({ versions: [] })), loadHelloaoList()]).then(([m, online]) => {
+      if (cancel) return
+      const bundled = (m.versions || []).map((v) => ({ ...v, online: false }))
+      const ids = new Set(bundled.map((v) => v.id))
+      setAllVersions([...bundled, ...online.filter((v) => !ids.has(v.id))])
+    })
+    return () => {
+      cancel = true
+    }
+  }, [])
+  const bundledVersions = allVersions.filter((v) => !v.online)
+  const onlineVersions = allVersions.filter((v) => v.online)
+  const versionObj = (id) => {
+    const v = allVersions.find((x) => x.id === id)
+    return v ? { id: v.id, name: v.name, language: v.language, helloaoId: v.helloaoId || null } : null
+  }
+  function setPrimary(id) {
+    const pv = versionObj(id)
+    if (!pv) return
+    const sec = versions[1] || null
+    patchConfig({ ...config, versions: sec ? [pv, sec] : [pv] })
+  }
+  function setSecondary(id) {
+    const pri = versions[0]
+    if (!pri) return
+    if (id === 'none') return patchConfig({ ...config, versions: [pri] })
+    const sv = versionObj(id)
+    patchConfig({ ...config, versions: sv ? [pri, sv] : [pri] })
+  }
 
   // ---- presenter display (theme + font size), synced to all ----
   const display = state.display || {}
@@ -178,7 +251,7 @@ function Console({ row, creds }) {
     return () => {
       cancelled = true
     }
-  }, [cursor?.queueId, queue])
+  }, [cursor?.queueId, queue, versions])
 
   // ---- boundary hint (this controller only, never touches the presenter) ----
   const [hint, setHint] = useState('')
@@ -217,7 +290,7 @@ function Console({ row, creds }) {
     if (!p) return setStatus('That queue item could not be read.')
     try {
       const results = await resolveItem(versions, p)
-      await commitShow(wholeCurrent(results), { queueId: item.id, verseIndex: null }, 'queue')
+      await commitShow(wholeCurrent(results, p), { queueId: item.id, verseIndex: null }, 'queue')
     } catch (e) {
       setStatus(e.message)
     }
@@ -233,7 +306,7 @@ function Console({ row, creds }) {
       if (!p) return setStatus('That queue item could not be read.')
       try {
         const results = await resolveItem(versions, p)
-        const c = wholeCurrent(results)
+        const c = wholeCurrent(results, p)
         c.page = Math.max(0, (c.pageCount || 1) - 1)
         return commitShow(c, { queueId: item.id, verseIndex: null }, 'queue')
       } catch (e) {
@@ -282,7 +355,7 @@ function Console({ row, creds }) {
         adhoc: { bookId: ref.bookId, chapter: ref.chapter, first, last, count },
         savedPlan
       }
-      await commitShow(wholeCurrent(results), cursorNext, source)
+      await commitShow(wholeCurrent(results, ref), cursorNext, source)
     } catch (e) {
       setStatus(e.message)
     }
@@ -763,7 +836,44 @@ function Console({ row, creds }) {
 
           {tab === 'display' && (
             <div id="panel-display" role="tabpanel" aria-labelledby="tab-display">
-              <div className="section-title">Presenter theme</div>
+              <div className="section-title">Translations</div>
+              <div className="field" style={{ margin: 0 }}>
+                <label htmlFor="primary-v">Primary</label>
+                <select id="primary-v" value={versions[0]?.id || ''} onChange={(e) => setPrimary(e.target.value)}>
+                  <optgroup label="Bundled">
+                    {bundledVersions.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </optgroup>
+                  {onlineVersions.length > 0 && (
+                    <optgroup label="Online (needs internet)">
+                      {onlineVersions.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} ({v.languageName || v.language})</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+              <div className="field" style={{ marginTop: '0.6rem' }}>
+                <label htmlFor="secondary-v">Secondary</label>
+                <select id="secondary-v" value={versions[1]?.id || 'none'} onChange={(e) => setSecondary(e.target.value)}>
+                  <option value="none">None</option>
+                  <optgroup label="Bundled">
+                    {bundledVersions.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </optgroup>
+                  {onlineVersions.length > 0 && (
+                    <optgroup label="Online (needs internet)">
+                      {onlineVersions.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name} ({v.languageName || v.language})</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <div className="section-title" style={{ marginTop: '0.9rem' }}>Presenter theme</div>
               <div className="theme-swatches">
                 {['light', 'sepia', 'dark', 'contrast'].map((t) => (
                   <button

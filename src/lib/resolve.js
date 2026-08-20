@@ -28,15 +28,28 @@ export function verseCount(results) {
   return results[0]?.verses.length || 0
 }
 
+// Structured reference stored on `current` so shown text can be re-resolved
+// against new translations without parsing a (possibly non-English) display ref.
+function refOf(parsed) {
+  if (!parsed) return undefined
+  return {
+    bookId: parsed.bookId,
+    chapter: parsed.chapter,
+    verseStart: parsed.verseStart ?? null,
+    verseEnd: parsed.verseEnd ?? null
+  }
+}
+
 // Whole-passage display object for the presenter, with pagination metadata so
 // long passages page instead of shrinking past the legibility floor.
-export function wholeCurrent(results) {
+export function wholeCurrent(results, parsed) {
   const p = results[0]
   const s = results[1] || null
   const cur = {
     id: crypto.randomUUID(),
     step: false,
     reference: p.reference,
+    ref: refOf(parsed),
     primary: { language: p.version.language, verses: p.verses },
     secondary: s ? { language: s.version.language, verses: s.verses } : null
   }
@@ -59,6 +72,7 @@ export function stepCurrent(results, parsed, verseIndex) {
     verseIndex,
     verseNumber: pv.n,
     reference: `${p.bookName} ${parsed.chapter}:${pv.n}`,
+    ref: { bookId: parsed.bookId, chapter: parsed.chapter, verseStart: pv.n, verseEnd: pv.n },
     primary: { language: p.version.language, verses: [pv] },
     secondary: s ? { language: s.version.language, verses: sv ? [sv] : [] } : null
   }
@@ -67,5 +81,5 @@ export function stepCurrent(results, parsed, verseIndex) {
 // Whole-passage current, used by the controller live preview.
 export async function resolveCurrent(versions, parsed) {
   const results = await resolveItem(versions, parsed)
-  return wholeCurrent(results)
+  return wholeCurrent(results, parsed)
 }
