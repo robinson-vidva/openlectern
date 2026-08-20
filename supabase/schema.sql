@@ -54,6 +54,7 @@ create or replace function public.session_public(s public.sessions)
 returns jsonb
 language sql
 immutable
+set search_path = public
 as $$
   select jsonb_build_object(
     'code', s.code,
@@ -164,6 +165,10 @@ begin
   return public.session_public(s);
 end;
 $$;
+
+-- Internal helpers must not be callable via the REST API.
+revoke all on function public.cleanup_expired_sessions() from public, anon, authenticated;
+revoke all on function public.session_public(public.sessions) from public, anon, authenticated;
 
 -- Only the three RPCs are callable by clients.
 revoke all on function public.create_session(text, jsonb) from public;
