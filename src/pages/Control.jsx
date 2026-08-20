@@ -5,6 +5,7 @@ import { updateSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount } from '../lib/resolve.js'
+import { loadStructure } from '../lib/bibleData.js'
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -67,9 +68,21 @@ function Console({ row, creds }) {
 
   const queue = state.queue || []
   const current = state.current || null
-  const cursor = state.cursor || null // { queueId, verseIndex } | null
+  const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
 
   const itemById = (id) => queue.find((q) => q.id === id) || null
+
+  // Per-chapter verse counts for the primary version, for ad-hoc stepping bounds.
+  const structureRef = useRef(null)
+  useEffect(() => {
+    loadStructure(versions[0]?.id)
+      .then((s) => (structureRef.current = s || {}))
+      .catch(() => (structureRef.current = {}))
+  }, [])
+  function chapterCount(bookId, chapter) {
+    const s = structureRef.current
+    return s && s[bookId] ? s[bookId][chapter - 1] || 0 : 0
+  }
 
   // ---- reference input + preview ----
   const [input, setInput] = useState('')
@@ -177,27 +190,75 @@ function Console({ row, creds }) {
     }
   }
 
-  async function showNow() {
-    if (!parsed) return
+  // Ad-hoc show (Show now / voice). Sets an ad-hoc cursor so Back/Next continue
+  // stepping through the chapter, and preserves any active plan position so the
+  // operator can return to it.
+  async function showAdhoc(ref, source) {
     try {
-      const results = await resolveItem(versions, parsed)
-      await patchState({ current: wholeCurrent(results), cursor: { queueId: null, verseIndex: null }, blank: false })
+      const results = await resolveItem(versions, ref)
+      const cur = stateRef.current.cursor || null
+      const savedPlan =
+        cur && cur.queueId != null
+          ? { queueId: cur.queueId, verseIndex: cur.verseIndex ?? null }
+          : cur?.savedPlan || null
+      const count = chapterCount(ref.bookId, ref.chapter) || verseCount(results)
+      const first = ref.verseStart || 1
+      const last = ref.verseEnd || ref.verseStart || count
+      const cursorNext = {
+        queueId: null,
+        verseIndex: null,
+        adhoc: { bookId: ref.bookId, chapter: ref.chapter, first, last, count },
+        savedPlan
+      }
+      await patchState({ current: wholeCurrent(results), cursor: cursorNext, blank: false })
     } catch (e) {
       setStatus(e.message)
     }
   }
 
-  // Show a reference detected by voice (same ad-hoc path as Show now).
-  // A single-verse detection has verseEnd null; getPassage treats that as
-  // "to end of chapter", so pin verseEnd to verseStart first.
-  async function showDetected(cand) {
-    const ref = { ...cand, verseEnd: cand.verseStart != null && cand.verseEnd == null ? cand.verseStart : cand.verseEnd }
+  function showNow() {
+    if (!parsed) return
+    return showAdhoc(parsed, 'manual')
+  }
+
+  // Show a reference detected by voice. A single-verse detection has verseEnd
+  // null; getPassage treats that as "to end of chapter", so pin it first.
+  function showDetected(cand, source = 'voice') {
+    const ref = {
+      bookId: cand.bookId,
+      bookName: cand.bookName,
+      chapter: cand.chapter,
+      verseStart: cand.verseStart,
+      verseEnd: cand.verseStart != null && cand.verseEnd == null ? cand.verseStart : cand.verseEnd
+    }
+    return showAdhoc(ref, source)
+  }
+
+  // Step to a single verse within an ad-hoc chapter, keeping the saved plan.
+  async function showAdhocVerse(adhoc, verse) {
+    const ref = { bookId: adhoc.bookId, chapter: adhoc.chapter, verseStart: verse, verseEnd: verse }
     try {
       const results = await resolveItem(versions, ref)
-      await patchState({ current: wholeCurrent(results), cursor: { queueId: null, verseIndex: null }, blank: false })
+      const c = stepCurrent(results, ref, 0)
+      const cursorNext = {
+        queueId: null,
+        verseIndex: null,
+        adhoc: { ...adhoc, first: verse, last: verse },
+        savedPlan: stateRef.current.cursor?.savedPlan || null
+      }
+      await patchState({ current: c, cursor: cursorNext, blank: false })
     } catch (e) {
       setStatus(e.message)
     }
+  }
+
+  async function backToPlan() {
+    const saved = stateRef.current.cursor?.savedPlan
+    if (!saved) return
+    const item = itemById(saved.queueId)
+    if (!item) return setStatus('That plan item is no longer in the queue.')
+    if (saved.verseIndex != null) await showItemAtVerse(item, saved.verseIndex)
+    else await showItemWhole(item)
   }
 
   // ---- Back / Next navigation ----
@@ -205,6 +266,13 @@ function Console({ row, creds }) {
     const st = stateRef.current
     const q = st.queue || []
     const cur = st.cursor || null
+    // Ad-hoc stepping: continue through the chapter.
+    if (cur && cur.adhoc) {
+      const a = cur.adhoc
+      const cnt = chapterCount(a.bookId, a.chapter) || a.count
+      if (a.last + 1 <= cnt) return showAdhocVerse({ ...a, count: cnt }, a.last + 1)
+      return flash('chapter-end')
+    }
     if (!st.current) {
       if (q.length) return enterItemStart(q[0])
       return
@@ -231,6 +299,11 @@ function Console({ row, creds }) {
     const st = stateRef.current
     const q = st.queue || []
     const cur = st.cursor || null
+    if (cur && cur.adhoc) {
+      const a = cur.adhoc
+      if (a.first - 1 >= 1) return showAdhocVerse(a, a.first - 1)
+      return flash('chapter-start')
+    }
     if (!st.current || !cur || cur.queueId == null) return flash('start')
     const i = q.findIndex((x) => x.id === cur.queueId)
     if (i === -1) return flash('start')
@@ -402,6 +475,14 @@ function Console({ row, creds }) {
               Now showing: <strong>{current.reference}</strong>
               {stepping && stepTotal ? <span className="pos"> {cursor.verseIndex + 1} / {stepTotal}</span> : null}
             </div>
+            {cursor?.adhoc && (
+              <div className="ns-note">
+                <span className="muted">Next continues through this chapter.</span>
+                {cursor.savedPlan && (
+                  <button className="btn small" onClick={backToPlan}>Back to plan</button>
+                )}
+              </div>
+            )}
             {stepping && stepResults && (
               <div className="verse-chips">
                 {stepResults[0].verses.map((v, k) => (
@@ -457,7 +538,15 @@ function Console({ row, creds }) {
       </div>
 
       {hint && (
-        <div className="plan-hint">{hint === 'end' ? 'End of plan' : 'Start of plan'}</div>
+        <div className="plan-hint">
+          {hint === 'end'
+            ? 'End of plan'
+            : hint === 'start'
+              ? 'Start of plan'
+              : hint === 'chapter-end'
+                ? 'End of chapter'
+                : 'Start of chapter'}
+        </div>
       )}
 
       <div className="bottom-bar">
