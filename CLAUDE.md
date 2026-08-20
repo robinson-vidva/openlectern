@@ -147,10 +147,9 @@ no accounts, no installs. MIT license.
   in both languages. See Data shapes (cursor) above.
 - Continue stepping from an ad-hoc shown verse (Show now / voice): Back/Next keep
   moving through the chapter; a "Back to plan" button restores the queue position.
-  PENDING QUESTION for Robinson: he asked for "a way to move a displayed verse up
-  or down"; this was built as continue-stepping. Confirm he did NOT also mean
-  physically nudging the text's position on the presenter screen -- if he did,
-  that is a separate small follow-up (do not build unprompted).
+  ("Move a displayed verse up/down" = this continue-stepping. Robinson confirmed
+  no on-screen text-position nudging; only revisit if real usage shows text
+  sitting awkwardly.)
 - Sharing: session-ready screen opens the presenter in a new tab and offers
   Copy presenter/controller link buttons (?s=CODE, PIN never in a URL); presenter
   is view-only (see Notable decisions).
