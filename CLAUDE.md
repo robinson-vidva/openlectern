@@ -179,6 +179,54 @@ no accounts, no installs. MIT license.
   vitest run in the Tests CI workflow. Single-verse detections carry verseEnd
   null and must be normalized to verseEnd=verseStart before getPassage (which
   treats null as "to end of chapter").
+- Live translation switching (Display tab): Primary + Secondary pickers (Secondary
+  has "None"). Bundled versions are instant; HelloAO-only versions are marked
+  "Online (needs internet)". Changing them writes config via the normal
+  update_session path (no schema change) and fans out to every client, which
+  re-resolves the SHOWN reference against the new translations in place: same verse
+  in step mode, same page in whole mode (repaginate, then map the current verse to
+  its new page). Secondary -> None reflows to single language. `current` stores a
+  structured `ref` { bookId, chapter, verseStart, verseEnd } so re-resolution never
+  depends on parsing a possibly-non-English `reference` string. Voice detection
+  follows the active translations (book-index rebuilds on version change; Tamil
+  names from the translation index); if a switched-to version has no local
+  structure it degrades to bundled WEB structure, never the wrong version silently.
+- PIN reveal + one-time invite (session panel). The server only ever stores a
+  bcrypt hash and can never return the PIN, so recovery only flows FROM a device
+  that already knows it. "Show session PIN" reads the PIN from sessionStorage (no
+  network). "Invite device" mints a single-use 6-digit code (60s countdown); the
+  new device chooses "Join with an invite code", enters session code + invite code,
+  and an ephemeral realtime handshake delivers the PIN: requester broadcasts a
+  proof = sha256(inviteCode:nonce) + nonce; the inviting controller verifies the
+  proof against its live invite, then returns the PIN AES-GCM-encrypted under a key
+  derived (PBKDF2) from inviteCode + nonce; the requester decrypts and joins as a
+  normal controller. Threat model: the invite code is the shared secret and never
+  travels in the clear; the PIN is never broadcast in plaintext and never in a URL;
+  the invite is single-use, expires in 60s, and any attempt (right or wrong) burns
+  it. All crypto is Web Crypto in src/lib/crypto.js (+ src/lib/invite.js), unit-
+  tested (derive/encrypt/decrypt roundtrip, wrong-code failure, expiry). No schema
+  change: the handshake rides the existing broadcast channel.
+- Listener mode (split voice roles). A "Listener mode" toggle turns a controller
+  into a dedicated listener: mic on, wake lock, a simplified near-fullscreen view
+  (big mic status, live transcript, plug-in reminder, exit button) meant to sit
+  face-up at the pulpit. Detected suggestions from ANY listening device broadcast
+  as ephemeral SIGNED events on the session channel (HMAC key = 'pin:' + PIN, so
+  only PIN holders can forge/verify; never written to the table). Every controller
+  renders the shared chip in the existing chip slot, labeled with the source
+  device's name; cross-device dedupe collapses the same ref within ~10s to one
+  chip (recentRef map). Tapping shows via the normal path (logged to history).
+  Listener health is first-class: a `listening` flag in presence metadata lets
+  other controllers show "Listening: <name>" and a banner when a listener drops.
+  Auto mode on a listener behaves exactly like local auto. Pure parts (cross-device
+  chip dedupe, presence -> health mapping in src/lib/listener.js) are unit-tested.
+  No schema change: broadcast + presence only.
+- Tamil recognition-language fix: switching the voice recognition language while
+  the mic was running recreated SpeechRecognition before the old session released,
+  so Chrome threw on .start() and the swallowed error silently killed transcription.
+  Now the new recognition starts only after the old session's onend fires, and a
+  language-not-supported error surfaces as a clear operator message instead of a
+  dead mic. AWAITS real-mic verification on Chrome (headless mic could not
+  reproduce the exact field failure).
 
 ## Parked for later (do not build now)
 
