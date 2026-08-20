@@ -35,10 +35,12 @@ function Console({ row, creds }) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'sessions', filter: `code=eq.${code}` },
       (payload) => {
-        if (payload.new?.state) {
-          stateRef.current = payload.new.state
-          setState(payload.new.state)
-        }
+        const incoming = payload.new?.state
+        if (!incoming) return
+        // Ignore our own stale echo arriving after a newer optimistic write.
+        if ((incoming.rev || 0) < (stateRef.current.rev || 0)) return
+        stateRef.current = incoming
+        setState(incoming)
       }
     )
     channel.on('presence', { event: 'sync' }, () => {
@@ -55,12 +57,14 @@ function Console({ row, creds }) {
   }, [code, creds.name])
 
   // Push a patch to the shared state (server merges shallowly into state).
+  // A monotonic `rev` lets every client discard stale realtime echoes.
   async function patchState(patch) {
-    const next = { ...stateRef.current, ...patch }
+    const fullPatch = { ...patch, rev: (stateRef.current.rev || 0) + 1 }
+    const next = { ...stateRef.current, ...fullPatch }
     stateRef.current = next
     setState(next)
     try {
-      await updateSession(code, creds.pin, { state: patch })
+      await updateSession(code, creds.pin, { state: fullPatch })
       setStatus('')
     } catch (err) {
       setStatus(friendlyError(err))
@@ -77,12 +81,16 @@ function Console({ row, creds }) {
   const display = state.display || {}
   const theme = display.theme || 'light'
   const fontScale = display.fontScale || 100
+  // Read the freshest display from stateRef so rapid theme/font taps never
+  // clobber each other with stale closure values.
   function setTheme(t) {
-    patchState({ display: { theme: t, fontScale } })
+    const d = stateRef.current.display || {}
+    patchState({ display: { theme: t, fontScale: d.fontScale || 100 } })
   }
-  function nudgeFont(d) {
-    const v = Math.max(80, Math.min(140, fontScale + d))
-    patchState({ display: { theme, fontScale: v } })
+  function nudgeFont(delta) {
+    const d = stateRef.current.display || {}
+    const v = Math.max(80, Math.min(140, (d.fontScale || 100) + delta))
+    patchState({ display: { theme: d.theme || 'light', fontScale: v } })
   }
 
   const itemById = (id) => queue.find((q) => q.id === id) || null

@@ -105,12 +105,20 @@ export default function Present({ params }) {
   const [row, setRow] = useState(null)
   const [state, setState] = useState(null)
   const codeRef = useRef('')
+  const revRef = useRef(-1)
 
   useEffect(() => {
     if (!row) return
     codeRef.current = row.code
+    revRef.current = row.state?.rev || 0
     setState(row.state)
-    const channel = subscribeSession(row.code, (newRow) => setState(newRow.state))
+    const channel = subscribeSession(row.code, (newRow) => {
+      const incoming = newRow.state
+      if (!incoming) return
+      if ((incoming.rev || 0) < revRef.current) return
+      revRef.current = incoming.rev || 0
+      setState(incoming)
+    })
     channel.subscribe()
     return () => channel.unsubscribe()
   }, [row])
