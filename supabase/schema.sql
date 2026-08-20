@@ -30,7 +30,14 @@ grant select (code, config, state, admins, created_at, expires_at)
   on public.sessions to anon, authenticated;
 
 -- Realtime: broadcast row changes to presenter + all controllers.
-alter publication supabase_realtime add table public.sessions;
+-- Idempotent: skip if the table is already in the publication.
+do $$
+begin
+  alter publication supabase_realtime add table public.sessions;
+exception
+  when duplicate_object then null;
+end
+$$;
 
 -- Opportunistic cleanup of expired sessions. Called from the write functions.
 create or replace function public.cleanup_expired_sessions()
