@@ -36,6 +36,22 @@ button {
   cursor: pointer;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 /* ---------- shared form controls ---------- */
 .field {
   display: flex;
@@ -291,35 +307,106 @@ select:focus {
 /* ---------- controller ---------- */
 .control {
   min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
   display: flex;
   flex-direction: column;
-  padding-bottom: 5.5rem; /* room for fixed bottom bar */
 }
 
-.control-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.8rem 1rem;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+/* status bar (sticky, thin) */
+.statusbar {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 6;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }
 
-.control-head .code {
+.statusbar-main {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  min-height: 44px;
+}
+
+.sb-code {
   font-weight: 700;
   letter-spacing: 0.12em;
 }
 
-.presence {
+.sb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.sb-live .live-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.sb-live.on .live-dot {
+  background: #4bbf7b;
+}
+
+.sb-admins {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin-left: auto;
+}
+
+.sb-caret {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--ink-soft);
+  transition: transform 0.15s ease;
+}
+
+.sb-caret.open {
+  transform: rotate(180deg);
+}
+
+.session-panel {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.sp-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sp-row .btn {
+  flex: 1;
+  min-width: 9rem;
+}
+
+.sp-admins {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.8rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.link-btn.danger {
+  color: var(--danger);
 }
 
 .chip {
@@ -329,11 +416,139 @@ select:focus {
   padding: 0.15rem 0.6rem;
 }
 
-.control-main {
-  padding: 1rem;
+/* scroll area between status bar and transport */
+.control-scroll {
+  flex: 1;
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.9rem 1rem;
+  padding-bottom: 5.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.9rem;
+}
+
+.statusbar-main {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.control-status {
+  margin: 0;
+}
+
+/* NOW card */
+.now-card {
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+}
+
+.now-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.now-ref {
+  font-family: var(--serif-latin);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.now-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.now-pos {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-pill {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  color: var(--ink-soft);
+}
+
+.mode-pill.mp-voice,
+.mode-pill.mp-auto {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.now-line {
+  font-family: var(--serif-latin);
+  color: var(--ink-soft);
+  margin-top: 0.4rem;
+  line-height: 1.35;
+}
+
+.now-blank,
+.now-empty {
+  font-family: var(--serif-latin);
+  font-style: italic;
+  color: var(--ink-soft);
+  text-align: center;
+  padding: 0.4rem 0;
+}
+
+.now-blank {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.back-to-plan {
+  margin-top: 0.6rem;
+}
+
+.scroll-x {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+/* segmented tabs */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.2rem;
+}
+
+.tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  padding: 0.55rem 0.4rem;
+  border-radius: 8px;
+  font-weight: 600;
+  min-height: 40px;
+}
+
+.tab.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
 }
 
 .preview {
@@ -399,26 +614,55 @@ select:focus {
   line-height: 1;
 }
 
-.bottom-bar {
+/* voice suggestion chips: persistent slot just above the transport bar */
+.chip-slot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  z-index: 7;
+  padding: 0 0.6rem;
+  pointer-events: none;
+}
+
+.chip-slot .voice-chips {
+  max-width: 32rem;
+  margin: 0 auto;
+  pointer-events: auto;
+}
+
+.chip-slot .voice-chip {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+/* transport bar (fixed bottom): Back / Blank / Next, Next weighted */
+.transport {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 8;
   display: flex;
   gap: 0.5rem;
-  padding: 0.6rem;
-  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
+  padding: 0.55rem 0.6rem;
+  padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
   background: var(--panel);
   border-top: 1px solid var(--line);
 }
 
-.bottom-bar .btn {
+.transport-btn {
   flex: 1;
-  padding: 1rem 0.5rem;
+  min-height: 48px;
   font-size: 1.05rem;
+  font-weight: 600;
 }
 
-.bottom-bar .btn.blank.on {
+.transport-btn.next {
+  flex: 1.7;
+  font-size: 1.15rem;
+}
+
+.transport-btn.blank.on {
   background: var(--ink);
   color: var(--bg);
   border-color: var(--ink);

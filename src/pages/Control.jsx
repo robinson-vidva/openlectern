@@ -27,6 +27,23 @@ function Console({ row, creds }) {
   const stateRef = useRef(row.state)
   const [presence, setPresence] = useState([])
   const [status, setStatus] = useState('')
+  const [connected, setConnected] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [copied, setCopied] = useState('')
+  const [tab, setTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('ol-tab') || 'go'
+    } catch {
+      return 'go'
+    }
+  })
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ol-tab', tab)
+    } catch {
+      /* ignore */
+    }
+  }, [tab])
 
   // Realtime + presence.
   useEffect(() => {
@@ -51,6 +68,7 @@ function Console({ row, creds }) {
       setPresence(names)
     })
     channel.subscribe(async (st) => {
+      setConnected(st === 'SUBSCRIBED')
       if (st === 'SUBSCRIBED') {
         await channel.track({ name: creds.name || 'Guest', at: Date.now() })
       }
@@ -77,7 +95,6 @@ function Console({ row, creds }) {
   const current = state.current || null
   const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
   const history = state.history || []
-  const [historyOpen, setHistoryOpen] = useState(false)
 
   // Voice engine lives here (always alive) so its chips can render in a
   // persistent slot while the controls live in a tab.
@@ -319,6 +336,23 @@ function Console({ row, creds }) {
     }
   }
 
+  // ---- session panel (share links, leave) ----
+  function linkFor(route) {
+    return `${window.location.origin}${window.location.pathname}#/${route}?s=${code}`
+  }
+  async function copyLink(route) {
+    try {
+      await navigator.clipboard.writeText(linkFor(route))
+      setCopied(route)
+      setTimeout(() => setCopied(''), 1500)
+    } catch {
+      setCopied('')
+    }
+  }
+  function leaveSession() {
+    window.location.hash = '#/'
+  }
+
   // ---- Back / Next navigation ----
   async function goNext() {
     const st = stateRef.current
@@ -455,184 +489,252 @@ function Console({ row, creds }) {
   const stepResults = curResults && curResults.id === cursor?.queueId ? curResults.results : null
   const stepTotal = stepResults ? verseCount(stepResults) : 0
 
+  const inQueue = cursor?.queueId != null
+  const lastSource = history[0]?.source
+  const modeLabel = inQueue ? 'queue' : cursor?.adhoc ? (lastSource === 'voice' ? 'voice' : lastSource === 'auto' ? 'auto' : 'ad-hoc') : ''
+  const firstLine = current?.primary?.verses?.[0]?.text || ''
+  const firstLineShort = firstLine.length > 90 ? firstLine.slice(0, 90).trim() + '...' : firstLine
+  const adminCount = presence.length || 1
+
+  const TABS = [
+    ['go', 'Go'],
+    ['plan', 'Plan'],
+    ['history', 'History'],
+    ['display', 'Display']
+  ]
+
   return (
     <div className="control">
-      <div className="control-head">
-        <span>
-          Code <span className="code">{code}</span>
-        </span>
-        <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open presenter</a>
-      </div>
-
-      <div className="presence">
-        <span className="muted">Connected:</span>
-        {presence.length ? (
-          presence.map((n, i) => (
-            <span className="chip" key={i}>{n}</span>
-          ))
-        ) : (
-          <span className="chip">just you</span>
+      <div className="statusbar">
+        <button
+          className="statusbar-main"
+          onClick={() => setPanelOpen((o) => !o)}
+          aria-expanded={panelOpen}
+          aria-label="Session details"
+        >
+          <span className="sb-code">{code}</span>
+          <span className={`sb-live${connected ? ' on' : ''}`}>
+            <span className="live-dot" />
+            {connected ? 'live' : 'connecting'}
+          </span>
+          <span className="sb-admins">
+            {adminCount} {adminCount === 1 ? 'admin' : 'admins'}
+          </span>
+          <span className={`sb-caret${panelOpen ? ' open' : ''}`} aria-hidden="true" />
+        </button>
+        {panelOpen && (
+          <div className="session-panel">
+            <div className="sp-row">
+              <button className="btn small" onClick={() => copyLink('present')}>
+                {copied === 'present' ? 'Copied' : 'Copy presenter link'}
+              </button>
+              <button className="btn small" onClick={() => copyLink('control')}>
+                {copied === 'control' ? 'Copied' : 'Copy controller link'}
+              </button>
+            </div>
+            <div className="sp-admins">
+              <span className="muted">In this session:</span>
+              {presence.length ? (
+                presence.map((n, i) => (
+                  <span className="chip" key={i}>{n}</span>
+                ))
+              ) : (
+                <span className="chip">just you</span>
+              )}
+            </div>
+            <div className="sp-row">
+              <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open presenter</a>
+              <button className="link-btn danger" onClick={leaveSession}>Leave session</button>
+            </div>
+          </div>
         )}
       </div>
 
-      <div className="control-main">
-        {status && <p className="error">{status}</p>}
+      <div className="control-scroll">
+        {status && <p className="error control-status">{status}</p>}
 
-        <VoiceControls v={voice} />
-        <VoiceChips v={voice} />
-
-        <div>
-          <div className="field" style={{ margin: 0 }}>
-            <label htmlFor="ref">Reference</label>
-            <input
-              id="ref"
-              type="text"
-              autoComplete="off"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="John 3:16-18"
-            />
-          </div>
-          {previewErr && <p className="error">{previewErr}</p>}
-          {preview && (
-            <div className="preview">
-              <div className="ref">{preview.reference}</div>
-              <div className="primary" lang={preview.primary?.language}>
-                {preview.primary?.verses.map((v) => (
-                  <span key={v.n}>
-                    <sup>{v.n}</sup> {v.text}{' '}
-                  </span>
-                ))}
+        <div className="now-card" aria-live="polite">
+          {state.blank ? (
+            <div className="now-blank">Screen is blank</div>
+          ) : current ? (
+            <>
+              <div className="now-top">
+                <div className="now-ref">{current.reference}</div>
+                <div className="now-mode">
+                  {inQueue && stepping && stepTotal ? (
+                    <span className="now-pos">{cursor.verseIndex + 1} / {stepTotal}</span>
+                  ) : null}
+                  {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
+                </div>
               </div>
-              {preview.secondary && (
-                <div className="secondary" lang={preview.secondary.language}>
-                  {preview.secondary.verses.map((v) => (
-                    <span key={v.n}>
-                      <sup>{v.n}</sup> {v.text}{' '}
-                    </span>
+              {firstLineShort && <div className="now-line">{firstLineShort}</div>}
+              {stepping && stepResults && (
+                <div className="verse-chips scroll-x">
+                  {stepResults[0].verses.map((v, k) => (
+                    <button
+                      key={v.n}
+                      className={`vchip${k === cursor.verseIndex ? ' on' : ''}`}
+                      aria-label={`Show verse ${v.n}`}
+                      onClick={() => showItemAtVerse(activeItem, k)}
+                    >
+                      {v.n}
+                    </button>
                   ))}
                 </div>
               )}
-            </div>
+              {cursor?.savedPlan && (
+                <button className="btn small back-to-plan" onClick={backToPlan}>Back to plan</button>
+              )}
+            </>
+          ) : (
+            <div className="now-empty">Nothing on screen yet</div>
           )}
-          <div className="toolbar" style={{ marginTop: '0.6rem' }}>
-            <button className="btn primary" onClick={showNow} disabled={!parsed || previewing}>
-              Show now
-            </button>
-            <button className="btn" onClick={addToQueue} disabled={!parsed}>
-              Add to queue
-            </button>
-          </div>
         </div>
 
-        {current && (
-          <div className="nowshowing">
-            <div className="ns-ref">
-              Now showing: <strong>{current.reference}</strong>
-              {stepping && stepTotal ? <span className="pos"> {cursor.verseIndex + 1} / {stepTotal}</span> : null}
+        <div className="tabs" role="tablist" aria-label="Controller sections">
+          {TABS.map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`panel-${id}`}
+              className={`tab${tab === id ? ' on' : ''}`}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="tab-body">
+          {tab === 'go' && (
+            <div id="panel-go" role="tabpanel" aria-labelledby="tab-go">
+              <div className="field" style={{ margin: 0 }}>
+                <label htmlFor="ref">Reference</label>
+                <input
+                  id="ref"
+                  type="text"
+                  autoComplete="off"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="John 3:16-18"
+                />
+              </div>
+              {previewErr && <p className="error">{previewErr}</p>}
+              {preview && (
+                <div className="preview">
+                  <div className="ref">{preview.reference}</div>
+                  <div className="primary" lang={preview.primary?.language}>
+                    {preview.primary?.verses.map((v) => (
+                      <span key={v.n}>
+                        <sup>{v.n}</sup> {v.text}{' '}
+                      </span>
+                    ))}
+                  </div>
+                  {preview.secondary && (
+                    <div className="secondary" lang={preview.secondary.language}>
+                      {preview.secondary.verses.map((v) => (
+                        <span key={v.n}>
+                          <sup>{v.n}</sup> {v.text}{' '}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="toolbar" style={{ marginTop: '0.6rem' }}>
+                <button className="btn primary" onClick={showNow} disabled={!parsed || previewing}>
+                  Show now
+                </button>
+                <button className="btn" onClick={addToQueue} disabled={!parsed}>
+                  Add to queue
+                </button>
+              </div>
+              <VoiceControls v={voice} />
             </div>
-            {cursor?.adhoc && (
-              <div className="ns-note">
-                <span className="muted">Next continues through this chapter.</span>
-                {cursor.savedPlan && (
-                  <button className="btn small" onClick={backToPlan}>Back to plan</button>
+          )}
+
+          {tab === 'plan' && (
+            <div id="panel-plan" role="tabpanel" aria-labelledby="tab-plan">
+              <div className="section-title">Queue ({queue.length})</div>
+              <div className="queue">
+                {queue.map((item, i) => {
+                  const active = cursor?.queueId === item.id
+                  return (
+                    <div className={`queue-item${active ? ' active' : ''}`} key={item.id}>
+                      <button className="icon-btn" aria-label="Move up" onClick={() => move(i, -1)}>up</button>
+                      <button className="icon-btn" aria-label="Move down" onClick={() => move(i, 1)}>dn</button>
+                      <span className="label">{item.label}</span>
+                      <button
+                        className={`icon-btn mode${item.whole ? '' : ' on'}`}
+                        aria-label={item.whole ? 'Showing whole passage, tap to step' : 'Stepping verse by verse, tap for whole'}
+                        onClick={() => toggleWhole(item)}
+                      >
+                        {item.whole ? 'Whole' : 'Step'}
+                      </button>
+                      <button className="icon-btn" aria-label={`Show ${item.label}`} onClick={() => enterItemStart(item)}>Show</button>
+                      <button className="icon-btn" aria-label={`Remove ${item.label}`} onClick={() => removeItem(item.id)}>x</button>
+                    </div>
+                  )
+                })}
+                {!queue.length && <p className="muted">Nothing queued yet.</p>}
+              </div>
+              <div className="toolbar" style={{ marginTop: '0.6rem' }}>
+                <button className="btn" onClick={exportQueue} disabled={!queue.length && !history.length}>Export</button>
+                <button className="btn" onClick={() => fileRef.current?.click()}>Import</button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  style={{ display: 'none' }}
+                  onChange={importQueue}
+                />
+              </div>
+            </div>
+          )}
+
+          {tab === 'history' && (
+            <div id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+              <div className="section-title">History ({history.length})</div>
+              <div className="history">
+                {history.length ? (
+                  history.map((e, i) => (
+                    <button className="history-item" key={i} onClick={() => reShow(e)}>
+                      <span className="hi-ref">{e.ref}</span>
+                      {e.source === 'auto' && <span className="vc-auto">auto</span>}
+                      <span className="hi-time muted">{fmtTime(e.at)}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="muted">Nothing shown yet.</p>
                 )}
               </div>
-            )}
-            {stepping && stepResults && (
-              <div className="verse-chips">
-                {stepResults[0].verses.map((v, k) => (
-                  <button
-                    key={v.n}
-                    className={`vchip${k === cursor.verseIndex ? ' on' : ''}`}
-                    onClick={() => showItemAtVerse(activeItem, k)}
-                  >
-                    {v.n}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div>
-          <div className="section-title">Queue ({queue.length})</div>
-          <div className="queue">
-            {queue.map((item, i) => {
-              const active = cursor?.queueId === item.id
-              return (
-                <div className={`queue-item${active ? ' active' : ''}`} key={item.id}>
-                  <button className="icon-btn" title="Move up" onClick={() => move(i, -1)}>up</button>
-                  <button className="icon-btn" title="Move down" onClick={() => move(i, 1)}>dn</button>
-                  <span className="label">{item.label}</span>
-                  <button
-                    className={`icon-btn mode${item.whole ? '' : ' on'}`}
-                    title={item.whole ? 'Showing whole passage' : 'Stepping verse by verse'}
-                    onClick={() => toggleWhole(item)}
-                  >
-                    {item.whole ? 'Whole' : 'Step'}
-                  </button>
-                  <button className="icon-btn" onClick={() => enterItemStart(item)}>Show</button>
-                  <button className="icon-btn" onClick={() => removeItem(item.id)}>x</button>
-                </div>
-              )
-            })}
-            {!queue.length && <p className="muted">Nothing queued yet.</p>}
-          </div>
-          <div className="toolbar" style={{ marginTop: '0.6rem' }}>
-            <button className="btn" onClick={exportQueue} disabled={!queue.length && !history.length}>Export</button>
-            <button className="btn" onClick={() => fileRef.current?.click()}>Import</button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              style={{ display: 'none' }}
-              onChange={importQueue}
-            />
-          </div>
-        </div>
-
-        <div>
-          <button className="section-title as-toggle" onClick={() => setHistoryOpen((o) => !o)}>
-            History ({history.length}) {historyOpen ? '-' : '+'}
-          </button>
-          {historyOpen && (
-            <div className="history">
-              {history.length ? (
-                history.map((e, i) => (
-                  <button className="history-item" key={i} onClick={() => reShow(e)}>
-                    <span className="hi-ref">{e.ref}</span>
-                    {e.source === 'auto' && <span className="vc-auto">auto</span>}
-                    <span className="hi-time muted">{fmtTime(e.at)}</span>
-                  </button>
-                ))
-              ) : (
-                <p className="muted">Nothing shown yet.</p>
-              )}
             </div>
           )}
-        </div>
 
-        <div className="display-panel">
-          <div className="section-title">Display</div>
-          <div className="display-row">
-            <div className="theme-swatches">
-              {['light', 'sepia', 'dark', 'contrast'].map((t) => (
-                <button
-                  key={t}
-                  className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
-                  title={t}
-                  aria-label={`${t} theme`}
-                  onClick={() => setTheme(t)}
-                />
-              ))}
+          {tab === 'display' && (
+            <div id="panel-display" role="tabpanel" aria-labelledby="tab-display">
+              <div className="section-title">Presenter theme</div>
+              <div className="theme-swatches">
+                {['light', 'sepia', 'dark', 'contrast'].map((t) => (
+                  <button
+                    key={t}
+                    className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
+                    aria-label={`${t} theme`}
+                    aria-pressed={theme === t}
+                    onClick={() => setTheme(t)}
+                  />
+                ))}
+              </div>
+              <div className="section-title" style={{ marginTop: '0.9rem' }}>Font size</div>
+              <div className="font-size">
+                <button className="icon-btn" aria-label="Smaller" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
+                <span className="fs-val">{fontScale}%</span>
+                <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
+              </div>
             </div>
-            <div className="font-size">
-              <button className="icon-btn" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
-              <span className="fs-val">{fontScale}%</span>
-              <button className="icon-btn" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -648,12 +750,22 @@ function Console({ row, creds }) {
         </div>
       )}
 
-      <div className="bottom-bar">
-        <button className="btn" onClick={goBack}>Back</button>
-        <button className={`btn blank${state.blank ? ' on' : ''}`} onClick={toggleBlank}>
+      {voice.chips.length > 0 && (
+        <div className="chip-slot">
+          <VoiceChips v={voice} />
+        </div>
+      )}
+
+      <div className="transport">
+        <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
+        <button
+          className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
+          onClick={toggleBlank}
+          aria-pressed={state.blank}
+        >
           {state.blank ? 'Unblank' : 'Blank'}
         </button>
-        <button className="btn" onClick={goNext}>Next</button>
+        <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
       </div>
     </div>
   )

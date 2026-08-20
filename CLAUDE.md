@@ -64,7 +64,26 @@ no accounts, no installs. MIT license.
 - src/lib/bibleData.js - bundled-first verse loader with HelloAO fallback.
 - src/lib/session.js - RPC wrappers + realtime/presence channel.
 - src/pages/{Start,Present,Control}.jsx - the three screens.
+- src/components/useVoice.js + VoiceControls.jsx + VoiceChips.jsx - the voice
+  engine (a hook) and its two presentational pieces, split so the chips can live
+  in a persistent slot while the controls live in a tab.
 - scripts/convert-usfx.mjs, scripts/fetch-helloao.mjs, scripts/manifest.mjs.
+
+## Controller information architecture (top to bottom)
+
+- Status bar (sticky, thin): code, connection dot ("live"), admin count. Tapping
+  it opens a session panel: copy presenter/controller links, admins, leave.
+- NOW card (always visible): the current reference (gold), first verse line,
+  position ("n / total") + a mode pill (queue/voice/auto/ad-hoc), the step verse
+  jump list, "Back to plan" when ad-hoc over a plan, and a clear Blank state.
+- Segmented tabs GO / PLAN / HISTORY / DISPLAY (remembered in sessionStorage,
+  default GO). GO = passage input + preview + show/add + voice controls; PLAN =
+  queue + import/export; HISTORY = list, tap to re-show; DISPLAY = theme + font.
+- Voice chips live in a fixed slot above the transport (persistent across tabs).
+- Transport (fixed bottom): Back / Blank / Next; Next is wider and weighted; all
+  targets >= 48px, safe-area padded.
+- The controller uses the app's light palette (ivory bg, dark text, gold accents);
+  presenter themes are separate (state.display).
 
 ## Data shapes
 
