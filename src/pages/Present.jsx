@@ -38,6 +38,9 @@ function useAutoFit(ref, dep) {
       }
     }
     fit()
+    // Re-fit once web fonts finish loading; their real metrics are taller than
+    // the fallback, so an early fit can overflow and clip the reference line.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit)
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
   }, [dep])
