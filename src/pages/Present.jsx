@@ -113,7 +113,7 @@ export default function Present({ params }) {
   if (!row) {
     return (
       <div className="center-wrap">
-        <JoinForm role="present" initialCode={params.get('c') || ''} onJoined={(r) => setRow(r)} />
+        <JoinForm role="present" initialCode={params.get('s') || params.get('c') || ''} onJoined={(r) => setRow(r)} />
       </div>
     )
   }

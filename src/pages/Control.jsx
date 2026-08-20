@@ -402,7 +402,7 @@ function Console({ row, creds }) {
         <span>
           Code <span className="code">{code}</span>
         </span>
-        <a className="link-btn" href={`#/present?c=${code}`}>Open presenter</a>
+        <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open presenter</a>
       </div>
 
       <div className="presence">
@@ -569,7 +569,7 @@ export default function Control({ params }) {
       <div className="center-wrap">
         <JoinForm
           role="control"
-          initialCode={params.get('c') || ''}
+          initialCode={params.get('s') || params.get('c') || ''}
           onJoined={(r, c) => {
             setRow(r)
             setCreds(c)

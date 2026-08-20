@@ -11,6 +11,20 @@ export default function Start() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [created, setCreated] = useState(null) // { code }
+  const [copied, setCopied] = useState('')
+
+  function linkFor(route) {
+    return `${window.location.origin}${window.location.pathname}#/${route}?s=${created?.code}`
+  }
+  async function copyLink(route) {
+    try {
+      await navigator.clipboard.writeText(linkFor(route))
+      setCopied(route)
+      setTimeout(() => setCopied(''), 1500)
+    } catch {
+      setCopied('')
+    }
+  }
 
   useEffect(() => {
     loadManifest()
@@ -64,14 +78,24 @@ export default function Start() {
       <div className="center-wrap">
         <div className="card">
           <h1>Session ready</h1>
-          <p className="tagline">Share the code. Keep the PIN private.</p>
+          <p className="tagline">Share the presenter link to let anyone watch. Keep the PIN for controllers.</p>
           <div className="code-badge">{created.code}</div>
           <p className="muted" style={{ textAlign: 'center', margin: '0.75rem 0 1.25rem' }}>
-            Anyone with the code and PIN can join.
+            The presenter link is view-only. Controllers need the code and PIN.
           </p>
           <div className="row">
-            <a className="btn primary" href={`#/present?c=${created.code}`}>Open presenter</a>
-            <a className="btn" href={`#/control?c=${created.code}`}>Open controller</a>
+            <a className="btn primary" href={`#/present?s=${created.code}`} target="_blank" rel="noopener">
+              Open presenter
+            </a>
+            <a className="btn" href={`#/control?s=${created.code}`}>Open controller</a>
+          </div>
+          <div className="row" style={{ marginTop: '0.6rem' }}>
+            <button className="btn" onClick={() => copyLink('present')}>
+              {copied === 'present' ? 'Copied' : 'Copy presenter link'}
+            </button>
+            <button className="btn" onClick={() => copyLink('control')}>
+              {copied === 'control' ? 'Copied' : 'Copy controller link'}
+            </button>
           </div>
           <p style={{ marginTop: '1rem', textAlign: 'center' }}>
             <button className="link-btn" onClick={() => setCreated(null)}>Start another</button>

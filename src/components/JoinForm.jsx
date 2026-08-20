@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { joinSession } from '../lib/session.js'
+import { joinSession, joinView } from '../lib/session.js'
 import { friendlyError, supabaseConfigured } from '../lib/supabase.js'
 
-// Collects code + PIN (and an optional display name for controllers), calls
-// join_session, and hands the row plus credentials back to the parent page.
+// Controllers join with code + PIN (and an optional name) and can write.
+// Presenters/viewers join with the code only (read-only, no PIN).
 export default function JoinForm({ role, initialCode = '', onJoined }) {
   const [code, setCode] = useState(initialCode.toUpperCase())
   const [pin, setPin] = useState('')
@@ -18,11 +18,16 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
     setError('')
     const c = code.trim().toUpperCase()
     if (c.length < 4) return setError('Enter the session code.')
-    if (!/^\d{4}$/.test(pin)) return setError('PIN is 4 digits.')
+    if (isControl && !/^\d{4}$/.test(pin)) return setError('PIN is 4 digits.')
     setBusy(true)
     try {
-      const row = await joinSession(c, pin)
-      onJoined(row, { code: c, pin, name: name.trim() })
+      if (isControl) {
+        const row = await joinSession(c, pin)
+        onJoined(row, { code: c, pin, name: name.trim() })
+      } else {
+        const row = await joinView(c)
+        onJoined(row, { code: c })
+      }
     } catch (err) {
       setError(friendlyError(err))
     } finally {
@@ -59,19 +64,21 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
         />
       </div>
 
-      <div className="field">
-        <label htmlFor="pin">PIN</label>
-        <input
-          id="pin"
-          type="password"
-          inputMode="numeric"
-          autoComplete="off"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          placeholder="4 digits"
-        />
-      </div>
+      {isControl && (
+        <div className="field">
+          <label htmlFor="pin">PIN</label>
+          <input
+            id="pin"
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="4 digits"
+          />
+        </div>
+      )}
 
       {isControl && (
         <div className="field">
@@ -87,10 +94,12 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
         </div>
       )}
 
+      {!isControl && <p className="muted">View only. No PIN needed to watch.</p>}
+
       {error && <p className="error">{error}</p>}
 
       <button className="btn primary wide" type="submit" disabled={busy}>
-        {busy ? 'Joining...' : 'Join'}
+        {busy ? 'Joining...' : isControl ? 'Join' : 'Open'}
       </button>
 
       <p style={{ marginTop: '1rem', textAlign: 'center' }}>

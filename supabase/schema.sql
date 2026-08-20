@@ -136,6 +136,32 @@ begin
 end;
 $$;
 
+-- join_session_view(code) -> full public row for read-only viewers (no PIN).
+create or replace function public.join_session_view(code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  s public.sessions;
+begin
+  perform public.cleanup_expired_sessions();
+
+  select * into s from public.sessions where sessions.code = upper(trim(join_session_view.code));
+
+  if not found then
+    raise exception 'session not found' using errcode = 'P0002';
+  end if;
+  if s.expires_at <= now() then
+    delete from public.sessions where sessions.code = s.code;
+    raise exception 'session expired' using errcode = 'P0003';
+  end if;
+
+  return public.session_public(s);
+end;
+$$;
+
 -- update_session(code, pin, patch) -> merged public row.
 -- patch may contain any of: state (shallow-merged), config (replaced),
 -- admins (replaced). PIN is verified before any write.
@@ -179,7 +205,9 @@ revoke all on function public.session_public(public.sessions) from public, anon,
 -- Only the three RPCs are callable by clients.
 revoke all on function public.create_session(text, jsonb) from public;
 revoke all on function public.join_session(text, text) from public;
+revoke all on function public.join_session_view(text) from public;
 revoke all on function public.update_session(text, text, jsonb) from public;
 grant execute on function public.create_session(text, jsonb) to anon, authenticated;
 grant execute on function public.join_session(text, text) to anon, authenticated;
+grant execute on function public.join_session_view(text) to anon, authenticated;
 grant execute on function public.update_session(text, text, jsonb) to anon, authenticated;
