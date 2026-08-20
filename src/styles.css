@@ -207,11 +207,16 @@ select:focus {
 }
 
 .present-secondary {
-  font-family: var(--serif-tamil);
+  font-family: var(--serif-latin);
   line-height: 1.4;
   margin-top: 3vmin;
   padding-top: 3vmin;
   border-top: 1px solid var(--line);
+}
+
+/* Font is chosen by the block's language, not its position. */
+[lang='ta'] {
+  font-family: var(--serif-tamil);
 }
 
 .present-verse-n {
@@ -321,7 +326,7 @@ select:focus {
 }
 
 .preview .secondary {
-  font-family: var(--serif-tamil);
+  font-family: var(--serif-latin);
   line-height: 1.5;
   margin-top: 0.6rem;
   padding-top: 0.6rem;

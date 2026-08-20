@@ -1,0 +1,332 @@
+[
+  {
+    "id": "GEN",
+    "name": "ஆதியாகமம்",
+    "chapters": 50
+  },
+  {
+    "id": "EXO",
+    "name": "யாத்திராகமம்",
+    "chapters": 40
+  },
+  {
+    "id": "LEV",
+    "name": "லேவியராகமம்",
+    "chapters": 27
+  },
+  {
+    "id": "NUM",
+    "name": "எண்ணாகமம்",
+    "chapters": 36
+  },
+  {
+    "id": "DEU",
+    "name": "உபாகமம்",
+    "chapters": 34
+  },
+  {
+    "id": "JOS",
+    "name": "யோசுவா",
+    "chapters": 24
+  },
+  {
+    "id": "JDG",
+    "name": "நியாயாதிபதிகள்",
+    "chapters": 21
+  },
+  {
+    "id": "RUT",
+    "name": "ரூத்",
+    "chapters": 4
+  },
+  {
+    "id": "1SA",
+    "name": "1 சாமுவேல்",
+    "chapters": 31
+  },
+  {
+    "id": "2SA",
+    "name": "2 சாமுவேல்",
+    "chapters": 24
+  },
+  {
+    "id": "1KI",
+    "name": "1 இராஜாக்கள்",
+    "chapters": 22
+  },
+  {
+    "id": "2KI",
+    "name": "2 இராஜாக்கள்",
+    "chapters": 25
+  },
+  {
+    "id": "1CH",
+    "name": "1 நாளாகமம்",
+    "chapters": 29
+  },
+  {
+    "id": "2CH",
+    "name": "2 நாளாகமம்",
+    "chapters": 36
+  },
+  {
+    "id": "EZR",
+    "name": "எஸ்றா",
+    "chapters": 10
+  },
+  {
+    "id": "NEH",
+    "name": "நெகேமியா",
+    "chapters": 13
+  },
+  {
+    "id": "EST",
+    "name": "எஸ்தர்",
+    "chapters": 10
+  },
+  {
+    "id": "JOB",
+    "name": "யோபு",
+    "chapters": 42
+  },
+  {
+    "id": "PSA",
+    "name": "சங்கீதங்கள்",
+    "chapters": 150
+  },
+  {
+    "id": "PRO",
+    "name": "நீதிமொழிகள்",
+    "chapters": 31
+  },
+  {
+    "id": "ECC",
+    "name": "பிரசங்கி",
+    "chapters": 12
+  },
+  {
+    "id": "SNG",
+    "name": "உன்னதப்பாட்டு",
+    "chapters": 8
+  },
+  {
+    "id": "ISA",
+    "name": "ஏசாயா",
+    "chapters": 66
+  },
+  {
+    "id": "JER",
+    "name": "எரேமியா",
+    "chapters": 52
+  },
+  {
+    "id": "LAM",
+    "name": "புலம்பல்கள்",
+    "chapters": 5
+  },
+  {
+    "id": "EZK",
+    "name": "எசேக்கியேல்",
+    "chapters": 48
+  },
+  {
+    "id": "DAN",
+    "name": "தானியேல்",
+    "chapters": 12
+  },
+  {
+    "id": "HOS",
+    "name": "ஓசியா",
+    "chapters": 14
+  },
+  {
+    "id": "JOL",
+    "name": "யோவேல்",
+    "chapters": 3
+  },
+  {
+    "id": "AMO",
+    "name": "ஆமோஸ்",
+    "chapters": 9
+  },
+  {
+    "id": "OBA",
+    "name": "ஒபதியா",
+    "chapters": 1
+  },
+  {
+    "id": "JON",
+    "name": "யோனா",
+    "chapters": 4
+  },
+  {
+    "id": "MIC",
+    "name": "மீகா",
+    "chapters": 7
+  },
+  {
+    "id": "NAM",
+    "name": "நாகூம்",
+    "chapters": 3
+  },
+  {
+    "id": "HAB",
+    "name": "ஆபகூக்",
+    "chapters": 3
+  },
+  {
+    "id": "ZEP",
+    "name": "செப்பனியா",
+    "chapters": 3
+  },
+  {
+    "id": "HAG",
+    "name": "ஆகாய்",
+    "chapters": 2
+  },
+  {
+    "id": "ZEC",
+    "name": "சகரியா",
+    "chapters": 14
+  },
+  {
+    "id": "MAL",
+    "name": "மல்கியா",
+    "chapters": 4
+  },
+  {
+    "id": "MAT",
+    "name": "மத்தேயு",
+    "chapters": 28
+  },
+  {
+    "id": "MRK",
+    "name": "மாற்கு",
+    "chapters": 16
+  },
+  {
+    "id": "LUK",
+    "name": "லூக்கா",
+    "chapters": 24
+  },
+  {
+    "id": "JHN",
+    "name": "யோவான்",
+    "chapters": 21
+  },
+  {
+    "id": "ACT",
+    "name": "அப்போஸ்தலருடைய நடபடிகள்",
+    "chapters": 28
+  },
+  {
+    "id": "ROM",
+    "name": "ரோமர்",
+    "chapters": 16
+  },
+  {
+    "id": "1CO",
+    "name": "1 கொரிந்தியர்",
+    "chapters": 16
+  },
+  {
+    "id": "2CO",
+    "name": "2 கொரிந்தியர்",
+    "chapters": 13
+  },
+  {
+    "id": "GAL",
+    "name": "கலாத்தியர்",
+    "chapters": 6
+  },
+  {
+    "id": "EPH",
+    "name": "எபேசியர்",
+    "chapters": 6
+  },
+  {
+    "id": "PHP",
+    "name": "பிலிப்பியர்",
+    "chapters": 4
+  },
+  {
+    "id": "COL",
+    "name": "கொலோசெயர்",
+    "chapters": 4
+  },
+  {
+    "id": "1TH",
+    "name": "1 தெசலோனிக்கேயர்",
+    "chapters": 5
+  },
+  {
+    "id": "2TH",
+    "name": "2 தெசலோனிக்கேயர்",
+    "chapters": 3
+  },
+  {
+    "id": "1TI",
+    "name": "1 தீமோத்தேயு",
+    "chapters": 6
+  },
+  {
+    "id": "2TI",
+    "name": "2 தீமோத்தேயு",
+    "chapters": 4
+  },
+  {
+    "id": "TIT",
+    "name": "தீத்து",
+    "chapters": 3
+  },
+  {
+    "id": "PHM",
+    "name": "பிலேமோன்",
+    "chapters": 1
+  },
+  {
+    "id": "HEB",
+    "name": "எபிரெயர்",
+    "chapters": 13
+  },
+  {
+    "id": "JAS",
+    "name": "யாக்கோபு",
+    "chapters": 5
+  },
+  {
+    "id": "1PE",
+    "name": "1 பேதுரு",
+    "chapters": 5
+  },
+  {
+    "id": "2PE",
+    "name": "2 பேதுரு",
+    "chapters": 3
+  },
+  {
+    "id": "1JN",
+    "name": "1 யோவான்",
+    "chapters": 5
+  },
+  {
+    "id": "2JN",
+    "name": "2 யோவான்",
+    "chapters": 1
+  },
+  {
+    "id": "3JN",
+    "name": "3 யோவான்",
+    "chapters": 1
+  },
+  {
+    "id": "JUD",
+    "name": "யூதா",
+    "chapters": 1
+  },
+  {
+    "id": "REV",
+    "name": "வெளிப்படுத்தின விசேஷம்",
+    "chapters": 22
+  }
+]

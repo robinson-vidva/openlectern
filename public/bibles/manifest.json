@@ -1,0 +1,19 @@
+{
+  "versions": [
+    {
+      "id": "eng-web",
+      "name": "World English Bible",
+      "language": "en",
+      "languageName": "English",
+      "source": "bundled"
+    },
+    {
+      "id": "tam_irv",
+      "name": "Tamil Indian Revised Version Bible",
+      "language": "ta",
+      "languageName": "Tamil",
+      "source": "bundled",
+      "helloaoId": "tam_irv"
+    }
+  ]
+}
