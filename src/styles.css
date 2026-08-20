@@ -988,6 +988,43 @@ select:focus {
   width: 100%;
 }
 
+/* Named-passage alias suggestions under the typed reference input. */
+.alias-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.alias-hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.alias-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.45rem 0.7rem;
+  width: 100%;
+}
+
+.alias-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.alias-ref {
+  font-family: var(--serif-latin);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 .listener-banner {
   background: var(--danger);
   color: #fff;

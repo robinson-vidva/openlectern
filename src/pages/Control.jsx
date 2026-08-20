@@ -6,6 +6,7 @@ import { useVoice } from '../components/useVoice.js'
 import { updateSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
+import { matchAliases } from '../lib/aliases.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
 import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
@@ -298,6 +299,13 @@ function Console({ row, creds }) {
   const [input, setInput] = useState('')
   const debounced = useDebounced(input, 300)
   const parsed = useMemo(() => parseReference(debounced), [debounced])
+  // When a typed phrase is not a reference, offer named-passage aliases
+  // ("the prodigal son" -> Luke 15:11-32). Flatten multi-ref entries to one
+  // suggestion per reference; never auto-pick among them.
+  const aliasHits = useMemo(() => {
+    if (parsed || !debounced.trim()) return []
+    return matchAliases(debounced).flatMap((h) => h.refs.map((ref) => ({ name: h.name, ref })))
+  }, [parsed, debounced])
   const [preview, setPreview] = useState(null)
   const [previewErr, setPreviewErr] = useState('')
   const [previewing, setPreviewing] = useState(false)
@@ -878,7 +886,22 @@ function Console({ row, creds }) {
                   placeholder="John 3:16-18"
                 />
               </div>
-              {previewErr && <p className="error">{previewErr}</p>}
+              {aliasHits.length > 0 && (
+                <div className="alias-suggest">
+                  <p className="muted alias-hint">Did you mean...</p>
+                  {aliasHits.map((h, i) => (
+                    <button
+                      key={`${h.name}-${h.ref}-${i}`}
+                      className="alias-chip"
+                      onClick={() => setInput(h.ref)}
+                    >
+                      <span className="alias-name">{h.name}</span>
+                      <span className="alias-ref">{h.ref}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {previewErr && aliasHits.length === 0 && <p className="error">{previewErr}</p>}
               {preview && (
                 <div className="preview">
                   <div className="ref">{preview.reference}</div>

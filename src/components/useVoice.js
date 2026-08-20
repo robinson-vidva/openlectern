@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { detectRefs, buildBookIndex } from '../lib/voice/detectRefs.js'
 import { loadStructure, loadIndex } from '../lib/bibleData.js'
 import { resolvePreviewText } from '../lib/voiceData.js'
+import { matchAliases } from '../lib/aliases.js'
+import { parseReference, formatLabel } from '../lib/parseRef.js'
 
 const Rec = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
 export const VOICE_SUPPORTED = !!Rec
@@ -103,14 +105,25 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     pushCandidate(cand, { from, allowAuto: false })
   }
 
-  function runDetect(text) {
+  function runDetect(text, isFinal) {
     const idx = indexRef.current
     if (!idx || !text) return
     const res = detectRefs(text, idx)
     if (res.length) {
       pushCandidate(res[0])
       onDetectRef.current?.(res[0])
+      return
     }
+    // No citation. On final segments only, try named-passage aliases -- fuzzier
+    // than a citation, so chip-only and never auto-shown.
+    if (!isFinal) return
+    const hit = matchAliases(text)[0]
+    if (!hit) return
+    const parsed = parseReference(hit.refs[0])
+    if (!parsed) return
+    const cand = { ...parsed, ref: `${hit.name} -> ${formatLabel(parsed)}`, confidence: 'alias', alias: hit.name }
+    pushCandidate(cand, { allowAuto: false })
+    onDetectRef.current?.(cand)
   }
 
   function handleResult(e) {
@@ -121,7 +134,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       const text = r[0].transcript
       if (r.isFinal) {
         didFinal = true
-        runDetect(text)
+        runDetect(text, true)
       } else {
         interim += text
       }
@@ -129,7 +142,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const line = (interim || (didFinal ? '' : transcriptRef.current)).trim().slice(-140)
     transcriptRef.current = line
     setTranscript(line)
-    if (interim) runDetect(interim)
+    if (interim) runDetect(interim, false)
     backoffRef.current = 300
   }
 
