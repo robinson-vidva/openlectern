@@ -15,7 +15,7 @@ const DEDUPE_MS = 10000
 // The voice engine, lifted into a hook so the controls (in a tab) and the chips
 // (in a persistent slot) can share one always-alive recognition session. Behavior
 // is identical to the previous VoiceMode component.
-export function useVoice({ versions, defaultLang, onShow }) {
+export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const [lang, setLang] = useState(defaultLang || 'en-US')
   const [auto, setAuto] = useState(false)
   const [active, setActive] = useState(false)
@@ -34,6 +34,8 @@ export function useVoice({ versions, defaultLang, onShow }) {
   const autoRef = useRef(auto)
   const langRef = useRef(lang)
   const transcriptRef = useRef('')
+  const onDetectRef = useRef(onDetect)
+  onDetectRef.current = onDetect
   useEffect(() => {
     autoRef.current = auto
   }, [auto])
@@ -79,14 +81,16 @@ export function useVoice({ versions, defaultLang, onShow }) {
     wakeRef.current = null
   }
 
-  function pushCandidate(cand) {
+  // opts.from = source device name (shared chip from another device).
+  // opts.allowAuto = whether this device may auto-show (local detections only).
+  function pushCandidate(cand, opts = {}) {
     const now = Date.now()
     const last = recentRef.current.get(cand.ref)
-    if (last && now - last < DEDUPE_MS) return
+    if (last && now - last < DEDUPE_MS) return // cross-device dedupe
     recentRef.current.set(cand.ref, now)
 
-    const fired = autoRef.current && cand.confidence === 'high'
-    const chip = { key: `${cand.ref}-${now}`, ref: cand.ref, detail: cand, text: '', shown: fired, auto: fired }
+    const fired = opts.allowAuto !== false && autoRef.current && cand.confidence === 'high'
+    const chip = { key: `${cand.ref}-${now}`, ref: cand.ref, detail: cand, text: '', shown: fired, auto: fired, from: opts.from || null }
     setChips((prev) => [chip, ...prev].slice(0, 3))
     resolvePreviewText(versions, cand)
       .then((t) => setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, text: t } : c))))
@@ -94,11 +98,19 @@ export function useVoice({ versions, defaultLang, onShow }) {
     if (fired) onShow(cand, 'auto')
   }
 
+  // A detection broadcast by another (listening) device.
+  function addSharedChip(cand, from) {
+    pushCandidate(cand, { from, allowAuto: false })
+  }
+
   function runDetect(text) {
     const idx = indexRef.current
     if (!idx || !text) return
     const res = detectRefs(text, idx)
-    if (res.length) pushCandidate(res[0])
+    if (res.length) {
+      pushCandidate(res[0])
+      onDetectRef.current?.(res[0])
+    }
   }
 
   function handleResult(e) {
@@ -245,6 +257,9 @@ export function useVoice({ versions, defaultLang, onShow }) {
     transcript,
     chips,
     toggle,
-    tapChip
+    start,
+    stop,
+    tapChip,
+    addSharedChip
   }
 }

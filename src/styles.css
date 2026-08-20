@@ -965,7 +965,8 @@ select:focus {
   flex: 1;
 }
 
-.vc-auto {
+.vc-auto,
+.vc-from {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -973,6 +974,86 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0.05rem 0.4rem;
+  white-space: nowrap;
+}
+
+.vc-from {
+  color: var(--ink-soft);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.listener-toggle {
+  margin-top: 0.6rem;
+  width: 100%;
+}
+
+.listener-banner {
+  background: var(--danger);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.55rem 0.8rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.listener-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+/* dedicated listener screen */
+.listener {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem 1.5rem;
+}
+
+.listener-status {
+  font-size: 1.4rem;
+  gap: 0.6rem;
+}
+
+.listener-status .mic-dot {
+  width: 1rem;
+  height: 1rem;
+}
+
+.listener-title {
+  font-family: var(--serif-latin);
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.listener-transcript {
+  font-family: var(--serif-latin);
+  font-style: italic;
+  color: var(--ink-soft);
+  font-size: 1.3rem;
+  min-height: 3rem;
+  max-width: 32rem;
+}
+
+.listener-reminder {
+  color: var(--ink-soft);
+}
+
+.listener .btn.wide {
+  max-width: 20rem;
+}
+
+.listener-meta {
+  font-size: 0.85rem;
 }
 
 .voice-controls {

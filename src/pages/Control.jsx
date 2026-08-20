@@ -10,8 +10,10 @@ import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, pas
 import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
-import { makeInviteCode, isInviteValid } from '../lib/crypto.js'
+import { makeInviteCode, isInviteValid, hmacKey, signMsg, verifyMsg } from '../lib/crypto.js'
 import { checkInviteProof, buildInviteResponse } from '../lib/invite.js'
+import { activeListeners, listenerDrops } from '../lib/listener.js'
+import ListenerView from '../components/ListenerView.jsx'
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -41,6 +43,28 @@ function Console({ row, creds }) {
   const inviteRef = useRef(null)
   const credsRef = useRef(creds)
   credsRef.current = creds
+  const [listenerMode, setListenerMode] = useState(false)
+  const [presenceEntries, setPresenceEntries] = useState([])
+  const [listenerBanner, setListenerBanner] = useState('')
+  const voiceRef = useRef(null)
+  const channelRef = useRef(null)
+  const keyRef = useRef(null)
+  const prevListenersRef = useRef([])
+  async function getSigKey() {
+    if (!keyRef.current) keyRef.current = await hmacKey('pin:' + credsRef.current.pin)
+    return keyRef.current
+  }
+  // Broadcast a local detection (signed) so operating controllers see a labeled chip.
+  async function broadcastDetect(cand) {
+    const ch = channelRef.current
+    if (!ch) return
+    const msg = JSON.stringify({ cand, from: credsRef.current.name || 'Someone', at: Date.now() })
+    try {
+      ch.send({ type: 'broadcast', event: 'detect', payload: { msg, sig: await signMsg(await getSigKey(), msg) } })
+    } catch {
+      /* ignore transient send errors */
+    }
+  }
   const [tab, setTab] = useState(() => {
     try {
       return sessionStorage.getItem('ol-tab') || 'go'
@@ -91,15 +115,35 @@ function Console({ row, creds }) {
         setState(incoming)
       }
     )
+    // Shared voice chips from other listening devices (signed by a PIN holder).
+    channel.on('broadcast', { event: 'detect' }, async ({ payload }) => {
+      if (!payload?.msg || !payload?.sig) return
+      if (!(await verifyMsg(await getSigKey(), payload.msg, payload.sig))) return
+      try {
+        const data = JSON.parse(payload.msg)
+        voiceRef.current?.addSharedChip?.(data.cand, data.from)
+      } catch {
+        /* ignore malformed */
+      }
+    })
     channel.on('presence', { event: 'sync' }, () => {
       const s = channel.presenceState()
-      const names = Object.values(s).flat().map((m) => m.name || 'Someone')
-      setPresence(names)
+      const entries = Object.values(s)
+        .flat()
+        .map((m) => ({ name: m.name || 'Someone', listening: !!m.listening }))
+      setPresenceEntries(entries)
+      setPresence(entries.map((e) => e.name))
+      const curr = activeListeners(entries)
+      const dropped = listenerDrops(prevListenersRef.current, curr)
+      if (dropped.length) setListenerBanner(`Listener ${dropped.join(', ')} is no longer listening.`)
+      if (curr.length) setListenerBanner('')
+      prevListenersRef.current = curr
     })
+    channelRef.current = channel
     channel.subscribe(async (st) => {
       setConnected(st === 'SUBSCRIBED')
       if (st === 'SUBSCRIBED') {
-        await channel.track({ name: creds.name || 'Guest', at: Date.now() })
+        await channel.track({ name: creds.name || 'Guest', at: Date.now(), listening: false })
       }
     })
     return () => channel.unsubscribe()
@@ -167,8 +211,24 @@ function Console({ row, creds }) {
   const voice = useVoice({
     versions,
     defaultLang: versions[0]?.language === 'ta' ? 'ta-IN' : 'en-US',
-    onShow: showDetected
+    onShow: showDetected,
+    onDetect: broadcastDetect
   })
+  voiceRef.current = voice
+
+  // Advertise listening health in presence so others can see it / spot a drop.
+  useEffect(() => {
+    const ch = channelRef.current
+    if (!ch) return
+    ch.track({ name: creds.name || 'Guest', at: Date.now(), listening: listenerMode && voice.micState === 'listening' })
+  }, [listenerMode, voice.micState, creds.name])
+
+  function toggleListener(on) {
+    setListenerMode(on)
+    if (on && voice.micState !== 'listening') voice.start()
+  }
+
+  const otherListeners = activeListeners(presenceEntries).filter((n) => !(listenerMode && n === (creds.name || 'Guest')))
 
   // ---- available translations for the Display pickers ----
   const [allVersions, setAllVersions] = useState([])
@@ -661,6 +721,10 @@ function Console({ row, creds }) {
     ['display', 'Display']
   ]
 
+  if (listenerMode) {
+    return <ListenerView v={voice} name={creds.name} code={code} onExit={() => toggleListener(false)} />
+  }
+
   return (
     <div className="control">
       <div className="statusbar">
@@ -725,6 +789,10 @@ function Console({ row, creds }) {
 
       <div className="control-scroll">
         {status && <p className="error control-status">{status}</p>}
+        {listenerBanner && <p className="listener-banner">{listenerBanner}</p>}
+        {otherListeners.length > 0 && (
+          <p className="listener-note muted">Listening: {otherListeners.join(', ')}</p>
+        )}
 
         <div className="now-card" aria-live="polite">
           {state.blank ? (
@@ -840,7 +908,7 @@ function Console({ row, creds }) {
                   Add to queue
                 </button>
               </div>
-              <VoiceControls v={voice} />
+              <VoiceControls v={voice} listenerMode={listenerMode} onListenerMode={toggleListener} />
             </div>
           )}
 

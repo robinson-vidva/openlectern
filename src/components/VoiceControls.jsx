@@ -1,6 +1,6 @@
 // The voice controls (mic start/stop, language, auto, live transcript). Chips
 // render separately in VoiceChips so they can persist across tabs.
-export default function VoiceControls({ v }) {
+export default function VoiceControls({ v, listenerMode, onListenerMode }) {
   if (!v.supported) {
     return (
       <div className="voice">
@@ -45,6 +45,12 @@ export default function VoiceControls({ v }) {
           Auto-show strong matches
         </label>
       </div>
+
+      {onListenerMode && (
+        <button className="btn small listener-toggle" onClick={() => onListenerMode(!listenerMode)}>
+          {listenerMode ? 'Exit listener mode' : 'Listener mode (leave at the pulpit)'}
+        </button>
+      )}
 
       {v.auto && (
         <p className="muted voice-hint">Auto shows exact book + valid verse instantly. Anything unsure still waits as a chip.</p>

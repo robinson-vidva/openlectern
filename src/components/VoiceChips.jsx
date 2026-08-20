@@ -12,6 +12,7 @@ export default function VoiceChips({ v }) {
         >
           <span className="vc-ref">{chip.ref}</span>
           {chip.text && <span className="vc-text">{chip.text}</span>}
+          {chip.from && <span className="vc-from">{chip.from}</span>}
           {chip.auto && <span className="vc-auto">auto</span>}
         </button>
       ))}
