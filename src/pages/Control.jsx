@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
+import VoiceMode from '../components/VoiceMode.jsx'
 import { updateSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
@@ -186,6 +187,19 @@ function Console({ row, creds }) {
     }
   }
 
+  // Show a reference detected by voice (same ad-hoc path as Show now).
+  // A single-verse detection has verseEnd null; getPassage treats that as
+  // "to end of chapter", so pin verseEnd to verseStart first.
+  async function showDetected(cand) {
+    const ref = { ...cand, verseEnd: cand.verseStart != null && cand.verseEnd == null ? cand.verseStart : cand.verseEnd }
+    try {
+      const results = await resolveItem(versions, ref)
+      await patchState({ current: wholeCurrent(results), cursor: { queueId: null, verseIndex: null }, blank: false })
+    } catch (e) {
+      setStatus(e.message)
+    }
+  }
+
   // ---- Back / Next navigation ----
   async function goNext() {
     const st = stateRef.current
@@ -331,6 +345,12 @@ function Console({ row, creds }) {
 
       <div className="control-main">
         {status && <p className="error">{status}</p>}
+
+        <VoiceMode
+          versions={versions}
+          defaultLang={versions[0]?.language === 'ta' ? 'ta-IN' : 'en-US'}
+          onShow={showDetected}
+        />
 
         <div>
           <div className="field" style={{ margin: 0 }}>

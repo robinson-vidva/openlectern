@@ -111,13 +111,21 @@ no accounts, no installs. MIT license.
   "whole passage" toggle). Controller shows a "n / total" indicator and a
   tappable verse list to jump directly. Presenter shows the single current verse
   in both languages. See Data shapes (cursor) above.
+- Voice mode on the controller (Web Speech API; Chrome/Edge only). CONFIRM is the
+  default (detected refs become chips, tap to show); an AUTO toggle shows only
+  high-confidence detections (exact book + verse validated in bounds) instantly,
+  logging a chip so the operator can tap back. Mic runs only on the controller,
+  never the presenter; no audio/transcript leaves the device. Core detection is a
+  pure, unit-tested detectRefs(transcript, bookIndex) in src/lib/voice/ validated
+  against per-chapter verse counts (public/bibles/<v>/structure.json); fixtures +
+  vitest run in the Tests CI workflow. Single-verse detections carry verseEnd
+  null and must be normalized to verseEnd=verseStart before getPassage (which
+  treats null as "to end of chapter").
 
 ## Parked for later (do not build now)
 
 - Themes (NEXT planned item: presenter background + type-size options synced
   from the controller).
-- Voice mode (Web Speech API; suggestions tap-to-show before any auto mode).
-  Note: needs a secure context (https), which is already satisfied via Cloudflare.
 - Named/saved service plans.
 - Accounts via linking anonymous auth to email.
 - Stage display.

@@ -12,6 +12,19 @@ anyone controls it live from a phone or laptop. No accounts, no installs, no PII
   (`John 3:16-18`, `1 Cor 13`, `Psalm 23:1-6`), preview, show, queue, reorder,
   import/export, and a fixed Back / Blank / Next bar. Multiple controllers stay in
   sync and see who else is connected.
+- **Voice** (on the controller): let the phone's mic listen to the speaker;
+  detected references appear as chips you tap to show, or auto-show strong
+  matches. Confirm mode by default.
+
+## Voice mode and privacy
+
+Voice mode uses the browser's built-in Web Speech API (Chrome or Edge). Speech
+recognition is performed by the browser vendor's own service, so voice mode needs
+an internet connection and the audio is transcribed off-device by that vendor.
+OpenLectern never records, stores, or sends any audio or transcript to its own
+storage; detection runs entirely in the page and only the chosen reference (never
+the audio) goes through the normal show path. The mic runs only on the controller,
+never on the presenter, and only while you have voice mode on.
 
 ## Stack
 

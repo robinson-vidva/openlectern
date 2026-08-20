@@ -23,6 +23,21 @@ async function loadBundledBook(versionId, bookId) {
   return res.json()
 }
 
+// Per-chapter verse counts for a bundled version (voice detection validation).
+export async function loadStructure(versionId) {
+  const res = await fetch(`${BASE}bibles/${versionId}/structure.json`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+// Book list for a bundled version: [{ id, name, chapters }]. Used for the
+// localized (e.g. Tamil) book names the voice matcher needs.
+export async function loadIndex(versionId) {
+  const res = await fetch(`${BASE}bibles/${versionId}/index.json`)
+  if (!res.ok) return null
+  return res.json()
+}
+
 // Fallback: fetch one chapter from HelloAO and adapt it to our shape.
 // HelloAO chapter endpoint returns { chapter: { content: [ { type:'verse', number, content:[...] }, ... ] } }.
 async function loadHelloaoChapter(helloaoId, bookId, chapter) {

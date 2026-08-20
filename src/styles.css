@@ -413,6 +413,156 @@ select:focus {
   min-width: 7rem;
 }
 
+/* ---------- voice mode ---------- */
+.voice {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+}
+
+.voice-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.voice-title {
+  font-weight: 700;
+}
+
+.mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-left: auto;
+}
+
+.mic-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.mic.listening .mic-dot {
+  background: #2f8f5b;
+  box-shadow: 0 0 0 0 rgba(47, 143, 91, 0.5);
+  animation: micpulse 1.4s infinite;
+}
+
+.mic.error .mic-dot {
+  background: var(--danger);
+}
+
+@keyframes micpulse {
+  70% {
+    box-shadow: 0 0 0 0.5rem rgba(47, 143, 91, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(47, 143, 91, 0);
+  }
+}
+
+.btn.small {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.9rem;
+  border-radius: 8px;
+}
+
+.voice-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.voice-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  width: 100%;
+}
+
+.voice-chip.shown {
+  border-color: var(--line);
+  opacity: 0.75;
+}
+
+.vc-ref {
+  font-family: var(--serif-latin);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vc-text {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.vc-auto {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+}
+
+.voice-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  margin-top: 0.7rem;
+}
+
+.voice-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.voice-lang select {
+  width: auto;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.voice-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.voice-transcript {
+  margin: 0.5rem 0 0;
+  font-family: var(--serif-latin);
+  font-style: italic;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+
+.voice-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.8rem;
+}
+
 /* ---------- now showing / verse stepping ---------- */
 .nowshowing {
   background: var(--panel);
