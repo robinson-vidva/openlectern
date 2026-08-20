@@ -177,6 +177,37 @@ select:focus {
   flex-direction: column;
 }
 
+/* Presenter themes (synced live from any controller). Each overrides the tokens
+   the presenter uses; the accent stays a readable gold per background. */
+.present.theme-light {
+  --bg: #f7f3ea;
+  --ink: #24211c;
+  --ink-soft: #5c574c;
+  --line: #e2dccb;
+  --accent: #7a5c3e;
+}
+.present.theme-sepia {
+  --bg: #efe3cf;
+  --ink: #3a2f22;
+  --ink-soft: #6b5c46;
+  --line: #d9c6a5;
+  --accent: #6b4a24;
+}
+.present.theme-dark {
+  --bg: #14130f;
+  --ink: #f3ecdd;
+  --ink-soft: #b7ad99;
+  --line: #33302a;
+  --accent: #d8b878;
+}
+.present.theme-contrast {
+  --bg: #000000;
+  --ink: #ffffff;
+  --ink-soft: #e6e6e6;
+  --line: #4a4a4a;
+  --accent: #ffd54a;
+}
+
 .present-body {
   flex: 1;
   display: flex;
@@ -191,7 +222,7 @@ select:focus {
 .present-ref {
   font-family: var(--serif-latin);
   font-style: italic;
-  color: var(--ink-soft);
+  color: var(--accent);
   font-size: 3.2vmin;
   margin-bottom: 2.5vmin;
 }
@@ -435,6 +466,65 @@ select:focus {
 
 .hi-time {
   font-size: 0.8rem;
+}
+
+/* ---------- display (theme + font size) ---------- */
+.display-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+}
+
+.display-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.35rem;
+}
+
+.theme-swatches {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.swatch {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  padding: 0;
+}
+
+.swatch.on {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sw-light {
+  background: #f7f3ea;
+}
+.sw-sepia {
+  background: #efe3cf;
+}
+.sw-dark {
+  background: #14130f;
+}
+.sw-contrast {
+  background: #000000;
+}
+
+.font-size {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fs-val {
+  min-width: 3ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .toolbar {

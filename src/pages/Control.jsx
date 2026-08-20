@@ -73,6 +73,18 @@ function Console({ row, creds }) {
   const history = state.history || []
   const [historyOpen, setHistoryOpen] = useState(false)
 
+  // ---- presenter display (theme + font size), synced to all ----
+  const display = state.display || {}
+  const theme = display.theme || 'light'
+  const fontScale = display.fontScale || 100
+  function setTheme(t) {
+    patchState({ display: { theme: t, fontScale } })
+  }
+  function nudgeFont(d) {
+    const v = Math.max(80, Math.min(140, fontScale + d))
+    patchState({ display: { theme, fontScale: v } })
+  }
+
   const itemById = (id) => queue.find((q) => q.id === id) || null
 
   // Per-chapter verse counts for the primary version, for ad-hoc stepping bounds.
@@ -584,6 +596,28 @@ function Console({ row, creds }) {
               )}
             </div>
           )}
+        </div>
+
+        <div className="display-panel">
+          <div className="section-title">Display</div>
+          <div className="display-row">
+            <div className="theme-swatches">
+              {['light', 'sepia', 'dark', 'contrast'].map((t) => (
+                <button
+                  key={t}
+                  className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
+                  title={t}
+                  aria-label={`${t} theme`}
+                  onClick={() => setTheme(t)}
+                />
+              ))}
+            </div>
+            <div className="font-size">
+              <button className="icon-btn" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
+              <span className="fs-val">{fontScale}%</span>
+              <button className="icon-btn" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
+            </div>
+          </div>
         </div>
       </div>
 

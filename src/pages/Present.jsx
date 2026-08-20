@@ -16,8 +16,9 @@ function VerseBlock({ block, className, hideNumber }) {
   )
 }
 
-// Shrink the verse block until it fits the available body area.
-function useAutoFit(ref, dep) {
+// Shrink the verse block until it fits the available body area, then apply the
+// operator's font-size adjustment on top.
+function useAutoFit(ref, dep, scale = 1) {
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
@@ -36,6 +37,7 @@ function useAutoFit(ref, dep) {
         el.style.fontSize = size + 'px'
         guard++
       }
+      el.style.fontSize = size * scale + 'px'
     }
     fit()
     // Re-fit once web fonts finish loading; their real metrics are taller than
@@ -43,15 +45,18 @@ function useAutoFit(ref, dep) {
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit)
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
-  }, [dep])
+  }, [dep, scale])
 }
 
 function Stage({ state, code }) {
   const blockRef = useRef(null)
   const current = state?.current
   const blank = state?.blank
+  const display = state?.display || {}
+  const theme = display.theme || 'light'
+  const scale = (display.fontScale || 100) / 100
   const fitKey = blank ? 'blank' : current?.id || 'empty'
-  useAutoFit(blockRef, fitKey)
+  useAutoFit(blockRef, fitKey, scale)
 
   const rootRef = useRef(null)
   const [isFs, setIsFs] = useState(false)
@@ -68,7 +73,7 @@ function Stage({ state, code }) {
   }
 
   return (
-    <div className="present" ref={rootRef}>
+    <div className={`present theme-${theme}`} ref={rootRef}>
       <div className="present-body">
         {!blank && current ? (
           <div className="present-block" ref={blockRef}>
