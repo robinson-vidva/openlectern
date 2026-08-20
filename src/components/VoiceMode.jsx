@@ -79,7 +79,7 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
     resolvePreviewText(versions, cand)
       .then((t) => setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, text: t } : c))))
       .catch(() => {})
-    if (fired) onShow(cand)
+    if (fired) onShow(cand, 'auto')
   }
 
   function handleResult(e) {
@@ -215,7 +215,7 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
   useEffect(() => () => stop(), [])
 
   function tapChip(chip) {
-    onShow(chip.detail)
+    onShow(chip.detail, 'voice')
     setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, shown: true } : c)))
   }
 

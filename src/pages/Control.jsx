@@ -6,6 +6,7 @@ import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount } from '../lib/resolve.js'
 import { loadStructure } from '../lib/bibleData.js'
+import { appendHistory } from '../lib/history.js'
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -69,6 +70,8 @@ function Console({ row, creds }) {
   const queue = state.queue || []
   const current = state.current || null
   const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
+  const history = state.history || []
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const itemById = (id) => queue.find((q) => q.id === id) || null
 
@@ -139,13 +142,23 @@ function Console({ row, creds }) {
   }
 
   // ---- showing helpers ----
+  // Every show goes through here so it lands on the presenter and is logged.
+  async function commitShow(currentObj, cursorObj, source) {
+    const history = appendHistory(stateRef.current.history || [], {
+      ref: currentObj.reference,
+      at: Date.now(),
+      source
+    })
+    await patchState({ current: currentObj, cursor: cursorObj, blank: false, history })
+  }
+
   async function showItemAtVerse(item, verseIndex) {
     const p = parseReference(item.input)
     if (!p) return setStatus('That queue item could not be read.')
     try {
       const results = await resolveItem(versions, p)
       const c = stepCurrent(results, p, verseIndex)
-      await patchState({ current: c, cursor: { queueId: item.id, verseIndex: c.verseIndex ?? null }, blank: false })
+      await commitShow(c, { queueId: item.id, verseIndex: c.verseIndex ?? null }, 'queue')
     } catch (e) {
       setStatus(e.message)
     }
@@ -156,7 +169,7 @@ function Console({ row, creds }) {
     if (!p) return setStatus('That queue item could not be read.')
     try {
       const results = await resolveItem(versions, p)
-      await patchState({ current: wholeCurrent(results), cursor: { queueId: item.id, verseIndex: null }, blank: false })
+      await commitShow(wholeCurrent(results), { queueId: item.id, verseIndex: null }, 'queue')
     } catch (e) {
       setStatus(e.message)
     }
@@ -174,7 +187,7 @@ function Console({ row, creds }) {
       const results = await resolveItem(versions, p)
       const last = Math.max(0, verseCount(results) - 1)
       const c = stepCurrent(results, p, last)
-      await patchState({ current: c, cursor: { queueId: item.id, verseIndex: c.verseIndex ?? null }, blank: false })
+      await commitShow(c, { queueId: item.id, verseIndex: c.verseIndex ?? null }, 'queue')
     } catch (e) {
       setStatus(e.message)
     }
@@ -210,7 +223,7 @@ function Console({ row, creds }) {
         adhoc: { bookId: ref.bookId, chapter: ref.chapter, first, last, count },
         savedPlan
       }
-      await patchState({ current: wholeCurrent(results), cursor: cursorNext, blank: false })
+      await commitShow(wholeCurrent(results), cursorNext, source)
     } catch (e) {
       setStatus(e.message)
     }
@@ -246,7 +259,7 @@ function Console({ row, creds }) {
         adhoc: { ...adhoc, first: verse, last: verse },
         savedPlan: stateRef.current.cursor?.savedPlan || null
       }
-      await patchState({ current: c, cursor: cursorNext, blank: false })
+      await commitShow(c, cursorNext, 'manual')
     } catch (e) {
       setStatus(e.message)
     }
@@ -259,6 +272,21 @@ function Console({ row, creds }) {
     if (!item) return setStatus('That plan item is no longer in the queue.')
     if (saved.verseIndex != null) await showItemAtVerse(item, saved.verseIndex)
     else await showItemWhole(item)
+  }
+
+  // Re-show a history entry (goes through the normal show path, so it re-logs).
+  function reShow(entry) {
+    const p = parseReference(entry.ref)
+    if (!p) return setStatus('Could not re-read that reference.')
+    return showAdhoc(p, 'manual')
+  }
+
+  function fmtTime(at) {
+    try {
+      return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return ''
+    }
   }
 
   // ---- Back / Next navigation ----
@@ -355,7 +383,8 @@ function Console({ row, creds }) {
     const data = {
       openlectern: 'queue',
       version: 1,
-      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole }))
+      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole })),
+      history: history.map((e) => ({ ref: e.ref, at: e.at, source: e.source }))
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -524,7 +553,7 @@ function Console({ row, creds }) {
             {!queue.length && <p className="muted">Nothing queued yet.</p>}
           </div>
           <div className="toolbar" style={{ marginTop: '0.6rem' }}>
-            <button className="btn" onClick={exportQueue} disabled={!queue.length}>Export</button>
+            <button className="btn" onClick={exportQueue} disabled={!queue.length && !history.length}>Export</button>
             <button className="btn" onClick={() => fileRef.current?.click()}>Import</button>
             <input
               ref={fileRef}
@@ -534,6 +563,27 @@ function Console({ row, creds }) {
               onChange={importQueue}
             />
           </div>
+        </div>
+
+        <div>
+          <button className="section-title as-toggle" onClick={() => setHistoryOpen((o) => !o)}>
+            History ({history.length}) {historyOpen ? '-' : '+'}
+          </button>
+          {historyOpen && (
+            <div className="history">
+              {history.length ? (
+                history.map((e, i) => (
+                  <button className="history-item" key={i} onClick={() => reShow(e)}>
+                    <span className="hi-ref">{e.ref}</span>
+                    {e.source === 'auto' && <span className="vc-auto">auto</span>}
+                    <span className="hi-time muted">{fmtTime(e.at)}</span>
+                  </button>
+                ))
+              ) : (
+                <p className="muted">Nothing shown yet.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

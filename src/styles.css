@@ -402,6 +402,41 @@ select:focus {
   margin: 0.25rem 0;
 }
 
+.section-title.as-toggle {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.history-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+
+.hi-ref {
+  font-family: var(--serif-latin);
+  flex: 1;
+}
+
+.hi-time {
+  font-size: 0.8rem;
+}
+
 .toolbar {
   display: flex;
   gap: 0.5rem;
