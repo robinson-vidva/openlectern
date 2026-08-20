@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
-import VoiceMode from '../components/VoiceMode.jsx'
+import VoiceControls from '../components/VoiceControls.jsx'
+import VoiceChips from '../components/VoiceChips.jsx'
+import { useVoice } from '../components/useVoice.js'
 import { updateSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
@@ -76,6 +78,14 @@ function Console({ row, creds }) {
   const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
   const history = state.history || []
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  // Voice engine lives here (always alive) so its chips can render in a
+  // persistent slot while the controls live in a tab.
+  const voice = useVoice({
+    versions,
+    defaultLang: versions[0]?.language === 'ta' ? 'ta-IN' : 'en-US',
+    onShow: showDetected
+  })
 
   // ---- presenter display (theme + font size), synced to all ----
   const display = state.display || {}
@@ -468,11 +478,8 @@ function Console({ row, creds }) {
       <div className="control-main">
         {status && <p className="error">{status}</p>}
 
-        <VoiceMode
-          versions={versions}
-          defaultLang={versions[0]?.language === 'ta' ? 'ta-IN' : 'en-US'}
-          onShow={showDetected}
-        />
+        <VoiceControls v={voice} />
+        <VoiceChips v={voice} />
 
         <div>
           <div className="field" style={{ margin: 0 }}>

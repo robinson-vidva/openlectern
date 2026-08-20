@@ -4,17 +4,18 @@ import { loadStructure, loadIndex } from '../lib/bibleData.js'
 import { resolvePreviewText } from '../lib/voiceData.js'
 
 const Rec = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
-const SUPPORTED = !!Rec
-const LANGS = [
+export const VOICE_SUPPORTED = !!Rec
+export const VOICE_LANGS = [
   { id: 'en-US', label: 'English (US)' },
   { id: 'en-IN', label: 'English (India)' },
   { id: 'ta-IN', label: 'Tamil' }
 ]
 const DEDUPE_MS = 10000
 
-// Voice mode: the controller's mic listens and surfaces detected references as
-// chips (CONFIRM). AUTO shows high-confidence detections without a tap.
-export default function VoiceMode({ versions, defaultLang, onShow }) {
+// The voice engine, lifted into a hook so the controls (in a tab) and the chips
+// (in a persistent slot) can share one always-alive recognition session. Behavior
+// is identical to the previous VoiceMode component.
+export function useVoice({ versions, defaultLang, onShow }) {
   const [lang, setLang] = useState(defaultLang || 'en-US')
   const [auto, setAuto] = useState(false)
   const [active, setActive] = useState(false)
@@ -32,11 +33,11 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
   const recentRef = useRef(new Map())
   const autoRef = useRef(auto)
   const langRef = useRef(lang)
+  const transcriptRef = useRef('')
   useEffect(() => {
     autoRef.current = auto
   }, [auto])
 
-  // Build the book index (primary version structure + Tamil book names) once.
   async function ensureIndex() {
     if (indexRef.current) return indexRef.current
     const primary = versions[0]
@@ -82,6 +83,13 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
     if (fired) onShow(cand, 'auto')
   }
 
+  function runDetect(text) {
+    const idx = indexRef.current
+    if (!idx || !text) return
+    const res = detectRefs(text, idx)
+    if (res.length) pushCandidate(res[0])
+  }
+
   function handleResult(e) {
     let interim = ''
     let didFinal = false
@@ -95,16 +103,11 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
         interim += text
       }
     }
-    setTranscript((interim || (didFinal ? '' : transcript)).trim().slice(-140))
+    const line = (interim || (didFinal ? '' : transcriptRef.current)).trim().slice(-140)
+    transcriptRef.current = line
+    setTranscript(line)
     if (interim) runDetect(interim)
-    backoffRef.current = 300 // healthy stream, reset backoff
-  }
-
-  function runDetect(text) {
-    const idx = indexRef.current
-    if (!idx || !text) return
-    const res = detectRefs(text, idx)
-    if (res.length) pushCandidate(res[0])
+    backoffRef.current = 300
   }
 
   function makeRecognition() {
@@ -151,7 +154,7 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
   }
 
   async function start() {
-    if (!SUPPORTED) return
+    if (!VOICE_SUPPORTED) return
     setError('')
     runningRef.current = true
     setActive(true)
@@ -177,6 +180,7 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
     releaseWake()
     setMicState('off')
     setTranscript('')
+    transcriptRef.current = ''
   }
 
   function toggle() {
@@ -184,16 +188,6 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
     else start()
   }
 
-  // Re-acquire the wake lock when returning to the tab.
-  useEffect(() => {
-    function onVisible() {
-      if (document.visibilityState === 'visible' && runningRef.current && !wakeRef.current) requestWake()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
-
-  // Restart recognition with the new language when it changes mid-session.
   function changeLang(next) {
     setLang(next)
     langRef.current = next
@@ -212,80 +206,34 @@ export default function VoiceMode({ versions, defaultLang, onShow }) {
     }
   }
 
-  useEffect(() => () => stop(), [])
-
   function tapChip(chip) {
     onShow(chip.detail, 'voice')
     setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, shown: true } : c)))
   }
 
-  if (!SUPPORTED) {
-    return (
-      <div className="voice">
-        <div className="voice-head">
-          <span className="voice-title">Voice</span>
-        </div>
-        <p className="muted" style={{ margin: '0.4rem 0 0' }}>
-          Voice needs Chrome or Edge on this device.
-        </p>
-      </div>
-    )
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && runningRef.current && !wakeRef.current) requestWake()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  useEffect(() => () => stop(), [])
+
+  return {
+    supported: VOICE_SUPPORTED,
+    langs: VOICE_LANGS,
+    lang,
+    changeLang,
+    auto,
+    setAuto,
+    active,
+    micState,
+    error,
+    transcript,
+    chips,
+    toggle,
+    tapChip
   }
-
-  return (
-    <div className="voice">
-      <div className="voice-head">
-        <span className="voice-title">Voice</span>
-        <span className={`mic ${micState}`}>
-          <span className="mic-dot" />
-          {micState === 'listening' ? 'Listening' : micState === 'error' ? 'Error' : 'Off'}
-        </span>
-        <button className={`btn small${active ? ' primary' : ''}`} onClick={toggle}>
-          {active ? 'Stop' : 'Start listening'}
-        </button>
-      </div>
-
-      {chips.length > 0 && (
-        <div className="voice-chips">
-          {chips.map((chip) => (
-            <button
-              key={chip.key}
-              className={`voice-chip${chip.shown ? ' shown' : ''}`}
-              onClick={() => tapChip(chip)}
-            >
-              <span className="vc-ref">{chip.ref}</span>
-              {chip.text && <span className="vc-text">{chip.text}</span>}
-              {chip.auto && <span className="vc-auto">auto</span>}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="voice-controls">
-        <label className="voice-lang">
-          Language
-          <select value={lang} onChange={(e) => changeLang(e.target.value)}>
-            {LANGS.map((l) => (
-              <option key={l.id} value={l.id}>{l.label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="voice-auto">
-          <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-          Auto-show strong matches
-        </label>
-      </div>
-
-      {auto && (
-        <p className="muted voice-hint">Auto shows exact book + valid verse instantly. Anything unsure still waits as a chip.</p>
-      )}
-      {error && <p className="error" style={{ margin: '0.4rem 0 0' }}>{error}</p>}
-      {micState === 'listening' && (
-        <p className="voice-transcript">{transcript || 'Listening for a reference...'}</p>
-      )}
-      {micState === 'listening' && (
-        <p className="muted voice-hint">Keep this screen on and unlocked; the mic stops if the phone sleeps.</p>
-      )}
-    </div>
-  )
 }
