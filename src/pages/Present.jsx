@@ -48,6 +48,42 @@ function useAutoFit(ref, dep, scale = 1) {
   }, [dep, scale])
 }
 
+// Discreet session-code control for a clean share: an info dot that reveals the
+// code and a join hint on hover / focus / tap, auto-dismissing. Never the PIN.
+function CodeInfo({ code }) {
+  const [open, setOpen] = useState(false)
+  const timerRef = useRef(null)
+  function reveal() {
+    setOpen(true)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setOpen(false), 4000)
+  }
+  function hide() {
+    setOpen(false)
+    clearTimeout(timerRef.current)
+  }
+  return (
+    <div className="code-info" onMouseEnter={reveal} onMouseLeave={hide}>
+      <button
+        className="code-info-btn"
+        aria-label="Show the code to join as a controller"
+        aria-expanded={open}
+        onClick={reveal}
+        onFocus={reveal}
+        onBlur={hide}
+      >
+        i
+      </button>
+      {open && (
+        <div className="code-info-pop" role="status">
+          <span className="cip-code">{code}</span>
+          <span className="cip-hint">Join as a controller with this code</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Stage({ state, code }) {
   const blockRef = useRef(null)
   const current = state?.current
@@ -90,9 +126,13 @@ function Stage({ state, code }) {
         )}
       </div>
       <div className="present-bar">
-        <span>
-          Join at this screen's code: <span className="present-code">{code}</span>
-        </span>
+        {current && !blank ? (
+          <CodeInfo code={code} />
+        ) : (
+          <span>
+            Join at this screen's code: <span className="present-code">{code}</span>
+          </span>
+        )}
         <button className="fs-btn" onClick={toggleFullscreen}>
           {isFs ? 'Exit full screen' : 'Full screen'}
         </button>

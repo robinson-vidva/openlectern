@@ -307,6 +307,61 @@ select:focus {
   font-size: 2.2vmin;
 }
 
+/* discreet session-code info control */
+.code-info {
+  position: relative;
+  display: inline-flex;
+}
+
+.code-info-btn {
+  width: 3vmin;
+  height: 3vmin;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--serif-latin);
+  font-style: italic;
+  font-size: 2vmin;
+  line-height: 1;
+  opacity: 0.45;
+}
+
+.code-info-btn:hover,
+.code-info-btn:focus-visible {
+  opacity: 1;
+}
+
+.code-info-pop {
+  position: absolute;
+  bottom: 135%;
+  left: 0;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  white-space: nowrap;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+}
+
+.cip-code {
+  font-family: var(--serif-latin);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  font-size: 2.6vmin;
+  color: var(--accent);
+}
+
+.cip-hint {
+  font-size: 1.7vmin;
+  color: var(--ink-soft);
+}
+
 /* ---------- controller ---------- */
 .control {
   min-height: 100%;
