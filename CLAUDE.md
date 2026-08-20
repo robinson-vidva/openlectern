@@ -85,9 +85,15 @@ no accounts, no installs. MIT license.
   `current` never clobbers another's `queue` edit.
 - Fonts are chosen by block language (`[lang="ta"]` -> Noto Serif Tamil), not by
   position, so either language can be primary.
-- Known minor exposure: realtime broadcasts the row; pin_hash is column-revoked
-  from client roles so it is not in payloads. A 4-digit PIN is low-security by
-  design (ephemeral sessions). A two-table split is parked.
+- pin_hash protection (verified live): client roles get a column-level SELECT
+  grant on every column except pin_hash, so it never appears in REST reads or in
+  realtime payloads. Realtime delivery needs REPLICA IDENTITY FULL so the RLS
+  policy (expires_at > now()) can be evaluated; the column grant still filters
+  pin_hash out of the broadcast. Direct insert/update/delete are denied (42501).
+  A 4-digit PIN is intentionally low-security for ephemeral sessions.
+- The three RPCs being anon-executable is flagged by the Supabase linter; that is
+  by design (a no-auth, PIN-guarded public API). Internal helpers
+  (cleanup_expired_sessions, session_public) have EXECUTE revoked from clients.
 
 ## Parked for later (do not build now)
 

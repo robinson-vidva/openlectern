@@ -30,6 +30,12 @@ grant select (code, config, state, admins, created_at, expires_at)
   on public.sessions to anon, authenticated;
 
 -- Realtime: broadcast row changes to presenter + all controllers.
+-- REPLICA IDENTITY FULL is required so the RLS SELECT policy (which reads
+-- expires_at) can be evaluated against changed rows; without it, postgres_changes
+-- are silently dropped for the anon role. The column-level grant above still
+-- keeps pin_hash out of the broadcast payload.
+alter table public.sessions replica identity full;
+
 -- Idempotent: skip if the table is already in the publication.
 do $$
 begin
