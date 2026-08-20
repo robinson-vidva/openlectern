@@ -10,6 +10,8 @@ import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, pas
 import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
+import { makeInviteCode, isInviteValid } from '../lib/crypto.js'
+import { checkInviteProof, buildInviteResponse } from '../lib/invite.js'
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -32,6 +34,13 @@ function Console({ row, creds }) {
   const [connected, setConnected] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [copied, setCopied] = useState('')
+  const [pinReveal, setPinReveal] = useState(false)
+  const [invite, setInvite] = useState(null)
+  const [inviteSecs, setInviteSecs] = useState(0)
+  const [inviteNote, setInviteNote] = useState('')
+  const inviteRef = useRef(null)
+  const credsRef = useRef(creds)
+  credsRef.current = creds
   const [tab, setTab] = useState(() => {
     try {
       return sessionStorage.getItem('ol-tab') || 'go'
@@ -50,7 +59,24 @@ function Console({ row, creds }) {
   // Realtime + presence.
   useEffect(() => {
     const channel = supabase.channel(`session:${code}`, {
-      config: { presence: { key: crypto.randomUUID() } }
+      config: { presence: { key: crypto.randomUUID() }, broadcast: { self: false } }
+    })
+    // Invite responder: a new device that knows a live invite code gets the PIN
+    // encrypted (never in the clear). Any attempt burns the single-use invite.
+    channel.on('broadcast', { event: 'invite-req' }, async ({ payload }) => {
+      const inv = inviteRef.current
+      if (!payload?.nonce || !isInviteValid(inv, Date.now())) return
+      inviteRef.current = { ...inv, used: true }
+      setInvite(null)
+      setInviteSecs(0)
+      if (await checkInviteProof(inv.code, payload.nonce, payload.proof)) {
+        const res = await buildInviteResponse(inv.code, credsRef.current.pin, payload.nonce)
+        channel.send({ type: 'broadcast', event: 'invite-res', payload: res })
+        setInviteNote(`${payload.name || 'A device'} joined via your invite.`)
+      } else {
+        channel.send({ type: 'broadcast', event: 'invite-res', payload: { nonce: payload.nonce, denied: true } })
+        setInviteNote('An invite attempt failed; the code was used up.')
+      }
     })
     channel.on(
       'postgres_changes',
@@ -438,6 +464,33 @@ function Console({ row, creds }) {
     window.location.hash = '#/'
   }
 
+  function revealPin() {
+    setPinReveal(true)
+    setTimeout(() => setPinReveal(false), 4000)
+  }
+
+  function startInvite() {
+    const inv = { code: makeInviteCode(), expiresAt: Date.now() + 60000, used: false }
+    inviteRef.current = inv
+    setInviteNote('')
+    setInvite(inv)
+    setInviteSecs(60)
+  }
+  useEffect(() => {
+    if (!invite) return
+    const t = setInterval(() => {
+      const left = Math.ceil((inviteRef.current.expiresAt - Date.now()) / 1000)
+      if (left <= 0 || inviteRef.current.used) {
+        inviteRef.current = null
+        setInvite(null)
+        setInviteSecs(0)
+      } else {
+        setInviteSecs(left)
+      }
+    }, 500)
+    return () => clearInterval(t)
+  }, [invite])
+
   // ---- Back / Next navigation ----
   async function goNext() {
     const st = stateRef.current
@@ -647,6 +700,21 @@ function Console({ row, creds }) {
                 <span className="chip">just you</span>
               )}
             </div>
+            <div className="sp-row">
+              {pinReveal ? (
+                <span className="pin-reveal" role="status">PIN {creds.pin}</span>
+              ) : (
+                <button className="btn small" onClick={revealPin}>Show session PIN</button>
+              )}
+              {invite ? (
+                <span className="invite-live">
+                  Invite code <strong>{invite.code}</strong> ({inviteSecs}s)
+                </span>
+              ) : (
+                <button className="btn small" onClick={startInvite}>Invite device</button>
+              )}
+            </div>
+            {inviteNote && <p className="muted" style={{ margin: 0 }}>{inviteNote}</p>}
             <div className="sp-row">
               <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open presenter</a>
               <button className="link-btn danger" onClick={leaveSession}>Leave session</button>

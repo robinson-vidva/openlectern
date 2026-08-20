@@ -1,32 +1,41 @@
 import { useState } from 'react'
 import { joinSession, joinView } from '../lib/session.js'
+import { requestPinViaInvite } from '../lib/invite.js'
 import { friendlyError, supabaseConfigured } from '../lib/supabase.js'
 
 // Controllers join with code + PIN (and an optional name) and can write.
 // Presenters/viewers join with the code only (read-only, no PIN).
+// Controllers can also join via a one-time invite code from another controller.
 export default function JoinForm({ role, initialCode = '', onJoined }) {
   const [code, setCode] = useState(initialCode.toUpperCase())
   const [pin, setPin] = useState('')
+  const [invite, setInvite] = useState('')
   const [name, setName] = useState('')
+  const [mode, setMode] = useState('pin') // pin | invite (control only)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const isControl = role === 'control'
+  const inviteMode = isControl && mode === 'invite'
 
   async function submit(e) {
     e.preventDefault()
     setError('')
     const c = code.trim().toUpperCase()
     if (c.length < 4) return setError('Enter the session code.')
-    if (isControl && !/^\d{4}$/.test(pin)) return setError('PIN is 4 digits.')
     setBusy(true)
     try {
-      if (isControl) {
+      if (!isControl) {
+        onJoined(await joinView(c), { code: c })
+      } else if (inviteMode) {
+        if (!/^\d{6}$/.test(invite.trim())) throw new Error('Invite code is 6 digits.')
+        const recovered = await requestPinViaInvite(c, invite.trim(), name.trim())
+        const row = await joinSession(c, recovered)
+        onJoined(row, { code: c, pin: recovered, name: name.trim() })
+      } else {
+        if (!/^\d{4}$/.test(pin)) throw new Error('PIN is 4 digits.')
         const row = await joinSession(c, pin)
         onJoined(row, { code: c, pin, name: name.trim() })
-      } else {
-        const row = await joinView(c)
-        onJoined(row, { code: c })
       }
     } catch (err) {
       setError(friendlyError(err))
@@ -49,7 +58,9 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
   return (
     <form className="card" onSubmit={submit}>
       <h1>OpenLectern</h1>
-      <p className="tagline">{isControl ? 'Join to control the screen' : 'Open the presenter screen'}</p>
+      <p className="tagline">
+        {!isControl ? 'Open the presenter screen' : inviteMode ? 'Join with an invite code' : 'Join to control the screen'}
+      </p>
 
       <div className="field">
         <label htmlFor="code">Session code</label>
@@ -64,7 +75,7 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
         />
       </div>
 
-      {isControl && (
+      {isControl && !inviteMode && (
         <div className="field">
           <label htmlFor="pin">PIN</label>
           <input
@@ -76,6 +87,22 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
             placeholder="4 digits"
+          />
+        </div>
+      )}
+
+      {inviteMode && (
+        <div className="field">
+          <label htmlFor="invite">Invite code</label>
+          <input
+            id="invite"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={6}
+            value={invite}
+            onChange={(e) => setInvite(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="6 digits from another controller"
           />
         </div>
       )}
@@ -99,8 +126,22 @@ export default function JoinForm({ role, initialCode = '', onJoined }) {
       {error && <p className="error">{error}</p>}
 
       <button className="btn primary wide" type="submit" disabled={busy}>
-        {busy ? 'Joining...' : isControl ? 'Join' : 'Open'}
+        {busy ? (inviteMode ? 'Requesting...' : 'Joining...') : isControl ? 'Join' : 'Open'}
       </button>
+
+      {isControl && (
+        <p style={{ marginTop: '0.9rem', textAlign: 'center' }}>
+          <button type="button" className="link-btn" onClick={() => setMode(inviteMode ? 'pin' : 'invite')}>
+            {inviteMode ? 'Enter the PIN instead' : 'Join with an invite code'}
+          </button>
+        </p>
+      )}
+
+      {isControl && !inviteMode && (
+        <p className="muted" style={{ marginTop: '0.6rem', textAlign: 'center', fontSize: '0.85rem' }}>
+          Forgot the PIN and no controller is open? <a className="link-btn" href="#/">Start a new session.</a>
+        </p>
+      )}
 
       <p style={{ marginTop: '1rem', textAlign: 'center' }}>
         <a className="link-btn" href="#/">Back to start</a>
