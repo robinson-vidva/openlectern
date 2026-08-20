@@ -6,7 +6,8 @@ import { useVoice } from '../components/useVoice.js'
 import { updateSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
-import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount } from '../lib/resolve.js'
+import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
+import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
 
@@ -227,7 +228,18 @@ function Console({ row, creds }) {
   }
 
   async function enterItemEnd(item) {
-    if (item.whole) return showItemWhole(item)
+    if (item.whole) {
+      const p = parseReference(item.input)
+      if (!p) return setStatus('That queue item could not be read.')
+      try {
+        const results = await resolveItem(versions, p)
+        const c = wholeCurrent(results)
+        c.page = Math.max(0, (c.pageCount || 1) - 1)
+        return commitShow(c, { queueId: item.id, verseIndex: null }, 'queue')
+      } catch (e) {
+        return setStatus(e.message)
+      }
+    }
     const p = parseReference(item.input)
     if (!p) return setStatus('That queue item could not be read.')
     try {
@@ -358,6 +370,11 @@ function Console({ row, creds }) {
     const st = stateRef.current
     const q = st.queue || []
     const cur = st.cursor || null
+    const c = st.current
+    // Paginated whole passage: page forward before leaving the passage.
+    if (c && !c.step && (c.pageCount || 1) > 1 && (c.page || 0) < c.pageCount - 1) {
+      return patchState({ current: { ...c, page: (c.page || 0) + 1 } })
+    }
     // Ad-hoc stepping: continue through the chapter.
     if (cur && cur.adhoc) {
       const a = cur.adhoc
@@ -391,6 +408,11 @@ function Console({ row, creds }) {
     const st = stateRef.current
     const q = st.queue || []
     const cur = st.cursor || null
+    const c = st.current
+    // Paginated whole passage: page backward before leaving the passage.
+    if (c && !c.step && (c.page || 0) > 0) {
+      return patchState({ current: { ...c, page: c.page - 1 } })
+    }
     if (cur && cur.adhoc) {
       const a = cur.adhoc
       if (a.first - 1 >= 1) return showAdhocVerse(a, a.first - 1)
@@ -496,6 +518,16 @@ function Console({ row, creds }) {
   const firstLineShort = firstLine.length > 90 ? firstLine.slice(0, 90).trim() + '...' : firstLine
   const adminCount = presence.length || 1
 
+  // Paginated whole passage (for the Now card page indicator + verse jump).
+  const pagedWhole = current && !current.step && (current.pageCount || 1) > 1
+  const pagedPages = pagedWhole ? passagePages(current) : null
+  const curPage = pagedWhole ? Math.min(current.page || 0, pagedPages.length - 1) : 0
+  function jumpToVersePage(k) {
+    const cc = stateRef.current.current
+    if (!cc) return
+    patchState({ current: { ...cc, page: pageOfVerse(passagePages(cc), k) } })
+  }
+
   const TABS = [
     ['go', 'Go'],
     ['plan', 'Plan'],
@@ -561,7 +593,9 @@ function Console({ row, creds }) {
               <div className="now-top">
                 <div className="now-ref">{current.reference}</div>
                 <div className="now-mode">
-                  {inQueue && stepping && stepTotal ? (
+                  {pagedWhole ? (
+                    <span className="now-pos">{curPage + 1} / {pagedPages.length}</span>
+                  ) : inQueue && stepping && stepTotal ? (
                     <span className="now-pos">{cursor.verseIndex + 1} / {stepTotal}</span>
                   ) : null}
                   {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
@@ -576,6 +610,20 @@ function Console({ row, creds }) {
                       className={`vchip${k === cursor.verseIndex ? ' on' : ''}`}
                       aria-label={`Show verse ${v.n}`}
                       onClick={() => showItemAtVerse(activeItem, k)}
+                    >
+                      {v.n}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {pagedWhole && (
+                <div className="verse-chips scroll-x">
+                  {current.primary.verses.map((v, k) => (
+                    <button
+                      key={v.n}
+                      className={`vchip${pagedPages[curPage].includes(k) ? ' on' : ''}`}
+                      aria-label={`Go to verse ${v.n}`}
+                      onClick={() => jumpToVersePage(k)}
                     >
                       {v.n}
                     </button>

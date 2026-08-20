@@ -156,6 +156,19 @@ no accounts, no installs. MIT license.
 - History of shown verses (controller collapsible section, tap to re-show).
 - Presenter themes (light/sepia/dark/high-contrast) + font size 80-140%, synced
   live from any controller.
+- Discreet session code on the presenter: once content is showing, the code
+  becomes a small info dot (reveals code + join hint on hover/focus/tap, auto-
+  dismiss, never the PIN); the idle screen still shows it prominently.
+- Legibility floor + pagination (src/lib/paginate.js, MIN_FONT_VMIN + PAGE_CAPACITY
+  tunable, unit-tested). Auto-fit shrinks only to the floor; long whole passages
+  paginate on verse boundaries instead (both languages page together via combined
+  per-verse weights). wholeCurrent carries { page, pageCount }; presenter shows a
+  corner "p/N" marker; Back/Next page before leaving the passage; the Now-card
+  shows the page position and the verse-jump row jumps to a verse's page. Step
+  mode / single verses never paginate.
+- Start/join use the same light identity as the controller (weighted CTA, gold
+  code badge). The controller stays LIGHT (Robinson's preference); presenter
+  themes are the only dark surface.
 - Voice mode on the controller (Web Speech API; Chrome/Edge only). CONFIRM is the
   default (detected refs become chips, tap to show); an AUTO toggle shows only
   high-confidence detections (exact book + verse validated in bounds) instantly,

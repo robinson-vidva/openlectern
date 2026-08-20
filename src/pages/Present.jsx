@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { subscribeSession } from '../lib/session.js'
+import { passagePages } from '../lib/resolve.js'
+import { MIN_FONT_VMIN } from '../lib/paginate.js'
 
 function VerseBlock({ block, className, hideNumber }) {
   if (!block) return null
@@ -24,20 +26,23 @@ function useAutoFit(ref, dep, scale = 1) {
     if (!el) return
     const parent = el.parentElement
     const fit = () => {
+      // Legibility floor: never auto-shrink below MIN_FONT_VMIN (of the smaller
+      // viewport side). Long passages paginate instead of going smaller.
+      const floor = (MIN_FONT_VMIN / 100) * Math.min(window.innerWidth, window.innerHeight)
       let size = Math.min(parent.clientWidth, parent.clientHeight) * 0.13
       size = Math.min(size, 130)
       el.style.fontSize = size + 'px'
       let guard = 0
       while (
         (el.scrollHeight > parent.clientHeight || el.scrollWidth > parent.clientWidth) &&
-        size > 14 &&
-        guard < 300
+        size > floor &&
+        guard < 400
       ) {
         size -= 2
         el.style.fontSize = size + 'px'
         guard++
       }
-      el.style.fontSize = size * scale + 'px'
+      el.style.fontSize = Math.max(size, floor) * scale + 'px'
     }
     fit()
     // Re-fit once web fonts finish loading; their real metrics are taller than
@@ -91,7 +96,22 @@ function Stage({ state, code }) {
   const display = state?.display || {}
   const theme = display.theme || 'light'
   const scale = (display.fontScale || 100) / 100
-  const fitKey = blank ? 'blank' : current?.id || 'empty'
+
+  // Whole passages paginate; render only the current page's verses.
+  const paged = current && !current.step && (current.pageCount || 1) > 1
+  const pages = paged ? passagePages(current) : null
+  const pageIdx = paged ? Math.min(current.page || 0, pages.length - 1) : 0
+  const pageVerses = paged ? pages[pageIdx] : null
+  const pagePrimary =
+    pageVerses && current.primary
+      ? { language: current.primary.language, verses: pageVerses.map((i) => current.primary.verses[i]).filter(Boolean) }
+      : current?.primary
+  const pageSecondary =
+    pageVerses && current.secondary
+      ? { language: current.secondary.language, verses: pageVerses.map((i) => current.secondary.verses[i]).filter(Boolean) }
+      : current?.secondary
+
+  const fitKey = blank ? 'blank' : `${current?.id || 'empty'}:${pageIdx}`
   useAutoFit(blockRef, fitKey, scale)
 
   const rootRef = useRef(null)
@@ -114,8 +134,8 @@ function Stage({ state, code }) {
         {!blank && current ? (
           <div className="present-block" ref={blockRef}>
             <div className="present-ref">{current.reference}</div>
-            <VerseBlock block={current.primary} className="present-primary" hideNumber={current.step} />
-            <VerseBlock block={current.secondary} className="present-secondary" hideNumber={current.step} />
+            <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} />
+            <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} />
           </div>
         ) : blank ? (
           <div className="present-block" ref={blockRef} />
@@ -125,6 +145,9 @@ function Stage({ state, code }) {
           </div>
         )}
       </div>
+      {paged && !blank && pages.length > 1 && (
+        <div className="present-page">{pageIdx + 1}/{pages.length}</div>
+      )}
       <div className="present-bar">
         {current && !blank ? (
           <CodeInfo code={code} />
