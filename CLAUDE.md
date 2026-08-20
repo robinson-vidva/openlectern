@@ -76,19 +76,34 @@ no accounts, no installs. MIT license.
   knowledge of stepping.
 - state.queue = [{ id, input, label, whole }]. `whole` false (default) = step
   verse-by-verse; true = show the whole passage as one screen.
-- state.cursor = { queueId, verseIndex } marks what is being shown. queueId null
-  = an ad-hoc "Show now" (not from the queue); verseIndex null = whole passage.
-  Older sessions may lack cursor/whole/step; all readers default them safely.
+- state.cursor = { queueId, verseIndex, adhoc?, savedPlan? } marks what is shown.
+  queueId null = an ad-hoc show (Show now / voice). `adhoc` = { bookId, chapter,
+  first, last, count } lets Back/Next keep stepping through the chapter from an
+  ad-hoc verse; `savedPlan` = { queueId, verseIndex } preserves the plan position
+  so "Back to plan" restores it. Older sessions may lack cursor/whole/step/adhoc;
+  all readers default them safely.
 - state.blank = boolean.
+- state.history = [{ ref, at, source }] newest-first, capped 100, source one of
+  manual|queue|voice|auto (pure appendHistory in src/lib/history.js, unit-tested).
+  Ephemeral with the session; included in the queue export, ignored on import.
+- state.display = { theme, fontScale } (theme light|sepia|dark|contrast; fontScale
+  80-140). Synced live; presenter applies theme via `.present.theme-<t>` tokens
+  and multiplies the auto-fit size by fontScale/100. Missing = light/100.
 - Back/Next step verse-by-verse within an item, then cross item boundaries
   (Next past the last verse -> next item's start; Back before the first verse ->
   previous item's end). At the plan's ends they only flash a controller-only
-  "End/Start of plan" hint and never change the presenter by surprise.
+  "End/Start of plan" hint and never change the presenter by surprise. From an
+  ad-hoc verse they continue through the chapter (chapter-boundary hint).
 
 ## Notable decisions
 
-- Presenter also joins with code + PIN (via join_session) to fetch the initial
-  row, then relies on realtime for updates. It only reads; it never writes.
+- Presenter/viewer role is CODE-ONLY (no PIN): join_session_view(code) returns
+  the public row (migration supabase/migrations/001; the app falls back to a
+  direct RLS-guarded SELECT if the RPC is not installed). Presenters never write,
+  and code-only reads were already possible via the realtime SELECT policy, so
+  this is not a new exposure -- it just makes the presenter link freely shareable
+  (e.g. a Zoom viewer). Control still needs code + PIN. Links carry ?s=CODE; the
+  PIN is never in a URL.
 - Controllers resolve verse text and write the fully-resolved `current` into
   state, so the presenter just renders (no version mismatch, small logic).
 - update_session shallow-merges `state` (jsonb ||), so one controller updating
@@ -111,6 +126,18 @@ no accounts, no installs. MIT license.
   "whole passage" toggle). Controller shows a "n / total" indicator and a
   tappable verse list to jump directly. Presenter shows the single current verse
   in both languages. See Data shapes (cursor) above.
+- Continue stepping from an ad-hoc shown verse (Show now / voice): Back/Next keep
+  moving through the chapter; a "Back to plan" button restores the queue position.
+  PENDING QUESTION for Robinson: he asked for "a way to move a displayed verse up
+  or down"; this was built as continue-stepping. Confirm he did NOT also mean
+  physically nudging the text's position on the presenter screen -- if he did,
+  that is a separate small follow-up (do not build unprompted).
+- Sharing: session-ready screen opens the presenter in a new tab and offers
+  Copy presenter/controller link buttons (?s=CODE, PIN never in a URL); presenter
+  is view-only (see Notable decisions).
+- History of shown verses (controller collapsible section, tap to re-show).
+- Presenter themes (light/sepia/dark/high-contrast) + font size 80-140%, synced
+  live from any controller.
 - Voice mode on the controller (Web Speech API; Chrome/Edge only). CONFIRM is the
   default (detected refs become chips, tap to show); an AUTO toggle shows only
   high-confidence detections (exact book + verse validated in bounds) instantly,
