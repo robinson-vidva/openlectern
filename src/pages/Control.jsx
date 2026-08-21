@@ -10,7 +10,6 @@ import Icon from '../components/Icon.jsx'
 import PresenterPreview from '../components/PresenterPreview.jsx'
 import { parseReference, formatLabel, searchBooks, parsePartialRef } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
-import { extractReferences } from '../lib/planText.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
 import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
@@ -841,23 +840,6 @@ function Console({ row, creds }) {
     patchState({ queue: queue.filter((q) => q.id !== id) })
   }
 
-  // Operator-only note on a plan item (never shown on the big screen).
-  function setItemNote(id, note) {
-    const q = (stateRef.current.queue || []).map((x) => (x.id === id ? { ...x, note: note.trim() || undefined } : x))
-    patchState({ queue: q })
-  }
-
-  // Paste a pastor's note and add every reference it contains, in order.
-  const [planText, setPlanText] = useState('')
-  function addPlanFromText() {
-    const refs = extractReferences(planText)
-    if (!refs.length) return setStatus('No references found in that note.')
-    const items = refs.map((r) => ({ id: crypto.randomUUID(), input: r.input, label: r.label, whole: false }))
-    patchState({ queue: [...(stateRef.current.queue || []), ...items] })
-    setPlanText('')
-    setStatus(`Added ${items.length} passage${items.length === 1 ? '' : 's'} to the plan.`)
-  }
-
   function move(index, delta) {
     const next = [...queue]
     const j = index + delta
@@ -1268,66 +1250,40 @@ function Console({ row, creds }) {
         <aside className="console-right">
           <PresenterPreview state={state} onOpen={() => window.open(linkFor('present'), '_blank', 'noopener')} />
           <section className="panel-card plan-card">
-          <h3 className="card-h">Plan ({queue.length})</h3>
-              <div className="queue">
-                {queue.map((item, i) => {
-                  const active = cursor?.queueId === item.id
-                  return (
-                    <div className={`queue-item-wrap${active ? ' active' : ''}`} key={item.id}>
-                      <div className="queue-item">
-                        <button className="icon-btn" aria-label="Move up" onClick={() => move(i, -1)}>up</button>
-                        <button className="icon-btn" aria-label="Move down" onClick={() => move(i, 1)}>dn</button>
-                        <span className="label">{item.label}</span>
-                        <button
-                          className={`icon-btn mode${item.whole ? '' : ' on'}`}
-                          aria-label={item.whole ? 'Showing whole passage, tap to step' : 'Stepping verse by verse, tap for whole'}
-                          onClick={() => toggleWhole(item)}
-                        >
-                          {item.whole ? 'Whole' : 'Step'}
-                        </button>
-                        <button className="icon-btn" aria-label={`Show ${item.label}`} onClick={() => enterItemStart(item)}>Show</button>
-                        <button className="icon-btn" aria-label={`Remove ${item.label}`} onClick={() => removeItem(item.id)}>x</button>
-                      </div>
-                      <input
-                        className="queue-note"
-                        type="text"
-                        defaultValue={item.note || ''}
-                        placeholder="Add a note (e.g. sermon intro) - not shown on screen"
-                        aria-label={`Note for ${item.label}`}
-                        onBlur={(e) => {
-                          if ((e.target.value.trim() || '') !== (item.note || '')) setItemNote(item.id, e.target.value)
-                        }}
-                      />
-                    </div>
-                  )
-                })}
-                {!queue.length && <p className="muted">Nothing queued yet.</p>}
+            <div className="plan-head">
+              <h3 className="card-h">Plan ({queue.length})</h3>
+              <div className="plan-tools">
+                <button className="iconbtn sm" title="Export the plan" aria-label="Export the plan" onClick={exportQueue} disabled={!queue.length && !history.length}>
+                  <Icon name="download" />
+                </button>
+                <button className="iconbtn sm" title="Import a plan" aria-label="Import a plan" onClick={() => fileRef.current?.click()}>
+                  <Icon name="upload" />
+                </button>
+                <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={importQueue} />
               </div>
-
-              <div className="section-title" style={{ marginTop: '1rem' }}>Paste a plan</div>
-              <textarea
-                className="plan-paste"
-                rows={3}
-                value={planText}
-                onChange={(e) => setPlanText(e.target.value)}
-                placeholder="Paste the pastor's note, e.g. Psalm 100, John 3:16-21, then Romans 8:28-30"
-                aria-label="Paste a plan"
-              />
-              <div className="toolbar" style={{ marginTop: '0.5rem' }}>
-                <button className="btn primary" onClick={addPlanFromText} disabled={!planText.trim()}>Add all to plan</button>
-              </div>
-
-              <div className="toolbar" style={{ marginTop: '0.9rem' }}>
-                <button className="btn" onClick={exportQueue} disabled={!queue.length && !history.length}>Export</button>
-                <button className="btn" onClick={() => fileRef.current?.click()}>Import</button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="application/json,.json"
-                  style={{ display: 'none' }}
-                  onChange={importQueue}
-                />
-              </div>
+            </div>
+            <div className="queue">
+              {queue.map((item, i) => {
+                const active = cursor?.queueId === item.id
+                return (
+                  <div className={`queue-item${active ? ' active' : ''}`} key={item.id}>
+                    <span className="label">{item.label}</span>
+                    <button
+                      className={`icon-btn mode${item.whole ? '' : ' on'}`}
+                      aria-label={item.whole ? 'Showing whole passage, tap to step' : 'Stepping verse by verse, tap for whole'}
+                      onClick={() => toggleWhole(item)}
+                    >
+                      {item.whole ? 'Whole' : 'Step'}
+                    </button>
+                    <button className="icon-btn" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
+                    <button className="icon-btn" aria-label="Move down" onClick={() => move(i, 1)} disabled={i === queue.length - 1}>↓</button>
+                    <button className="icon-btn show" aria-label={`Show ${item.label}`} onClick={() => enterItemStart(item)}>Show</button>
+                    <button className="icon-btn danger" aria-label={`Remove ${item.label}`} onClick={() => removeItem(item.id)}>✕</button>
+                  </div>
+                )
+              })}
+              {!queue.length && <p className="muted">Add passages from the search — they build up here.</p>}
+            </div>
           </section>
         </aside>
       </div>

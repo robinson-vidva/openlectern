@@ -1810,3 +1810,15 @@ select:focus {
 .combo-opt.co-show{border-bottom:1px solid var(--line-soft);margin-bottom:.15rem;padding-bottom:.55rem}
 .combo-opt.co-show .co-label{color:var(--accent)}
 .combo-opt.co-alias .co-hint{color:var(--accent)}
+
+/* ---- plan card: icon header + compact running list ---- */
+.plan-head{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.6rem}
+.plan-head .card-h{margin:0}
+.plan-tools{display:flex;gap:.35rem;flex:none}
+.iconbtn.sm{width:32px;height:32px;border-radius:8px;font-size:1rem}
+.iconbtn.sm:disabled{opacity:.4;cursor:default}
+.plan-card .queue-item{flex-wrap:wrap;gap:.4rem;padding:.5rem .6rem}
+.plan-card .queue-item .label{flex:1 1 7rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-card .icon-btn{padding:.25rem .45rem;font-size:.82rem}
+.plan-card .icon-btn.show{color:var(--accent);border-color:var(--accent)}
+.plan-card .icon-btn.danger{color:var(--danger)}
