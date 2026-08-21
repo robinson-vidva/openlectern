@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
-import VoiceControls from '../components/VoiceControls.jsx'
-import VoiceChips from '../components/VoiceChips.jsx'
 import { useVoice } from '../components/useVoice.js'
 import { updateSession, joinSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
@@ -868,128 +866,123 @@ function Console({ row, creds }) {
     }
   }
 
-  const TABS = [
-    ['go', 'Go'],
-    ['plan', 'Plan'],
-    ['history', 'History'],
-    ['display', 'Display']
-  ]
-
   if (listenerMode) {
     return <ListenerView v={voice} name={creds.name} code={code} onExit={() => toggleListener(false)} />
   }
 
+  const micLabel = voice.micState === 'listening' ? 'Listening' : voice.micState === 'error' ? 'Mic error' : 'Voice off'
+
   return (
-    <div className="control">
-      <div className="statusbar">
-        <button
-          className="statusbar-main"
-          onClick={() => setPanelOpen((o) => !o)}
-          aria-expanded={panelOpen}
-          aria-label="Session details"
-        >
-          <span className="sb-code">{code}</span>
-          <span className={`sb-live${connected ? ' on' : ''}`}>
+    <div className="console">
+      {/* TOP BAR: identity + voice (always visible) + tools */}
+      <header className="topbar">
+        <div className="tb-brand">
+          <b>OpenLectern</b>
+          <span className="tb-code">{code}</span>
+          <span className={`tb-live${connected ? ' on' : ''}`}>
             <span className="live-dot" />
             {connected ? 'live' : 'connecting'}
           </span>
-          <span className="sb-admins">
-            {adminCount} {adminCount === 1 ? 'admin' : 'admins'}
-          </span>
-          <span className={`sb-caret${panelOpen ? ' open' : ''}`} aria-hidden="true" />
-        </button>
-        {panelOpen && (
-          <div className="session-panel">
-            <div className="sp-code-block">
-              <div className="sp-code-label muted">Screen code</div>
-              <div className="sp-code">{code}</div>
-              <button
-                className="sp-qr"
-                aria-label="Enlarge the presenter QR code"
-                title="Scan to watch on a phone. Tap to enlarge."
-                onClick={() => setQrBig(true)}
-              >
-                <Qr text={linkFor('present')} size={92} />
-              </button>
-              <div className="sp-qr-hint muted">Scan to watch</div>
-            </div>
-            <div className="sp-row">
-              <button className="btn small" onClick={() => copyLink('present')}>
-                {copied === 'present' ? 'Copied' : 'Copy presenter link'}
-              </button>
-              <button className="btn small" onClick={() => copyLink('control')}>
-                {copied === 'control' ? 'Copied' : 'Copy controller link'}
-              </button>
-            </div>
-            <div className="sp-admins">
-              <span className="muted">In this session:</span>
-              {presence.length ? (
-                presence.map((n, i) => (
-                  <span className="chip" key={i}>{n}</span>
-                ))
-              ) : (
-                <span className="chip">just you</span>
-              )}
-            </div>
-            <div className="sp-row">
-              {pinReveal ? (
-                <span className="pin-reveal" role="status">PIN {creds.pin}</span>
-              ) : (
-                <button className="btn small" onClick={revealPin}>Show session PIN</button>
-              )}
-              {invite ? (
-                <span className="invite-live">
-                  Invite code <strong>{invite.code}</strong> ({inviteSecs}s)
-                </span>
-              ) : (
-                <button className="btn small" onClick={startInvite}>Invite device</button>
-              )}
-            </div>
-            {inviteNote && <p className="muted" style={{ margin: 0 }}>{inviteNote}</p>}
-            <div className="sp-row">
-              <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open the screen (new tab)</a>
-              <button className="link-btn danger" onClick={leaveSession}>Leave session</button>
-            </div>
-            <div className="sp-row">
-              <button className="link-btn" onClick={resetRemembered}>Reset remembered settings</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {qrBig && (
-        <div className="qr-modal" role="dialog" aria-label="Presenter QR code" onClick={() => setQrBig(false)}>
-          <div className="qr-modal-inner" onClick={(e) => e.stopPropagation()}>
-            <Qr text={linkFor('present')} size={Math.min(320, window.innerWidth - 80)} />
-            <div className="qr-modal-code">{code}</div>
-            <div className="muted">Scan to watch on any phone</div>
-            <button className="btn small" onClick={() => setQrBig(false)}>Close</button>
-          </div>
         </div>
-      )}
 
-      <div className="control-scroll">
-        {showHint && (
-          <div className="first-hint">
-            <button
-              className="first-hint-body"
-              onClick={() => {
-                setPanelOpen(true)
-                dismissHint()
-              }}
-            >
-              Your code and PIN live here. Open the screen on the big display from here too.
-            </button>
-            <button className="first-hint-x" aria-label="Dismiss" onClick={dismissHint}>Got it</button>
+        <div className={`voicebar mic-${voice.micState}${voice.active ? ' listening' : ''}`}>
+          <span className="vb-status"><span className="vb-ring" aria-hidden="true"><i /></span>{micLabel}</span>
+          {voice.supported ? (
+            <>
+              <button className="btn small vb-toggle" onClick={voice.toggle} aria-pressed={voice.active}>
+                {voice.active ? 'Stop' : 'Start listening'}
+              </button>
+              <span className="vb-sep" aria-hidden="true" />
+              <label className="vb-auto">
+                <input type="checkbox" checked={voice.auto} onChange={(e) => voice.setAuto(e.target.checked)} />
+                Auto
+              </label>
+              <select className="vb-lang" value={voice.lang} onChange={(e) => voice.changeLang(e.target.value)} aria-label="Recognition language">
+                {voice.langs.map((l) => (
+                  <option key={l.id} value={l.id}>{l.label}</option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <span className="muted vb-unsupported">Voice needs Chrome or Edge</span>
+          )}
+        </div>
+
+        <div className="tb-tools">
+          <span className="tb-admins">{adminCount} {adminCount === 1 ? 'admin' : 'admins'}</span>
+          <button className="btn small ghost" onClick={() => toggleListener(true)}>Listener mode</button>
+          <button className="iconbtn" title="Settings and sharing" aria-label="Settings and sharing" onClick={() => setPanelOpen(true)}>
+            <span aria-hidden="true">⚙</span>
+          </button>
+        </div>
+      </header>
+
+      {voice.error && <p className="voice-err">{voice.error}</p>}
+      {status && <p className="error console-status">{status}</p>}
+
+      <div className="console-body">
+        {/* LEFT RAIL: one live activity feed (voice, shared, quote, related, history, listeners) */}
+        <aside className="activity">
+          <div className="activity-head">
+            <h2>Activity</h2>
+            <span className={`activity-sub${voice.active ? ' on' : ''}`}>{voice.active ? 'listening' : 'idle'}</span>
           </div>
-        )}
-        {status && <p className="error control-status">{status}</p>}
-        {listenerBanner && <p className="listener-banner">{listenerBanner}</p>}
-        {otherListeners.length > 0 && (
-          <p className="listener-note muted">Listening: {otherListeners.join(', ')}</p>
-        )}
+          <div className="feed">
+            {voice.micState === 'listening' && (
+              <div className="feed-listening"><span className="fl-dot" />{voice.transcript || 'Listening for a reference...'}</div>
+            )}
+            {listenerBanner && <div className="feed-alert">{listenerBanner}</div>}
+            {otherListeners.length > 0 && (
+              <div className="feed-note"><span className="who">Listening:</span> {otherListeners.join(', ')}</div>
+            )}
+            {voice.chips.map((chip) => (
+              <button key={chip.key} className={`feed-card${chip.shown ? ' shown' : ''}`} onClick={() => voice.tapChip(chip)}>
+                <span className="fc-row">
+                  {chip.quote && <span className="badge quote">quote</span>}
+                  {chip.auto && <span className="badge auto">auto</span>}
+                  <span className="fc-ref">{chip.ref}</span>
+                  {chip.from && <span className="fc-from">{chip.from}</span>}
+                </span>
+                {chip.text && <span className="fc-prev">{chip.text}</span>}
+              </button>
+            ))}
+            {(voice.chips.length > 0 || history.length > 0) && <div className="feed-divider">Shown earlier</div>}
+            {history.map((e, i) => (
+              <button className="feed-hist" key={i} onClick={() => reShow(e)}>
+                <span className="fh-ref">{e.ref}</span>
+                {e.source === 'auto' && <span className="badge auto">auto</span>}
+                <span className="fh-time">{fmtTime(e.at)}</span>
+              </button>
+            ))}
+            {voice.chips.length === 0 && history.length === 0 && (
+              <p className="feed-empty muted">
+                Detected references, quotes, and shown verses appear here. Tap any to put it on the screen.
+              </p>
+            )}
+            {voice.supported && (
+              <p className="feed-foot muted">Quote-catch matches the loaded translations wording (e.g. WEB); a verse remembered in another wording may not match.</p>
+            )}
+          </div>
+        </aside>
 
-        <div className="now-card" aria-live="polite">
+        {/* MAIN: Now + Find + Plan */}
+        <main className="console-main">
+          {showHint && (
+            <div className="first-hint">
+              <button
+                className="first-hint-body"
+                onClick={() => {
+                  setPanelOpen(true)
+                  dismissHint()
+                }}
+              >
+                Your code, QR and PIN live under the gear. Open the screen on the big display from there too.
+              </button>
+              <button className="first-hint-x" aria-label="Dismiss" onClick={dismissHint}>Got it</button>
+            </div>
+          )}
+
+          <section className="now-card" aria-live="polite">
           {state.blank ? (
             <div className="now-blank">Screen is blank</div>
           ) : current ? (
@@ -1074,27 +1067,10 @@ function Console({ row, creds }) {
           ) : (
             <div className="now-empty">Nothing on screen yet</div>
           )}
-        </div>
+        </section>
 
-        <div className="tabs" role="tablist" aria-label="Controller sections">
-          {TABS.map(([id, label]) => (
-            <button
-              key={id}
-              role="tab"
-              id={`tab-${id}`}
-              aria-selected={tab === id}
-              aria-controls={`panel-${id}`}
-              className={`tab${tab === id ? ' on' : ''}`}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="tab-body">
-          {tab === 'go' && (
-            <div id="panel-go" role="tabpanel" aria-labelledby="tab-go">
+        <section className="panel-card">
+          <h3 className="card-h">Find a passage</h3>
               <div className="field" style={{ margin: 0 }}>
                 <label htmlFor="ref">Reference</label>
                 <input
@@ -1168,13 +1144,10 @@ function Console({ row, creds }) {
                   Add to queue
                 </button>
               </div>
-              <VoiceControls v={voice} listenerMode={listenerMode} onListenerMode={toggleListener} />
-            </div>
-          )}
+        </section>
 
-          {tab === 'plan' && (
-            <div id="panel-plan" role="tabpanel" aria-labelledby="tab-plan">
-              <div className="section-title">Queue ({queue.length})</div>
+        <section className="panel-card">
+          <h3 className="card-h">Plan ({queue.length})</h3>
               <div className="queue">
                 {queue.map((item, i) => {
                   const active = cursor?.queueId === item.id
@@ -1234,31 +1207,70 @@ function Console({ row, creds }) {
                   onChange={importQueue}
                 />
               </div>
-            </div>
-          )}
+        </section>
+        </main>
+      </div>
 
-          {tab === 'history' && (
-            <div id="panel-history" role="tabpanel" aria-labelledby="tab-history">
-              <div className="section-title">History ({history.length})</div>
-              <div className="history">
-                {history.length ? (
-                  history.map((e, i) => (
-                    <button className="history-item" key={i} onClick={() => reShow(e)}>
-                      <span className="hi-ref">{e.ref}</span>
-                      {e.source === 'auto' && <span className="vc-auto">auto</span>}
-                      <span className="hi-time muted">{fmtTime(e.at)}</span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="muted">Nothing shown yet.</p>
-                )}
+      {hint && (
+        <div className="plan-hint">
+          {hint === 'end'
+            ? 'End of plan'
+            : hint === 'start'
+              ? 'Start of plan'
+              : hint === 'chapter-end'
+                ? 'End of chapter'
+                : 'Start of chapter'}
+        </div>
+      )}
+
+      <nav className="transport">
+        <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
+        <button
+          className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
+          onClick={toggleBlank}
+          aria-pressed={state.blank}
+        >
+          {state.blank ? 'Unblank' : 'Blank'}
+        </button>
+        <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
+      </nav>
+
+      {panelOpen && (
+        <div className="settings-scrim" role="dialog" aria-label="Screen settings" onClick={() => setPanelOpen(false)}>
+          <div className="settings-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-head">
+              <h2>Screen settings</h2>
+              <button className="btn small" onClick={() => setPanelOpen(false)}>Done</button>
+            </div>
+            <div className="settings-grid">
+              <div className="scard share">
+                <button className="sp-qr" aria-label="Enlarge the QR code" title="Tap to enlarge" onClick={() => setQrBig(true)}>
+                  <Qr text={linkFor('present')} size={116} />
+                </button>
+                <div className="share-body">
+                  <div className="share-code">{code}</div>
+                  <p className="muted">Scan to watch, or share a link. Controllers also need the PIN.</p>
+                  <div className="share-btns">
+                    <button className="btn small" onClick={() => copyLink('present')}>{copied === 'present' ? 'Copied' : 'Copy watch link'}</button>
+                    <button className="btn small" onClick={() => copyLink('control')}>{copied === 'control' ? 'Copied' : 'Copy control link'}</button>
+                    {pinReveal ? (
+                      <span className="pin-reveal" role="status">PIN {creds.pin}</span>
+                    ) : (
+                      <button className="btn small" onClick={revealPin}>Show PIN</button>
+                    )}
+                    {invite ? (
+                      <span className="invite-live">Invite <strong>{invite.code}</strong> ({inviteSecs}s)</span>
+                    ) : (
+                      <button className="btn small" onClick={startInvite}>Invite device</button>
+                    )}
+                  </div>
+                  {inviteNote && <p className="muted" style={{ margin: 0 }}>{inviteNote}</p>}
+                  <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open the screen (new tab)</a>
+                </div>
               </div>
-            </div>
-          )}
 
-          {tab === 'display' && (
-            <div id="panel-display" role="tabpanel" aria-labelledby="tab-display">
-              <div className="section-title">Translations</div>
+              <div className="scard scard-wide">
+                <div className="section-title">Translations</div>
               <div className="field" style={{ margin: 0 }}>
                 <label htmlFor="primary-v">Primary</label>
                 <select id="primary-v" value={versions[0]?.id || ''} onChange={(e) => setPrimary(e.target.value)}>
@@ -1336,40 +1348,39 @@ function Console({ row, creds }) {
                 ))}
               </div>
               <p className="muted vps-hint">Auto fits as many verses as stay readable. A number shows exactly that many per screen for long passages.</p>
+              </div>
+
+              <div className="scard">
+                <div className="section-title">In this session</div>
+                <div className="sp-admins">
+                  {presence.length ? (
+                    presence.map((n, i) => (
+                      <span className="chip" key={i}>{n}</span>
+                    ))
+                  ) : (
+                    <span className="chip">just you</span>
+                  )}
+                </div>
+                <div className="share-btns" style={{ marginTop: '0.7rem' }}>
+                  <button className="link-btn" onClick={resetRemembered}>Reset remembered settings</button>
+                  <button className="link-btn danger" onClick={leaveSession}>Leave session</button>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {hint && (
-        <div className="plan-hint">
-          {hint === 'end'
-            ? 'End of plan'
-            : hint === 'start'
-              ? 'Start of plan'
-              : hint === 'chapter-end'
-                ? 'End of chapter'
-                : 'Start of chapter'}
+          </div>
         </div>
       )}
 
-      {voice.chips.length > 0 && (
-        <div className="chip-slot">
-          <VoiceChips v={voice} />
+      {qrBig && (
+        <div className="qr-modal" role="dialog" aria-label="Presenter QR code" onClick={() => setQrBig(false)}>
+          <div className="qr-modal-inner" onClick={(e) => e.stopPropagation()}>
+            <Qr text={linkFor('present')} size={Math.min(320, window.innerWidth - 80)} />
+            <div className="qr-modal-code">{code}</div>
+            <div className="muted">Scan to watch on any phone</div>
+            <button className="btn small" onClick={() => setQrBig(false)}>Close</button>
+          </div>
         </div>
       )}
-
-      <div className="transport">
-        <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
-        <button
-          className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
-          onClick={toggleBlank}
-          aria-pressed={state.blank}
-        >
-          {state.blank ? 'Unblank' : 'Blank'}
-        </button>
-        <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
-      </div>
     </div>
   )
 }

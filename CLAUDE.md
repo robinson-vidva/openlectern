@@ -76,21 +76,33 @@ no accounts, no installs. MIT license.
   in a persistent slot while the controls live in a tab.
 - scripts/convert-usfx.mjs, scripts/fetch-helloao.mjs, scripts/manifest.mjs.
 
-## Controller information architecture (top to bottom)
+## Controller information architecture (dashboard layout)
 
-- Status bar (sticky, thin): code, connection dot ("live"), admin count. Tapping
-  it opens a session panel: copy presenter/controller links, admins, leave.
-- NOW card (always visible): the current reference (gold), first verse line,
-  position ("n / total") + a mode pill (queue/voice/auto/ad-hoc), the step verse
-  jump list, "Back to plan" when ad-hoc over a plan, and a clear Blank state.
-- Segmented tabs GO / PLAN / HISTORY / DISPLAY (remembered in sessionStorage,
-  default GO). GO = passage input + preview + show/add + voice controls; PLAN =
-  queue + import/export; HISTORY = list, tap to re-show; DISPLAY = theme + font.
-- Voice chips live in a fixed slot above the transport (persistent across tabs).
-- Transport (fixed bottom): Back / Blank / Next; Next is wider and weighted; all
-  targets >= 48px, safe-area padded.
-- The controller uses the app's light palette (ivory bg, dark text, gold accents);
-  presenter themes are separate (state.display).
+The controller is a dashboard (`.console`), not a single mobile column. Zones:
+- TOP BAR (full width): wordmark + code + connection dot; the VOICE control is
+  pinned here (a pulsing "Listening" pill with Start/Stop, Auto toggle, and the
+  recognition-language select) so mic state is always visible; then admin count,
+  a Listener-mode button, and a gear that opens the settings modal.
+- LEFT ACTIVITY RAIL (`.activity` / `.feed`): ONE live feed replacing the old chip
+  slot + History tab. Newest first: a listening/transcript line, then detection
+  cards (voice, cross-device shared, quote/auto badges, source device name),
+  listener-health notices, then a "Shown earlier" history list -- every card taps
+  to show. Ends with the quote-catch honest-limitation note.
+- MAIN column (`.console-main`): the NOW card (reference, first line, position +
+  mode pill, verse-jump, live per-screen stepper, Related, Back-to-plan, Blank
+  state), then a "Find a passage" card (fast book search + preview + Show/Add) and
+  a "Plan" card (queue with per-item notes + paste-a-plan + import/export).
+- SETTINGS MODAL (gear, `.settings-sheet`): a card grid -- a Share card (code, QR
+  tap-to-enlarge, copy watch/control links, Show PIN, Invite device, open screen),
+  Translations, Presenter theme, Font size, Verses-per-screen, and an In-this-
+  session card (admins, Reset remembered, Leave). This replaced the old dropdown.
+- TRANSPORT (bottom row of the console): Back / Blank / Next.
+- Responsive: >=900px is a two-column [rail | main] grid with independent scroll;
+  below 900px the rail stacks above the Now card (capped height, own scroll) and
+  the voice bar wraps full-width under the top row. Light palette only (presenter
+  themes are separate, in state.display). The old tabbed layout (GO/PLAN/HISTORY/
+  DISPLAY) and floating chip slot are gone; VoiceControls/VoiceChips components are
+  unused by the console (voice + chips are rendered inline).
 
 ## Data shapes
 
