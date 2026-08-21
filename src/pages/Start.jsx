@@ -157,6 +157,13 @@ export default function Start() {
           <a className="link-btn" href="#/control">Control</a>{' or '}
           <a className="link-btn" href="#/present">Present</a>
         </p>
+
+        <p className="muted credits">
+          Scripture: World English Bible (public domain) and community translations.
+          Cross-references from{' '}
+          <a className="link-btn" href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noreferrer">openbible.info</a>{' '}
+          (CC BY).
+        </p>
       </form>
     </div>
   )

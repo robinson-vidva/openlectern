@@ -52,6 +52,30 @@ npm run fetch:helloao tam_irv  # bundle Tamil IRV
 
 Output lands in `public/bibles/<versionId>/` with a shared `manifest.json`.
 
+## Cross-references
+
+The "Related" panel uses the cross-reference dataset from
+[openbible.info](https://www.openbible.info/labs/cross-references/), licensed
+**CC BY** (built on the public-domain Treasury of Scripture Knowledge). Rebuild
+the bundled per-book chunks with:
+
+```bash
+curl -sL https://a.openbible.info/data/cross-references.zip -o x.zip && unzip x.zip
+node scripts/build-xrefs.mjs cross_references.txt
+```
+
+Output lands in `public/xrefs/<BOOKID>.json` (top ~10 references per verse by
+vote), loaded lazily per book.
+
+## Named-passage aliases
+
+`src/data/aliases.json` maps common names ("the prodigal son", "the love
+chapter") to references. English aliases are first-class; Tamil coverage is
+intentionally sparse and community-growable (see the file's `contributing`
+note). Every alias reference is verified to parse by the test suite.
+
 ## License
 
-MIT.
+MIT for the code and alias curation. Bundled scripture is public domain (World
+English Bible); other translations load from the HelloAO API. Cross-references
+are CC BY (openbible.info) and require the attribution shown in the app footer.

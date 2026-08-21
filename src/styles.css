@@ -124,6 +124,13 @@ select:focus {
   color: var(--ink-soft);
 }
 
+.credits {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
 /* ---------- start / join card ---------- */
 .center-wrap {
   min-height: 100%;
@@ -1023,6 +1030,61 @@ select:focus {
   font-family: var(--serif-latin);
   color: var(--accent);
   white-space: nowrap;
+}
+
+/* Related verses (cross-references) in the Now card. Collapsed by default. */
+.related {
+  margin-top: 0.5rem;
+}
+
+.related-toggle {
+  background: none;
+  border: none;
+  padding: 0.15rem 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.related-note {
+  margin: 0.1rem 0;
+  font-size: 0.8rem;
+}
+
+.related-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+  width: 100%;
+}
+
+.related-ref {
+  font-family: var(--serif-latin);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.related-preview {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
 .listener-banner {

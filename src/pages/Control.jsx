@@ -14,6 +14,8 @@ import { appendHistory } from '../lib/history.js'
 import { makeInviteCode, isInviteValid, hmacKey, signMsg, verifyMsg } from '../lib/crypto.js'
 import { checkInviteProof, buildInviteResponse } from '../lib/invite.js'
 import { activeListeners, listenerDrops } from '../lib/listener.js'
+import { loadXrefBook, lookupXrefs } from '../lib/xrefs.js'
+import { resolvePreviewText } from '../lib/voiceData.js'
 import ListenerView from '../components/ListenerView.jsx'
 
 function useDebounced(value, ms) {
@@ -722,6 +724,41 @@ function Console({ row, creds }) {
     patchState({ current: { ...cc, page: pageOfVerse(passagePages(cc), k) } })
   }
 
+  // ---- related verses (cross-references, openbible.info CC-BY) ----
+  // Anchor is the current verse in step mode, the passage's first verse in whole
+  // mode -- current.ref.verseStart is exactly that in both cases.
+  const relatedAnchor = useMemo(() => {
+    if (!current) return null
+    const r = current.ref || parseReference(current.reference)
+    if (!r || !r.bookId) return null
+    return { bookId: r.bookId, chapter: r.chapter, verse: r.verseStart || 1 }
+  }, [current])
+  const relatedKey = relatedAnchor ? `${relatedAnchor.bookId}:${relatedAnchor.chapter}:${relatedAnchor.verse}` : ''
+  const [relatedOpen, setRelatedOpen] = useState(false)
+  const [related, setRelated] = useState([])
+  const [relatedLoading, setRelatedLoading] = useState(false)
+  // Collapse and forget whenever the shown verse changes (remembers nothing).
+  useEffect(() => {
+    setRelatedOpen(false)
+    setRelated([])
+  }, [relatedKey])
+  async function openRelated() {
+    setRelatedOpen(true)
+    if (!relatedAnchor || related.length) return
+    setRelatedLoading(true)
+    try {
+      const chunk = await loadXrefBook(relatedAnchor.bookId)
+      const refs = lookupXrefs(chunk, relatedAnchor.chapter, relatedAnchor.verse)
+      const items = refs.map((ref) => ({ ref, parsed: parseReference(ref) })).filter((x) => x.parsed)
+      const withPreview = await Promise.all(
+        items.map(async (x) => ({ ...x, preview: await resolvePreviewText(versions, x.parsed) }))
+      )
+      setRelated(withPreview)
+    } finally {
+      setRelatedLoading(false)
+    }
+  }
+
   const TABS = [
     ['go', 'Go'],
     ['plan', 'Plan'],
@@ -849,6 +886,31 @@ function Console({ row, creds }) {
               )}
               {cursor?.savedPlan && (
                 <button className="btn small back-to-plan" onClick={backToPlan}>Back to plan</button>
+              )}
+              {relatedAnchor && (
+                <div className="related">
+                  <button
+                    className="related-toggle"
+                    aria-expanded={relatedOpen}
+                    onClick={() => (relatedOpen ? setRelatedOpen(false) : openRelated())}
+                  >
+                    {relatedOpen ? 'Hide related' : 'Related'}
+                  </button>
+                  {relatedOpen && (
+                    <div className="related-list">
+                      {relatedLoading && <p className="muted related-note">Loading...</p>}
+                      {!relatedLoading && !related.length && (
+                        <p className="muted related-note">No cross-references for this verse.</p>
+                      )}
+                      {related.map((x) => (
+                        <button key={x.ref} className="related-chip" onClick={() => showAdhoc(x.parsed, 'related')}>
+                          <span className="related-ref">{x.ref}</span>
+                          {x.preview && <span className="related-preview">{x.preview}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </>
           ) : (

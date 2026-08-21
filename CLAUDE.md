@@ -227,11 +227,45 @@ no accounts, no installs. MIT license.
   language-not-supported error surfaces as a clear operator message instead of a
   dead mic. AWAITS real-mic verification on Chrome (headless mic could not
   reproduce the exact field failure).
+- Named-passage aliases ("show the prodigal son"). src/data/aliases.json is a
+  curated, community-growable table (145 entries: parables, events, famous
+  passages) mapping canonical names + alternate phrasings to references (a single
+  ref, or 2-3 where accounts differ, e.g. the Lord's Prayer in Matthew and Luke).
+  Every ref is within a SINGLE chapter because the parser does not span chapters;
+  multi-chapter narratives point at a representative chapter/range. Tamil aliases
+  are intentionally sparse (only confident proper-noun transliterations sourced
+  from the bundled Tamil vocabulary); the file's contributing note explains how to
+  grow it. matchAliases in src/lib/aliases.js is pure and unit-tested: case/
+  punctuation-insensitive, anchors on each phrase's most distinctive word so a bare
+  generic word ("chapter") never matches. Two integration points: (1) typed input
+  offers alias suggestions when a reference fails to parse (tap fills the ref;
+  never auto-picks among ambiguous hits); (2) voice runs alias matching on FINAL
+  segments with no detected citation, producing chip-only suggestions labeled
+  "name -> ref" (confidence 'alias', never auto-shown even in AUTO mode).
+- Related verses (cross-references). Dataset: openbible.info cross-reference set
+  (CC BY, built on the public-domain Treasury of Scripture Knowledge); attribution
+  is in the Start-page footer and the README. scripts/build-xrefs.mjs (npm run
+  build:xrefs) converts the openbible TSV to public/xrefs/<BOOKID>.json =
+  { "chapter:verse": ["Display Ref", ...] }, capped to the ~10 strongest per verse
+  by vote; OSIS codes map to our BOOKIDs, cross-chapter target ranges clamp to the
+  start verse so every ref parses. 66 chunks, ~3.9 MB total, committed and lazy-
+  loaded per book only when the Related panel opens (src/lib/xrefs.js, cached).
+  Runtime: the Now card gets a small collapsed-by-default "Related" toggle; opening
+  it shows up to 10 cross-references as ref chips with a one-line primary-
+  translation preview; tap -> normal show path, logged to history with source
+  "related". It remembers nothing (collapses + clears whenever the shown verse
+  changes). DECISION: the anchor verse is current.ref.verseStart, which is the
+  current verse in step mode and the passage's FIRST verse in whole mode. Pure
+  lookup + capping and a John 3:16 sanity check are unit-tested.
+
+## AI roadmap
+
+- Session B (NEXT): quotation detection -- recognize a spoken/typed verse quoted
+  without a citation and offer to show it. Builds on the alias matcher + voice
+  engine already shipped.
 
 ## Parked for later (do not build now)
 
-- Themes (NEXT planned item: presenter background + type-size options synced
-  from the controller).
 - Named/saved service plans.
 - Accounts via linking anonymous auth to email.
 - Stage display.

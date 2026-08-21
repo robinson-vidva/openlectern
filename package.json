@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "convert:usfx": "node scripts/convert-usfx.mjs",
-    "fetch:helloao": "node scripts/fetch-helloao.mjs"
+    "fetch:helloao": "node scripts/fetch-helloao.mjs",
+    "build:xrefs": "node scripts/build-xrefs.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
