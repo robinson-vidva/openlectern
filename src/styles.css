@@ -1720,3 +1720,24 @@ select:focus {
 .transport-btn.primary:hover { background: #24508f; border-color: #24508f; }
 .feed-card, .feed-hist, .vchip, .numchip, .book-hint, .vps-btn, .mini { transition: border-color .12s ease, background-color .12s ease; }
 .link-btn { transition: color .12s ease; }
+
+/* ---- "session is live" welcome / share popup (shown once on create) ---- */
+.welcome-scrim{position:fixed;inset:0;z-index:40;background:rgba(17,24,34,.5);display:grid;place-items:center;padding:1.2rem}
+.welcome-sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-md);width:min(520px,96vw);max-height:92vh;overflow:auto;padding:1.3rem 1.4rem}
+.welcome-head{display:flex;align-items:baseline;justify-content:space-between;gap:.8rem}
+.welcome-head h2{margin:0;font-weight:700;letter-spacing:-.01em;font-size:1.4rem}
+.welcome-code{font-weight:700;letter-spacing:.14em;color:var(--accent);font-size:1.2rem}
+.welcome-sub{margin:.35rem 0 .4rem;color:var(--ink-soft)}
+.welcome-step{display:flex;gap:1rem;align-items:flex-start;padding:1rem 0;border-top:1px solid var(--line)}
+.welcome-step .ws-body{flex:1;min-width:0}
+.ws-title{font-weight:700}
+.ws-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem}
+.ws-qr{flex:none;display:flex;flex-direction:column;align-items:center;gap:.25rem;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 6px 4px}
+.ws-qr svg{display:block;border-radius:4px}
+.ws-qrhint{font-size:.68rem}
+.welcome-foot{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.6rem;padding-top:1rem;border-top:1px solid var(--line)}
+.welcome-foot .muted{font-size:.82rem}
+@media (max-width:560px){
+  .welcome-step{flex-wrap:wrap}
+  .welcome-step .ws-qr{order:-1;align-self:center}
+}

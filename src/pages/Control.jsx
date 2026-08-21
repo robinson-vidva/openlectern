@@ -4,7 +4,7 @@ import { useVoice } from '../components/useVoice.js'
 import { updateSession, joinSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
-import { loadPrefs, savePrefs, clearPrefs, hintSeen, markHintSeen } from '../lib/prefs.js'
+import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
 import { parseReference, formatLabel, searchBooks, parsePartialRef } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
@@ -51,12 +51,27 @@ function Console({ row, creds }) {
   const [listenerMode, setListenerMode] = useState(false)
   const [presenceEntries, setPresenceEntries] = useState([])
   const [listenerBanner, setListenerBanner] = useState('')
-  const [showHint, setShowHint] = useState(() => !hintSeen())
   const [qrBig, setQrBig] = useState(false)
-  function dismissHint() {
-    markHintSeen()
-    setShowHint(false)
-  }
+  // Show the creator a "session is live -- here's how to share it" popup once per
+  // new session, so the presenter/second-controller links are never assumed.
+  const welcomeKey = `ol-welcome-${row.code}`
+  const [welcomeOpen, setWelcomeOpen] = useState(() => {
+    try {
+      return !!creds.creator && sessionStorage.getItem(welcomeKey) !== '1'
+    } catch {
+      return !!creds.creator
+    }
+  })
+  useEffect(() => {
+    if (welcomeOpen) {
+      try {
+        sessionStorage.setItem(welcomeKey, '1')
+      } catch {
+        /* ignore */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   function resetRemembered() {
     clearPrefs()
     setStatus('Remembered settings cleared. New sessions will start from defaults.')
@@ -1002,20 +1017,6 @@ function Console({ row, creds }) {
 
         {/* MAIN: Now + Find + Plan */}
         <main className="console-main">
-          {showHint && (
-            <div className="first-hint">
-              <button
-                className="first-hint-body"
-                onClick={() => {
-                  setPanelOpen(true)
-                  dismissHint()
-                }}
-              >
-                Your code, QR and PIN live under the gear. Open the screen on the big display from there too.
-              </button>
-              <button className="first-hint-x" aria-label="Dismiss" onClick={dismissHint}>Got it</button>
-            </div>
-          )}
 
           <section className="now-card" aria-live="polite">
           {state.blank ? (
@@ -1421,6 +1422,69 @@ function Console({ row, creds }) {
                   <button className="link-btn danger" onClick={leaveSession}>Leave session</button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {welcomeOpen && (
+        <div className="welcome-scrim" role="dialog" aria-label="Session started" onClick={() => setWelcomeOpen(false)}>
+          <div className="welcome-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="welcome-head">
+              <h2>Your session is live</h2>
+              <span className="welcome-code">{code}</span>
+            </div>
+            <p className="welcome-sub">Get it on the big screen, and invite a helper if you want one.</p>
+
+            <div className="welcome-step">
+              <div className="ws-body">
+                <div className="ws-title">1 &middot; Put it on the screen</div>
+                <p className="muted" style={{ margin: '0.15rem 0 0' }}>
+                  Open the presenter on your projector or a shared screen (e.g. a shared tab in Zoom).
+                </p>
+                <div className="ws-actions">
+                  <button className="btn primary small" onClick={() => window.open(linkFor('present'), '_blank', 'noopener')}>
+                    Open the screen
+                  </button>
+                  <button className="btn small" onClick={() => copyLink('present')}>
+                    {copied === 'present' ? 'Copied' : 'Copy screen link'}
+                  </button>
+                </div>
+              </div>
+              <button className="ws-qr" aria-label="Enlarge the QR code" title="Tap to enlarge" onClick={() => setQrBig(true)}>
+                <Qr text={linkFor('present')} size={92} />
+                <span className="muted ws-qrhint">Scan to watch</span>
+              </button>
+            </div>
+
+            <div className="welcome-step">
+              <div className="ws-body">
+                <div className="ws-title">2 &middot; Add another controller <span className="muted">(optional)</span></div>
+                <p className="muted" style={{ margin: '0.15rem 0 0' }}>
+                  A helper can drive from their phone with the code and PIN, or use a one-time invite.
+                </p>
+                <div className="ws-actions">
+                  <button className="btn small" onClick={() => copyLink('control')}>
+                    {copied === 'control' ? 'Copied' : 'Copy control link'}
+                  </button>
+                  {pinReveal ? (
+                    <span className="pin-reveal" role="status">PIN {creds.pin}</span>
+                  ) : (
+                    <button className="btn small" onClick={revealPin}>Show PIN</button>
+                  )}
+                  {invite ? (
+                    <span className="invite-live">Invite <strong>{invite.code}</strong> ({inviteSecs}s)</span>
+                  ) : (
+                    <button className="btn small" onClick={startInvite}>Invite device</button>
+                  )}
+                </div>
+                {inviteNote && <p className="muted" style={{ margin: '0.4rem 0 0' }}>{inviteNote}</p>}
+              </div>
+            </div>
+
+            <div className="welcome-foot">
+              <span className="muted">Reopen anytime from the settings gear.</span>
+              <button className="btn primary" onClick={() => setWelcomeOpen(false)}>Done</button>
             </div>
           </div>
         </div>
