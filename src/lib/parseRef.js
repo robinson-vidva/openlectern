@@ -44,45 +44,98 @@ function findBook(rawToken) {
   return null
 }
 
-// Parse a forgiving reference like "John 3:16-18", "1 Cor 13", "Psalm 23:1-6".
-// Returns { bookId, bookName, chapter, verseStart, verseEnd } or null.
-// verseStart/verseEnd are null when a whole chapter is requested.
+// Normalize + package a parsed reference. The model spans an optional end
+// chapter: { bookId, bookName, chapter, verseStart, endChapter, verseEnd }.
+// chapter/verseStart are the start; endChapter/verseEnd the end. endChapter ===
+// chapter for a single-chapter reference (the common case). null verseStart/
+// verseEnd mean "whole chapter" at that end.
+function build(book, chapter, verseStart, endChapter, verseEnd) {
+  if (endChapter == null || endChapter < chapter) endChapter = chapter
+  if (endChapter === chapter) {
+    if (verseStart != null && verseEnd != null && verseEnd < verseStart) verseEnd = verseStart
+    if (verseStart != null && verseEnd == null) verseEnd = verseStart
+  }
+  return {
+    bookId: book.id,
+    bookName: book.name,
+    chapter,
+    verseStart: verseStart ?? null,
+    endChapter,
+    verseEnd: verseEnd ?? null
+  }
+}
+
+// Parse a forgiving reference. Single chapter: "John 3:16-18", "1 Cor 13",
+// "Psalm 23:1-6". Cross-chapter: "Matthew 5-7", "Genesis 1:1-2:3",
+// "Matt 5:3-7:29", "Psalm 22-24". Returns a ref object (see build) or null.
 export function parseReference(input) {
   if (!input) return null
   const cleaned = input.trim().replace(/[‒–—―]/g, '-')
 
-  // Trailing "chapter[:verse[-verse]]" or "chapter-chapter" is not supported;
-  // we match the final chapter with an optional verse range.
-  const m = cleaned.match(/^(.*?)[\s.]*(\d+)\s*(?::\s*(\d+)\s*(?:-\s*(\d+))?)?\s*$/)
+  // book  startChapter [:startVerse]  [ - endA [:endB] ]
+  const m = cleaned.match(/^(.*?)[\s.]*(\d+)\s*(?::\s*(\d+))?\s*(?:-\s*(\d+)\s*(?::\s*(\d+))?)?\s*$/)
   if (!m) return null
 
   const bookToken = m[1].trim()
   if (!bookToken) return null
-
   const book = findBook(bookToken)
   if (!book) return null
 
-  let chapter = parseInt(m[2], 10)
-  let verseStart = m[3] != null ? parseInt(m[3], 10) : null
-  let verseEnd = m[4] != null ? parseInt(m[4], 10) : null
+  const rawStartCh = parseInt(m[2], 10)
+  const rawStartV = m[3] != null ? parseInt(m[3], 10) : null
+  const endA = m[4] != null ? parseInt(m[4], 10) : null
+  const endB = m[5] != null ? parseInt(m[5], 10) : null
 
-  // For single-chapter books, "Jude 5" means chapter 1, verse 5.
-  if (book.singleChapter && verseStart == null) {
-    verseStart = chapter
-    chapter = 1
+  // Single-chapter books have no chapter numbers: every number is a verse in the
+  // sole chapter ("Jude 5" -> v5, "Jude 3-5" -> v3-5).
+  if (book.singleChapter) {
+    const vs = rawStartV != null ? rawStartV : rawStartCh
+    const ve = endB != null ? endB : endA != null ? endA : vs
+    return build(book, 1, vs, 1, Math.max(vs, ve))
   }
 
-  if (verseEnd != null && verseEnd < verseStart) verseEnd = verseStart
-  if (verseStart != null && verseEnd == null) verseEnd = verseStart
-
-  return { bookId: book.id, bookName: book.name, chapter, verseStart, verseEnd }
+  const chapter = rawStartCh
+  const verseStart = rawStartV
+  let endChapter
+  let verseEnd
+  if (endB != null) {
+    // "-C:V" -> explicit cross-chapter end.
+    endChapter = endA
+    verseEnd = endB
+  } else if (endA != null) {
+    if (verseStart != null) {
+      // "C:V-V2" -> a verse range within the start chapter.
+      endChapter = chapter
+      verseEnd = endA
+    } else {
+      // "C-C2" -> a whole-chapter range.
+      endChapter = endA
+      verseEnd = null
+    }
+  } else {
+    endChapter = chapter
+    verseEnd = verseStart
+  }
+  return build(book, chapter, verseStart, endChapter, verseEnd)
 }
 
-// A short English label for a parsed reference, e.g. "John 3:16-18".
+// English label for a parsed reference, e.g. "John 3:16-18", "Matthew 5-7",
+// "Genesis 1:1-2:3". Shared by the presenter/controller and getPassage.
+export function formatRange(bookName, ref) {
+  const { chapter, verseStart } = ref
+  const endChapter = ref.endChapter ?? chapter
+  const verseEnd = ref.verseEnd ?? null
+  if (endChapter === chapter) {
+    if (verseStart == null) return `${bookName} ${chapter}`
+    if (verseEnd == null || verseEnd === verseStart) return `${bookName} ${chapter}:${verseStart}`
+    return `${bookName} ${chapter}:${verseStart}-${verseEnd}`
+  }
+  const startPart = verseStart == null ? `${chapter}` : `${chapter}:${verseStart}`
+  const endPart = verseEnd == null ? `${endChapter}` : `${endChapter}:${verseEnd}`
+  return `${bookName} ${startPart}-${endPart}`
+}
+
 export function formatLabel(parsed) {
   if (!parsed) return ''
-  const { bookName, chapter, verseStart, verseEnd } = parsed
-  if (verseStart == null) return `${bookName} ${chapter}`
-  if (verseEnd == null || verseEnd === verseStart) return `${bookName} ${chapter}:${verseStart}`
-  return `${bookName} ${chapter}:${verseStart}-${verseEnd}`
+  return formatRange(parsed.bookName, parsed)
 }
