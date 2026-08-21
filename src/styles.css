@@ -13,6 +13,8 @@
   --accent-soft: #e9eff8;
   --danger: #c0392b;
   --live: #1e9e57;
+  --shadow-sm: 0 1px 2px rgba(23, 32, 47, 0.05);
+  --shadow-md: 0 1px 2px rgba(23, 32, 47, 0.05), 0 10px 26px rgba(23, 32, 47, 0.07);
   --serif-latin: 'Gentium Book Plus', 'Noto Serif Tamil', Georgia, serif;
   --serif-tamil: 'Noto Serif Tamil', 'Gentium Book Plus', serif;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -153,7 +155,7 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: 0 8px 30px rgba(23, 32, 47, 0.06);
+  box-shadow: var(--shadow-md);
 }
 
 .card h1 {
@@ -543,9 +545,10 @@ select:focus {
 /* NOW card */
 .now-card {
   background: var(--panel);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 0.85rem 1rem;
+  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow-md);
 }
 
 .now-top {
@@ -1550,7 +1553,7 @@ select:focus {
 }
 .card {
   border-radius: 18px;
-  box-shadow: 0 14px 44px rgba(23, 32, 47, 0.10);
+  box-shadow: var(--shadow-md);
 }
 /* A short gold rule under the wordmark for a touch of identity. */
 .card h1 {
@@ -1572,13 +1575,12 @@ select:focus {
 
 /* Softer, friendlier first-run hint (was a heavy full-accent border). */
 .first-hint {
-  background: linear-gradient(0deg, rgba(43, 90, 160, 0.06), rgba(43, 90, 160, 0.06)), var(--panel);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid #cddcf0;
+  border-radius: 12px;
 }
 .first-hint-body {
-  color: var(--ink-soft);
+  color: var(--ink);
 }
 
 /* Tidy the section labels used across tabs. */
@@ -1667,7 +1669,7 @@ select:focus {
 .console-main{overflow-y:auto;min-height:0;padding:1rem 1.15rem 1.4rem}
 .console-main>*{max-width:760px;margin-left:auto;margin-right:auto}
 .console-main>*+*{margin-top:1rem}
-.panel-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem 1.1rem}
+.panel-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.15rem;box-shadow:var(--shadow-sm)}
 .card-h{margin:0 0 .7rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-soft)}
 .now-card{margin:0}
 
@@ -1680,7 +1682,7 @@ select:focus {
 .settings-head{position:sticky;top:0;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;border-bottom:1px solid var(--line);z-index:1}
 .settings-head h2{margin:0;font-weight:700;letter-spacing:-.01em;font-size:1.25rem}
 .settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;padding:1.1rem}
-.scard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem}
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem;box-shadow:var(--shadow-sm)}
 .scard .section-title:first-child{margin-top:0}
 .scard-wide{grid-column:1 / -1}
 .scard.share{grid-column:1 / -1;display:grid;grid-template-columns:auto 1fr;gap:1.1rem;align-items:center}
@@ -1706,3 +1708,15 @@ select:focus {
 .numpick-row{display:flex;gap:.35rem;padding-bottom:.15rem}
 .numchip{flex:none;min-width:40px;text-align:center;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:8px;padding:.4rem .2rem;font-weight:600;font-variant-numeric:tabular-nums}
 .numchip:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---- interaction feedback (hover/active) ---- */
+.btn { transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease; }
+.btn:not(:disabled):hover { background: var(--panel-2); border-color: #cfd6df; }
+.btn.primary:not(:disabled):hover { background: #24508f; border-color: #24508f; }
+.iconbtn { transition: background-color .12s ease, color .12s ease; }
+.iconbtn:hover { background: var(--panel-2); color: var(--ink); }
+.transport-btn { transition: background-color .12s ease, border-color .12s ease; }
+.transport-btn:not(.primary):hover { background: var(--panel-2); }
+.transport-btn.primary:hover { background: #24508f; border-color: #24508f; }
+.feed-card, .feed-hist, .vchip, .numchip, .book-hint, .vps-btn, .mini { transition: border-color .12s ease, background-color .12s ease; }
+.link-btn { transition: color .12s ease; }
