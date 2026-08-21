@@ -38,7 +38,7 @@ export default function PresenterPreview({ state, onOpen }) {
       : current?.secondary
 
   return (
-    <aside className="console-preview">
+    <div className="pv-panel">
       <div className="pv-head">
         <span className="pv-title">On the screen</span>
         <span className="pv-live"><span className="pv-dot" />live</span>
@@ -58,6 +58,6 @@ export default function PresenterPreview({ state, onOpen }) {
         {paged && !blank && <div className="pv-page">{pageIdx + 1}/{allPages.length}</div>}
       </div>
       <button className="pv-open link-btn ic-link" onClick={onOpen}><Icon name="external" />Open the full screen</button>
-    </aside>
+    </div>
   )
 }

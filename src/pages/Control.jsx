@@ -1170,6 +1170,18 @@ function Console({ row, creds }) {
           )}
         </section>
 
+        <nav className="transport">
+          <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
+          <button
+            className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
+            onClick={toggleBlank}
+            aria-pressed={state.blank}
+          >
+            {state.blank ? 'Unblank' : 'Blank'}
+          </button>
+          <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
+        </nav>
+
         <section className="panel-card">
           <h3 className="card-h">Find a passage</h3>
               <div className="field" style={{ margin: 0 }}>
@@ -1251,8 +1263,11 @@ function Console({ row, creds }) {
                 </button>
               </div>
         </section>
+        </main>
 
-        <section className="panel-card">
+        <aside className="console-right">
+          <PresenterPreview state={state} onOpen={() => window.open(linkFor('present'), '_blank', 'noopener')} />
+          <section className="panel-card plan-card">
           <h3 className="card-h">Plan ({queue.length})</h3>
               <div className="queue">
                 {queue.map((item, i) => {
@@ -1313,10 +1328,8 @@ function Console({ row, creds }) {
                   onChange={importQueue}
                 />
               </div>
-        </section>
-        </main>
-
-        <PresenterPreview state={state} onOpen={() => window.open(linkFor('present'), '_blank', 'noopener')} />
+          </section>
+        </aside>
       </div>
 
       {hint && (
@@ -1330,18 +1343,6 @@ function Console({ row, creds }) {
                 : 'Start of chapter'}
         </div>
       )}
-
-      <nav className="transport">
-        <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
-        <button
-          className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
-          onClick={toggleBlank}
-          aria-pressed={state.blank}
-        >
-          {state.blank ? 'Unblank' : 'Blank'}
-        </button>
-        <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
-      </nav>
 
       {panelOpen && (
         <div className="settings-scrim" role="dialog" aria-label="Screen settings" onClick={() => setPanelOpen(false)}>
