@@ -80,20 +80,6 @@ function Console({ row, creds }) {
       /* ignore transient send errors */
     }
   }
-  const [tab, setTab] = useState(() => {
-    try {
-      return sessionStorage.getItem('ol-tab') || 'go'
-    } catch {
-      return 'go'
-    }
-  })
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('ol-tab', tab)
-    } catch {
-      /* ignore */
-    }
-  }, [tab])
 
   // Realtime + presence.
   useEffect(() => {
@@ -247,7 +233,7 @@ function Console({ row, creds }) {
     if (on && voice.micState !== 'listening') voice.start()
   }
 
-  const otherListeners = activeListeners(presenceEntries).filter((n) => !(listenerMode && n === (creds.name || 'Guest')))
+  const otherListeners = activeListeners(presenceEntries)
 
   // ---- available translations for the Display pickers ----
   const [allVersions, setAllVersions] = useState([])
@@ -337,16 +323,21 @@ function Console({ row, creds }) {
   // primary is online-only or lacks a book.
   const structureRef = useRef(null)
   const fallbackStructRef = useRef(null)
+  // Bumped when structure data arrives so the chapter/verse type-ahead memos
+  // (which read the refs) recompute even on a cold cache.
+  const [structVersion, setStructVersion] = useState(0)
   const primaryId = versions[0]?.id
   useEffect(() => {
     loadStructure(primaryId)
       .then((s) => (structureRef.current = s || {}))
       .catch(() => (structureRef.current = {}))
+      .finally(() => setStructVersion((v) => v + 1))
   }, [primaryId])
   useEffect(() => {
     loadStructure('eng-web')
       .then((s) => (fallbackStructRef.current = s || {}))
       .catch(() => (fallbackStructRef.current = {}))
+      .finally(() => setStructVersion((v) => v + 1))
   }, [])
   function structOf(bookId) {
     const s = structureRef.current
@@ -387,14 +378,16 @@ function Console({ row, creds }) {
     if (!bookSettled || !partial || partial.chapter != null) return null
     const n = chaptersOf(partial.book.id)
     return n > 1 ? { book: partial.book, count: n } : null
-  }, [bookSettled, partial])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookSettled, partial, structVersion])
 
   // Verse suggestions once a chapter is present but no verse is chosen.
   const verseChips = useMemo(() => {
     if (!partial || !partial.book || partial.chapter == null || partial.verse != null) return null
     const n = versesOf(partial.book.id, partial.chapter)
     return n > 1 ? { book: partial.book, chapter: partial.chapter, count: n } : null
-  }, [partial])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partial, structVersion])
 
   function fillRef(val, focus = true) {
     setInput(val)
@@ -675,6 +668,7 @@ function Console({ row, creds }) {
   useEffect(() => {
     if (!invite) return
     const t = setInterval(() => {
+      if (!inviteRef.current) return
       const left = Math.ceil((inviteRef.current.expiresAt - Date.now()) / 1000)
       if (left <= 0 || inviteRef.current.used) {
         inviteRef.current = null

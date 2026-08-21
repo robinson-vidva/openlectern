@@ -1,5 +1,6 @@
 import { getPassage } from './bibleData.js'
 import { paginateVerses, PAGE_CAPACITY } from './paginate.js'
+import { formatRange } from './parseRef.js'
 
 // Per-verse size cost = combined length across both languages (kept aligned by
 // index so both languages page together on the same verse boundaries).
@@ -75,7 +76,7 @@ export function stepCurrent(results, parsed, verseIndex) {
     step: true,
     verseIndex,
     verseNumber: pv.n,
-    reference: `${p.bookName} ${c}:${pv.n}`,
+    reference: formatRange(p.bookName, { bookId: parsed.bookId, chapter: c, verseStart: pv.n, endChapter: c, verseEnd: pv.n }),
     ref: { bookId: parsed.bookId, chapter: c, verseStart: pv.n, endChapter: c, verseEnd: pv.n },
     primary: { language: p.version.language, verses: [pv] },
     secondary: s ? { language: s.version.language, verses: sv ? [sv] : [] } : null

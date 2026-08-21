@@ -149,6 +149,7 @@ export async function getPassage(version, ref) {
   }
 
   const reference = formatRange(bookName, {
+    bookId: ref.bookId,
     chapter: startChapter,
     verseStart: ref.verseStart ?? null,
     endChapter,

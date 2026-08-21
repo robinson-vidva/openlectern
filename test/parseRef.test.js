@@ -84,8 +84,10 @@ describe('formatLabel round-trips', () => {
       expect(formatLabel(r(c))).toBe(c)
     })
   }
-  it('whole chapter and single-chapter book', () => {
+  it('whole chapter and single-chapter book (cited without the chapter)', () => {
     expect(formatLabel(r('1 Corinthians 13'))).toBe('1 Corinthians 13')
-    expect(formatLabel(r('Jude 3-5'))).toBe('Jude 1:3-5')
+    expect(formatLabel(r('Jude 3-5'))).toBe('Jude 3-5')
+    expect(formatLabel(r('Jude 5'))).toBe('Jude 5')
+    expect(formatLabel(r('Philemon 4-7'))).toBe('Philemon 4-7')
   })
 })

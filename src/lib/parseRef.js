@@ -1,4 +1,4 @@
-import { BOOKS } from './books.js'
+import { BOOKS, BOOK_BY_ID } from './books.js'
 
 // Build a normalized lookup: canonical name + every alias -> book.
 function norm(s) {
@@ -171,6 +171,12 @@ export function formatRange(bookName, ref) {
   const { chapter, verseStart } = ref
   const endChapter = ref.endChapter ?? chapter
   const verseEnd = ref.verseEnd ?? null
+  // Single-chapter books are cited without the chapter ("Jude 5", not "Jude 1:5").
+  if (BOOK_BY_ID[ref.bookId]?.singleChapter) {
+    if (verseStart == null) return bookName
+    if (verseEnd == null || verseEnd === verseStart) return `${bookName} ${verseStart}`
+    return `${bookName} ${verseStart}-${verseEnd}`
+  }
   if (endChapter === chapter) {
     if (verseStart == null) return `${bookName} ${chapter}`
     if (verseEnd == null || verseEnd === verseStart) return `${bookName} ${chapter}:${verseStart}`

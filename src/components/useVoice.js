@@ -43,6 +43,13 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const transcriptRef = useRef('')
   const onDetectRef = useRef(onDetect)
   onDetectRef.current = onDetect
+  // The recognition callbacks are bound once in makeRecognition(); read the
+  // latest onShow + versions through refs so a mid-session translation switch
+  // resolves auto-shows and previews against the NEW translations.
+  const onShowRef = useRef(onShow)
+  onShowRef.current = onShow
+  const versionsRef = useRef(versions)
+  versionsRef.current = versions
   const quoteWorkerRef = useRef(null)
   const quoteWindowRef = useRef([])
   const quoteSeqRef = useRef(0)
@@ -52,14 +59,15 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
 
   async function ensureIndex() {
     if (indexRef.current) return indexRef.current
-    const primary = versions[0]
+    const vers = versionsRef.current
+    const primary = vers[0]
     // Detection validates against the primary version's structure. If a
     // switched-to (e.g. online) version has no local structure, degrade to the
     // bundled WEB structure -- best available, never the wrong version silently.
     let structure = primary ? await loadStructure(primary.id) : null
     if (!structure || !Object.keys(structure).length) structure = (await loadStructure('eng-web')) || {}
     let tamilNames
-    const tamil = versions.find((v) => v.language === 'ta')
+    const tamil = vers.find((v) => v.language === 'ta')
     if (tamil) {
       const idx = await loadIndex(tamil.id)
       if (idx) tamilNames = Object.fromEntries(idx.map((b) => [b.id, b.name]))
@@ -111,7 +119,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   }
   function loadQuoteIndex() {
     const w = ensureQuoteWorker()
-    if (w) w.postMessage({ type: 'load', base: BASE, versionIds: versions.map((v) => v.id) })
+    if (w) w.postMessage({ type: 'load', base: BASE, versionIds: versionsRef.current.map((v) => v.id) })
   }
   function feedQuoteWindow(text) {
     const w = quoteWorkerRef.current
@@ -160,10 +168,10 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       from: opts.from || null
     }
     setChips((prev) => [chip, ...prev].slice(0, 3))
-    resolvePreviewText(versions, cand)
+    resolvePreviewText(versionsRef.current, cand)
       .then((t) => setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, text: t } : c))))
       .catch(() => {})
-    if (fired) onShow(cand, 'auto')
+    if (fired) onShowRef.current(cand, 'auto')
   }
 
   // A detection broadcast by another (listening) device.
@@ -326,7 +334,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   }
 
   function tapChip(chip) {
-    onShow(chip.detail, 'voice')
+    onShowRef.current(chip.detail, 'voice')
     setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, shown: true } : c)))
   }
 
