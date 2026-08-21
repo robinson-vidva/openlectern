@@ -1,9 +1,28 @@
 {
   "name": "openlectern",
   "version": "0.1.0",
-  "description": "Open-source bilingual bible verse presenter for churches and Zoom prayer meetings.",
+  "description": "Open-source bilingual Bible verse presenter for churches and online prayer meetings. Show scripture on a screen and control it live from any phone.",
   "license": "MIT",
   "type": "module",
+  "homepage": "https://robinsonvidva.com/openlectern/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/robinson-vidva/openlectern.git"
+  },
+  "bugs": {
+    "url": "https://github.com/robinson-vidva/openlectern/issues"
+  },
+  "keywords": [
+    "bible",
+    "scripture",
+    "church",
+    "presentation",
+    "worship",
+    "projector",
+    "bilingual",
+    "react",
+    "supabase"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
