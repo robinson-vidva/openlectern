@@ -41,6 +41,29 @@ describe('parseReference - cross chapter', () => {
   })
 })
 
+describe('parseReference - space as chapter:verse separator', () => {
+  it('space means colon', () => {
+    expect(r('John 3 16')).toMatchObject({ chapter: 3, verseStart: 16, endChapter: 3, verseEnd: 16 })
+    expect(r('Psalm 119 105')).toMatchObject({ bookId: 'PSA', chapter: 119, verseStart: 105 })
+  })
+  it('space verse with a dash range', () => {
+    expect(r('John 3 3-5')).toMatchObject({ chapter: 3, verseStart: 3, endChapter: 3, verseEnd: 5 })
+    expect(r('John 3 16 - 18')).toMatchObject({ chapter: 3, verseStart: 16, verseEnd: 18 })
+  })
+  it('ordinal book with space verse', () => {
+    expect(r('1 Corinthians 13 4')).toMatchObject({ bookId: '1CO', chapter: 13, verseStart: 4 })
+  })
+  it('multi-word book with space verse', () => {
+    expect(r('Song of Solomon 2 1')).toMatchObject({ bookId: 'SNG', chapter: 2, verseStart: 1 })
+  })
+  it('dash between two numbers stays a chapter range', () => {
+    expect(r('Matthew 5-7')).toMatchObject({ chapter: 5, verseStart: null, endChapter: 7 })
+  })
+  it('space between two numbers is a verse, not a chapter range', () => {
+    expect(r('Matthew 5 7')).toMatchObject({ chapter: 5, verseStart: 7, endChapter: 5 })
+  })
+})
+
 describe('parseReference - negatives', () => {
   it('no chapter number', () => {
     expect(r('Genesis')).toBeNull()

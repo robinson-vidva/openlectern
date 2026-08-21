@@ -115,8 +115,11 @@ export function parseReference(input) {
   if (!input) return null
   const cleaned = input.trim().replace(/[‒–—―]/g, '-')
 
-  // book  startChapter [:startVerse]  [ - endA [:endB] ]
-  const m = cleaned.match(/^(.*?)[\s.]*(\d+)\s*(?::\s*(\d+))?\s*(?:-\s*(\d+)\s*(?::\s*(\d+))?)?\s*$/)
+  // book  startChapter [(:| )startVerse]  [ - endA [:endB] ]
+  // A space between chapter and verse works like a colon ("John 3 16" = 3:16),
+  // matching the forgiving voice grammar; a dash marks a range ("John 3 3-5",
+  // "Matthew 5-7"). The cross-chapter end verse still uses a colon ("1:1-2:3").
+  const m = cleaned.match(/^(.*?)[\s.]*(\d+)(?:(?:\s*:\s*|\s+)(\d+))?(?:\s*-\s*(\d+)(?:\s*:\s*(\d+))?)?\s*$/)
   if (!m) return null
 
   const bookToken = m[1].trim()
