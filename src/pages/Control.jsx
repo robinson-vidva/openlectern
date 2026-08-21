@@ -7,6 +7,7 @@ import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js
 import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
 import Icon from '../components/Icon.jsx'
+import PresenterPreview from '../components/PresenterPreview.jsx'
 import { parseReference, formatLabel, searchBooks, parsePartialRef } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
 import { extractReferences } from '../lib/planText.js'
@@ -1285,6 +1286,8 @@ function Console({ row, creds }) {
               </div>
         </section>
         </main>
+
+        <PresenterPreview state={state} onOpen={() => window.open(linkFor('present'), '_blank', 'noopener')} />
       </div>
 
       {hint && (

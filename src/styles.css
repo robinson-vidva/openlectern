@@ -217,28 +217,32 @@ select:focus {
    the presenter uses, with an accent tuned to stay readable on its background.
    Light is clean and neutral; sepia is the warm option; dark is cool; contrast
    is a high-accessibility black/yellow. */
-.present.theme-light {
+.present.theme-light,
+.pv-screen.theme-light {
   --bg: #f8fafc;
   --ink: #17202e;
   --ink-soft: #566072;
   --line: #e3e8ef;
   --accent: #2b5aa0;
 }
-.present.theme-sepia {
+.present.theme-sepia,
+.pv-screen.theme-sepia {
   --bg: #efe6d3;
   --ink: #3a3123;
   --ink-soft: #6b5e48;
   --line: #dccbab;
   --accent: #8a5a2c;
 }
-.present.theme-dark {
+.present.theme-dark,
+.pv-screen.theme-dark {
   --bg: #121820;
   --ink: #eef2f7;
   --ink-soft: #a7b2c0;
   --line: #2a333f;
   --accent: #7db0ec;
 }
-.present.theme-contrast {
+.present.theme-contrast,
+.pv-screen.theme-contrast {
   --bg: #000000;
   --ink: #ffffff;
   --ink-soft: #e6e6e6;
@@ -1636,8 +1640,8 @@ select:focus {
 .voice-err{margin:0;padding:.4rem .9rem;background:#fdecec;color:var(--danger);font-size:.85rem;border-bottom:1px solid var(--line)}
 .console-status{margin:0;padding:.4rem .9rem;font-size:.85rem;border-bottom:1px solid var(--line)}
 
-/* body split: activity rail + main */
-.console-body{flex:1;min-height:0;display:grid;grid-template-columns:320px 1fr}
+/* body split: activity rail + main + live screen preview */
+.console-body{flex:1;min-height:0;display:grid;grid-template-columns:300px 1fr 360px}
 .activity{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 .activity-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem .5rem}
 .activity-head h2{margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft)}
@@ -1675,7 +1679,7 @@ select:focus {
 .console-main>*+*{margin-top:1rem}
 .panel-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.15rem;box-shadow:var(--shadow-sm)}
 .card-h{margin:0 0 .7rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-soft)}
-.now-card{margin:0}
+.now-card{margin-top:0}
 
 /* transport is a normal bottom row of the console (not fixed) */
 .console .transport{position:static}
@@ -1764,3 +1768,28 @@ select:focus {
 .name-edit input { width:9.5rem; font-size:.95rem; padding:.35rem .5rem; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); }
 .icon-btn.ghost { border:none; background:none; color:var(--ink-soft); padding:.25rem; min-width:auto; }
 .icon-btn.ghost:hover { color:var(--accent); background:none; }
+
+/* ---- live presenter preview ("On the screen" monitor, right column) ---- */
+.console-preview{border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;gap:.6rem;padding:.9rem;min-height:0;overflow-y:auto}
+.pv-head{display:flex;align-items:center;justify-content:space-between}
+.pv-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-soft);font-weight:700}
+.pv-live{display:inline-flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--live);font-weight:600}
+.pv-dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--live);flex:none;animation:vbhalo 1.6s ease-out infinite}
+.pv-screen{position:relative;aspect-ratio:16/9;width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;padding:8% 7%}
+.pv-body{width:100%;max-height:100%;overflow:hidden}
+.pv-ref{font-family:var(--serif-latin);font-style:italic;color:var(--accent);font-size:.72rem;margin-bottom:.4rem}
+.pv-verses{font-family:var(--serif-latin);line-height:1.32;font-size:.86rem}
+.pv-verses[lang='ta']{font-family:var(--serif-tamil)}
+.pv-verses + .pv-verses{margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--line)}
+.pv-vn{font-size:.62em;vertical-align:super;color:var(--accent);margin-right:.2em;font-style:italic}
+.pv-hint{font-family:var(--serif-latin);color:var(--ink-soft);font-size:.9rem}
+.pv-blank{color:var(--ink-soft);font-size:.85rem;letter-spacing:.02em}
+.pv-page{position:absolute;top:.35rem;right:.5rem;font-size:.62rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;opacity:.7}
+.pv-open{align-self:flex-start}
+
+/* Hide the preview column where there isn't room; the console falls back to
+   rail + main, and (on phones) the existing stacked layout. */
+@media (max-width:1120px){
+  .console-body{grid-template-columns:300px 1fr}
+  .console-preview{display:none}
+}
