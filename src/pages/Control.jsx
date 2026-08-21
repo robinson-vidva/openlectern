@@ -6,6 +6,7 @@ import { supabase, friendlyError } from '../lib/supabase.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
+import Icon from '../components/Icon.jsx'
 import { parseReference, formatLabel, searchBooks, parsePartialRef } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
 import { extractReferences } from '../lib/planText.js'
@@ -46,8 +47,23 @@ function Console({ row, creds }) {
   const [inviteSecs, setInviteSecs] = useState(0)
   const [inviteNote, setInviteNote] = useState('')
   const inviteRef = useRef(null)
+  // Editable display name (shown to other controllers). Defaults to "Admin 1" for
+  // the creator, "Admin" for a joiner; the pencil in settings changes it.
+  const [displayName, setDisplayName] = useState(() => creds.name?.trim() || (creds.creator ? 'Admin 1' : 'Admin'))
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
   const credsRef = useRef(creds)
-  credsRef.current = creds
+  credsRef.current = { ...creds, name: displayName }
+  function saveName() {
+    const n = nameDraft.trim().slice(0, 24) || displayName
+    setDisplayName(n)
+    setEditingName(false)
+    try {
+      saveCreds({ ...credsRef.current, name: n })
+    } catch {
+      /* ignore */
+    }
+  }
   const [listenerMode, setListenerMode] = useState(false)
   const [presenceEntries, setPresenceEntries] = useState([])
   const [listenerBanner, setListenerBanner] = useState('')
@@ -159,11 +175,11 @@ function Console({ row, creds }) {
     channel.subscribe(async (st) => {
       setConnected(st === 'SUBSCRIBED')
       if (st === 'SUBSCRIBED') {
-        await channel.track({ name: creds.name || 'Guest', at: Date.now(), listening: false })
+        await channel.track({ name: displayName, at: Date.now(), listening: false })
       }
     })
     return () => channel.unsubscribe()
-  }, [code, creds.name])
+  }, [code, displayName])
 
   // Push a patch to the shared state (server merges shallowly into state).
   // A monotonic `rev` lets every client discard stale realtime echoes.
@@ -240,8 +256,8 @@ function Console({ row, creds }) {
   useEffect(() => {
     const ch = channelRef.current
     if (!ch) return
-    ch.track({ name: creds.name || 'Guest', at: Date.now(), listening: listenerMode && voice.micState === 'listening' })
-  }, [listenerMode, voice.micState, creds.name])
+    ch.track({ name: displayName, at: Date.now(), listening: listenerMode && voice.micState === 'listening' })
+  }, [listenerMode, voice.micState, displayName])
 
   function toggleListener(on) {
     setListenerMode(on)
@@ -917,7 +933,7 @@ function Console({ row, creds }) {
   }
 
   if (listenerMode) {
-    return <ListenerView v={voice} name={creds.name} code={code} onExit={() => toggleListener(false)} />
+    return <ListenerView v={voice} name={displayName} code={code} onExit={() => toggleListener(false)} />
   }
 
   const micLabel = voice.micState === 'listening' ? 'Listening' : voice.micState === 'error' ? 'Mic error' : 'Voice off'
@@ -1305,117 +1321,144 @@ function Console({ row, creds }) {
                 </button>
                 <div className="share-body">
                   <div className="share-code">{code}</div>
-                  <p className="muted">Scan to watch, or share a link. Controllers also need the PIN.</p>
+                  <p className="muted">Scan to watch, or share a link. A second controller also needs the PIN.</p>
                   <div className="share-btns">
-                    <button className="btn small" onClick={() => copyLink('present')}>{copied === 'present' ? 'Copied' : 'Copy watch link'}</button>
-                    <button className="btn small" onClick={() => copyLink('control')}>{copied === 'control' ? 'Copied' : 'Copy control link'}</button>
+                    <button className="btn small" onClick={() => copyLink('present')} title="Copy the watch (presenter) link">
+                      <Icon name="copy" />{copied === 'present' ? 'Copied' : 'Watch link'}
+                    </button>
+                    <button className="btn small" onClick={() => copyLink('control')} title="Copy the control link">
+                      <Icon name="copy" />{copied === 'control' ? 'Copied' : 'Control link'}
+                    </button>
                     {pinReveal ? (
                       <span className="pin-reveal" role="status">PIN {creds.pin}</span>
                     ) : (
-                      <button className="btn small" onClick={revealPin}>Show PIN</button>
+                      <button className="btn small" onClick={revealPin}><Icon name="eye" />Show PIN</button>
                     )}
                     {invite ? (
                       <span className="invite-live">Invite <strong>{invite.code}</strong> ({inviteSecs}s)</span>
                     ) : (
-                      <button className="btn small" onClick={startInvite}>Invite device</button>
+                      <button className="btn small" onClick={startInvite}><Icon name="invite" />Invite device</button>
                     )}
                   </div>
                   {inviteNote && <p className="muted" style={{ margin: 0 }}>{inviteNote}</p>}
-                  <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open the screen (new tab)</a>
+                  <button className="link-btn ic-link" onClick={() => window.open(linkFor('present'), '_blank', 'noopener')}>
+                    <Icon name="external" />Open the screen
+                  </button>
                 </div>
               </div>
 
-              <div className="scard scard-wide">
+              <div className="scard">
                 <div className="section-title">Translations</div>
-              <div className="field" style={{ margin: 0 }}>
-                <label htmlFor="primary-v">Primary</label>
-                <select id="primary-v" value={versions[0]?.id || ''} onChange={(e) => setPrimary(e.target.value)}>
-                  <optgroup label="Bundled">
-                    {bundledVersions.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </optgroup>
-                  {onlineVersions.length > 0 && (
-                    <optgroup label="Online (needs internet)">
-                      {onlineVersions.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name} ({v.languageName || v.language})</option>
+                <div className="field" style={{ margin: 0 }}>
+                  <label htmlFor="primary-v">Primary</label>
+                  <select id="primary-v" value={versions[0]?.id || ''} onChange={(e) => setPrimary(e.target.value)}>
+                    <optgroup label="Bundled">
+                      {bundledVersions.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
                       ))}
                     </optgroup>
-                  )}
-                </select>
-              </div>
-              <div className="field" style={{ marginTop: '0.6rem' }}>
-                <label htmlFor="secondary-v">Secondary</label>
-                <select id="secondary-v" value={versions[1]?.id || 'none'} onChange={(e) => setSecondary(e.target.value)}>
-                  <option value="none">None</option>
-                  <optgroup label="Bundled">
-                    {bundledVersions.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </optgroup>
-                  {onlineVersions.length > 0 && (
-                    <optgroup label="Online (needs internet)">
-                      {onlineVersions.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name} ({v.languageName || v.language})</option>
+                    {onlineVersions.length > 0 && (
+                      <optgroup label="Online (needs internet)">
+                        {onlineVersions.map((v) => (
+                          <option key={v.id} value={v.id}>{v.name} ({v.languageName || v.language})</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+                <div className="field" style={{ marginTop: '0.6rem', marginBottom: 0 }}>
+                  <label htmlFor="secondary-v">Secondary</label>
+                  <select id="secondary-v" value={versions[1]?.id || 'none'} onChange={(e) => setSecondary(e.target.value)}>
+                    <option value="none">None</option>
+                    <optgroup label="Bundled">
+                      {bundledVersions.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
                       ))}
                     </optgroup>
-                  )}
-                </select>
-              </div>
-
-              <div className="section-title" style={{ marginTop: '0.9rem' }}>Presenter theme</div>
-              <div className="theme-swatches">
-                {['light', 'sepia', 'dark', 'contrast'].map((t) => (
-                  <button
-                    key={t}
-                    className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
-                    aria-label={`${t} theme`}
-                    aria-pressed={theme === t}
-                    onClick={() => setTheme(t)}
-                  />
-                ))}
-              </div>
-              <div className="section-title" style={{ marginTop: '0.9rem' }}>Font size</div>
-              <div className="font-size">
-                <button className="icon-btn" aria-label="Smaller" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
-                <span className="fs-val">{fontScale}%</span>
-                <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
-              </div>
-
-              <div className="section-title" style={{ marginTop: '0.9rem' }}>Verses per screen</div>
-              <div className="vps-row">
-                {[
-                  [0, 'Auto'],
-                  [2, '2'],
-                  [4, '4'],
-                  [6, '6'],
-                  [8, '8'],
-                  [10, '10'],
-                  [12, '12']
-                ].map(([n, label]) => (
-                  <button
-                    key={n}
-                    className={`vps-btn${perPage === n ? ' on' : ''}`}
-                    aria-pressed={perPage === n}
-                    onClick={() => setVersesPerScreen(n)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="muted vps-hint">Auto fits as many verses as stay readable. A number shows exactly that many per screen for long passages.</p>
+                    {onlineVersions.length > 0 && (
+                      <optgroup label="Online (needs internet)">
+                        {onlineVersions.map((v) => (
+                          <option key={v.id} value={v.id}>{v.name} ({v.languageName || v.language})</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
               </div>
 
               <div className="scard">
-                <div className="section-title">In this session</div>
-                <div className="sp-admins">
-                  {presence.length ? (
-                    presence.map((n, i) => (
-                      <span className="chip" key={i}>{n}</span>
-                    ))
+                <div className="section-title">Presenter screen</div>
+                <label className="mini-label">Theme</label>
+                <div className="theme-swatches">
+                  {['light', 'sepia', 'dark', 'contrast'].map((t) => (
+                    <button
+                      key={t}
+                      className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
+                      aria-label={`${t} theme`}
+                      aria-pressed={theme === t}
+                      onClick={() => setTheme(t)}
+                    />
+                  ))}
+                </div>
+                <label className="mini-label" style={{ marginTop: '0.8rem' }}>Font size</label>
+                <div className="font-size">
+                  <button className="icon-btn" aria-label="Smaller" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
+                  <span className="fs-val">{fontScale}%</span>
+                  <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
+                </div>
+              </div>
+
+              <div className="scard">
+                <div className="section-title">Verses per screen</div>
+                <div className="vps-row">
+                  {[[0, 'Auto'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10'], [12, '12']].map(([n, label]) => (
+                    <button
+                      key={n}
+                      className={`vps-btn${perPage === n ? ' on' : ''}`}
+                      aria-pressed={perPage === n}
+                      onClick={() => setVersesPerScreen(n)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="muted vps-hint">Auto fits as many as stay readable. A number shows exactly that many per screen for long passages.</p>
+              </div>
+
+              <div className="scard">
+                <div className="section-title">This session</div>
+                <div className="name-row">
+                  <span className="muted">Your name</span>
+                  {editingName ? (
+                    <span className="name-edit">
+                      <input
+                        value={nameDraft}
+                        maxLength={24}
+                        autoFocus
+                        aria-label="Your name"
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && saveName()}
+                      />
+                      <button className="icon-btn" aria-label="Save name" onClick={saveName}><Icon name="check" /></button>
+                    </span>
                   ) : (
-                    <span className="chip">just you</span>
+                    <span className="name-view">
+                      <strong>{displayName}</strong>
+                      <button
+                        className="icon-btn ghost"
+                        aria-label="Change your name"
+                        onClick={() => {
+                          setNameDraft(displayName)
+                          setEditingName(true)
+                        }}
+                      >
+                        <Icon name="pencil" />
+                      </button>
+                    </span>
                   )}
+                </div>
+                <div className="sp-admins">
+                  {presence.length ? presence.map((n, i) => <span className="chip" key={i}>{n}</span>) : <span className="chip">just you</span>}
                 </div>
                 <div className="share-btns" style={{ marginTop: '0.7rem' }}>
                   <button className="link-btn" onClick={resetRemembered}>Reset remembered settings</button>
@@ -1444,10 +1487,10 @@ function Console({ row, creds }) {
                 </p>
                 <div className="ws-actions">
                   <button className="btn primary small" onClick={() => window.open(linkFor('present'), '_blank', 'noopener')}>
-                    Open the screen
+                    <Icon name="external" />Open the screen
                   </button>
                   <button className="btn small" onClick={() => copyLink('present')}>
-                    {copied === 'present' ? 'Copied' : 'Copy screen link'}
+                    <Icon name="copy" />{copied === 'present' ? 'Copied' : 'Copy screen link'}
                   </button>
                 </div>
               </div>
@@ -1465,17 +1508,17 @@ function Console({ row, creds }) {
                 </p>
                 <div className="ws-actions">
                   <button className="btn small" onClick={() => copyLink('control')}>
-                    {copied === 'control' ? 'Copied' : 'Copy control link'}
+                    <Icon name="copy" />{copied === 'control' ? 'Copied' : 'Copy control link'}
                   </button>
                   {pinReveal ? (
                     <span className="pin-reveal" role="status">PIN {creds.pin}</span>
                   ) : (
-                    <button className="btn small" onClick={revealPin}>Show PIN</button>
+                    <button className="btn small" onClick={revealPin}><Icon name="eye" />Show PIN</button>
                   )}
                   {invite ? (
                     <span className="invite-live">Invite <strong>{invite.code}</strong> ({inviteSecs}s)</span>
                   ) : (
-                    <button className="btn small" onClick={startInvite}>Invite device</button>
+                    <button className="btn small" onClick={startInvite}><Icon name="invite" />Invite device</button>
                   )}
                 </div>
                 {inviteNote && <p className="muted" style={{ margin: '0.4rem 0 0' }}>{inviteNote}</p>}

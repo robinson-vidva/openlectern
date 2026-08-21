@@ -1741,3 +1741,22 @@ select:focus {
   .welcome-step{flex-wrap:wrap}
   .welcome-step .ws-qr{order:-1;align-self:center}
 }
+
+/* ---- icons in buttons ---- */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; }
+.ic { flex:none; display:block; }
+.icon-btn { display:inline-flex; align-items:center; justify-content:center; }
+.link-btn.ic-link { display:inline-flex; align-items:center; gap:.35rem; text-decoration:none; }
+.link-btn.ic-link:hover { text-decoration:underline; }
+
+/* ---- settings: tidier grouping ---- */
+.mini-label { display:block; font-size:.78rem; font-weight:600; color:var(--ink-soft); margin-bottom:.4rem; }
+.scard .theme-swatches { margin:0; }
+
+/* ---- editable name row ---- */
+.name-row { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin-bottom:.7rem; }
+.name-view, .name-edit { display:inline-flex; align-items:center; gap:.4rem; }
+.name-view strong { font-weight:700; }
+.name-edit input { width:9.5rem; font-size:.95rem; padding:.35rem .5rem; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); }
+.icon-btn.ghost { border:none; background:none; color:var(--ink-soft); padding:.25rem; min-width:auto; }
+.icon-btn.ghost:hover { color:var(--accent); background:none; }
