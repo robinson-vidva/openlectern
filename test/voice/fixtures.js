@@ -51,6 +51,18 @@ export const FIXTURES = [
   { text: 'Jude 5', expect: { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null } },
   { text: 'Jude verse 5', expect: { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null } },
 
+  // --- cross-chapter ranges ---
+  { text: 'Matthew chapters five through seven', expect: { bookId: 'MAT', chapter: 5, verseStart: null, endChapter: 7, verseEnd: null } },
+  { text: 'Matthew five through seven', expect: { bookId: 'MAT', chapter: 5, verseStart: null, endChapter: 7, verseEnd: null } },
+  { text: 'Genesis chapter one verse one through chapter two verse three', expect: { bookId: 'GEN', chapter: 1, verseStart: 1, endChapter: 2, verseEnd: 3 } },
+  { text: 'Matthew chapter five verse three through chapter seven verse twenty nine', expect: { bookId: 'MAT', chapter: 5, verseStart: 3, endChapter: 7, verseEnd: 29 } },
+  { text: 'Psalm twenty two through twenty four', expect: { bookId: 'PSA', chapter: 22, verseStart: null, endChapter: 24, verseEnd: null } },
+  // same-chapter verse range still reports endChapter === chapter
+  { text: 'John three sixteen to eighteen', expect: { bookId: 'JHN', chapter: 3, verseStart: 16, endChapter: 3, verseEnd: 18 } },
+  // cross-chapter endpoint validation: end chapter out of range / backwards -> discard
+  { text: 'Matthew chapters five through ninety', expect: null }, // Matthew has 28 chapters
+  { text: 'Psalm twenty four through twenty two', expect: null }, // backwards
+
   // --- validation: out-of-bounds must be discarded ---
   { text: 'Psalm 23 verse 9', expect: null }, // Psalm 23 has 6 verses
   { text: 'John 3 99', expect: null }, // John 3 has 36 verses

@@ -463,14 +463,19 @@ function Console({ row, creds }) {
   }
 
   // Show a reference detected by voice. A single-verse detection has verseEnd
-  // null; getPassage treats that as "to end of chapter", so pin it first.
+  // null; getPassage treats that as "to end of chapter", so pin it first. A
+  // cross-chapter detection carries endChapter (null verseEnd = whole end chapter).
   function showDetected(cand, source = 'voice') {
+    const endChapter = cand.endChapter ?? cand.chapter
+    const singleChapter = endChapter === cand.chapter
     const ref = {
       bookId: cand.bookId,
       bookName: cand.bookName,
       chapter: cand.chapter,
       verseStart: cand.verseStart,
-      verseEnd: cand.verseStart != null && cand.verseEnd == null ? cand.verseStart : cand.verseEnd
+      endChapter,
+      verseEnd:
+        singleChapter && cand.verseStart != null && cand.verseEnd == null ? cand.verseStart : cand.verseEnd
     }
     return showAdhoc(ref, source)
   }

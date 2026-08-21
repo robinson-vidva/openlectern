@@ -22,6 +22,7 @@ function check(cases) {
       expect(top.chapter).toBe(c.expect.chapter)
       expect(top.verseStart ?? null).toBe(c.expect.verseStart)
       expect(top.verseEnd ?? null).toBe(c.expect.verseEnd)
+      if (c.expect.endChapter !== undefined) expect(top.endChapter ?? null).toBe(c.expect.endChapter)
     })
   }
 }

@@ -115,11 +115,13 @@ function readHundredCardinal(tokens, i) {
 const isNumberStart = (tokens, i) =>
   i < tokens.length && (isDigits(tokens[i]) || tokens[i] in ONES || tokens[i] in TEENS || tokens[i] in TENS)
 
-// Parse "chapter X verse Y (to Z)" grammar after a book name.
+// Parse grammar after a book name. Supports single-chapter forms plus cross-
+// chapter ranges: "chapters five through seven", "chapter one verse one through
+// chapter two verse three", "chapter five verse three through seven twenty nine".
 function parseNumberSpec(tokens) {
   let i = 0
   let hadChapterWord = false
-  if (tokens[i] === 'chapter') {
+  if (tokens[i] === 'chapter' || tokens[i] === 'chapters') {
     hadChapterWord = true
     i++
   }
@@ -129,24 +131,46 @@ function parseNumberSpec(tokens) {
   const chapter = ch.value
   let verseStart = null
   let verseEnd = null
+  let endChapter = null
 
   if (tokens[i] === 'verse' || tokens[i] === 'verses') i++
   if (isNumberStart(tokens, i)) {
     const vs = readNumber(tokens, i)
     verseStart = vs.value
     i = vs.next
-    let sep = tokens[i]
-    if (RANGE_WORDS.has(sep) || sep === 'and') {
-      const save = i
-      i++
-      if (isNumberStart(tokens, i)) {
-        const ve = readNumber(tokens, i)
-        verseEnd = ve.value
-        i = ve.next
-      } else i = save
-    }
   }
-  return { chapter, verseStart, verseEnd, hadChapterWord }
+
+  const sep = tokens[i]
+  if (RANGE_WORDS.has(sep) || sep === 'and') {
+    const save = i
+    i++
+    if (tokens[i] === 'chapter' || tokens[i] === 'chapters') {
+      // "... through chapter two verse three" -> explicit cross-chapter end.
+      i++
+      const ec = readNumber(tokens, i)
+      if (ec) {
+        endChapter = ec.value
+        i = ec.next
+        if (tokens[i] === 'verse' || tokens[i] === 'verses') i++
+        if (isNumberStart(tokens, i)) {
+          const ve = readNumber(tokens, i)
+          verseEnd = ve.value
+          i = ve.next
+        }
+      } else i = save
+    } else if (isNumberStart(tokens, i)) {
+      const n = readNumber(tokens, i)
+      if (verseStart != null) {
+        // "verse three through seven" -> verse range in the same chapter.
+        verseEnd = n.value
+      } else {
+        // "chapters five through seven" -> whole-chapter range.
+        endChapter = n.value
+      }
+      i = n.next
+    } else i = save
+  }
+  return { chapter, verseStart, verseEnd, endChapter, hadChapterWord }
 }
 
 // Longest book-name match at position p. Returns { id, length, tier } or null.
@@ -167,11 +191,17 @@ function matchBookAt(tokens, p, bookIndex) {
   return null
 }
 
-function refLabel(id, chapter, verseStart, verseEnd) {
+function refLabel(id, chapter, verseStart, endChapter, verseEnd) {
   const name = BOOK_BY_ID[id]?.name || id
-  if (verseStart == null) return `${name} ${chapter}`
-  if (verseEnd == null || verseEnd === verseStart) return `${name} ${chapter}:${verseStart}`
-  return `${name} ${chapter}:${verseStart}-${verseEnd}`
+  const ec = endChapter ?? chapter
+  if (ec === chapter) {
+    if (verseStart == null) return `${name} ${chapter}`
+    if (verseEnd == null || verseEnd === verseStart) return `${name} ${chapter}:${verseStart}`
+    return `${name} ${chapter}:${verseStart}-${verseEnd}`
+  }
+  const sp = verseStart == null ? `${chapter}` : `${chapter}:${verseStart}`
+  const ep = verseEnd == null ? `${ec}` : `${ec}:${verseEnd}`
+  return `${name} ${sp}-${ep}`
 }
 
 // Build the index detectRefs needs. tamilNames is an optional { [id]: name }.
@@ -225,7 +255,7 @@ function buildCandidate(after, match, pos, bookIndex) {
   }
   if (!spec) return null
 
-  let { chapter, verseStart, verseEnd } = spec
+  let { chapter, verseStart, verseEnd, endChapter } = spec
   // Single-chapter books: "Jude 5" means chapter 1, verse 5.
   if (book?.singleChapter && verseStart == null && !spec.hadChapterWord) {
     verseStart = chapter
@@ -236,9 +266,17 @@ function buildCandidate(after, match, pos, bookIndex) {
   if (!struct || !struct.length) return null
   if (chapter < 1 || chapter > struct.length) return null
   const vmax = struct[chapter - 1]
-  if (verseStart != null) {
-    if (verseStart < 1 || verseStart > vmax) return null
-    if (verseEnd != null && (verseEnd < verseStart || verseEnd > vmax)) return null
+  if (verseStart != null && (verseStart < 1 || verseStart > vmax)) return null
+
+  // Validate the end endpoint against structure data (both endpoints must be
+  // real). A backwards or out-of-range end kills the whole candidate.
+  const ec = endChapter ?? chapter
+  if (ec < chapter || ec > struct.length) return null
+  if (ec === chapter) {
+    if (verseEnd != null && verseStart != null && (verseEnd < verseStart || verseEnd > vmax)) return null
+  } else if (verseEnd != null) {
+    const evmax = struct[ec - 1]
+    if (verseEnd < 1 || verseEnd > evmax) return null
   }
 
   const exact = match.tier === 'exact'
@@ -248,11 +286,12 @@ function buildCandidate(after, match, pos, bookIndex) {
     bookName: BOOK_BY_ID[match.id]?.name || match.id,
     chapter,
     verseStart,
+    endChapter: ec,
     verseEnd,
-    ref: refLabel(match.id, chapter, verseStart, verseEnd),
+    ref: refLabel(match.id, chapter, verseStart, ec, verseEnd),
     confidence: exact && hasVerse ? 'high' : 'medium',
     pos,
-    key: `${match.id} ${chapter}:${verseStart ?? '-'}:${verseEnd ?? '-'}`
+    key: `${match.id} ${chapter}:${verseStart ?? '-'}-${ec}:${verseEnd ?? '-'}`
   }
 }
 
