@@ -6,6 +6,11 @@
 export const MIN_FONT_VMIN = 3.4
 export const PAGE_CAPACITY = 1000
 
+// Guardrail: the most verses one queue item / shown passage may span, so a
+// range like "Genesis 1-50" is refused with a clear message instead of building
+// a 1500-verse item. Tunable.
+export const MAX_PASSAGE_VERSES = 400
+
 // Greedy pagination on verse boundaries. weights[i] is a verse's size cost.
 // Returns pages, each an array of verse indices. Never splits a verse, produces
 // no empty pages, and puts a single over-capacity verse on its own page.

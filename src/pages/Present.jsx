@@ -9,8 +9,8 @@ function VerseBlock({ block, className, hideNumber }) {
   return (
     <div className={className} lang={block.language}>
       {block.verses.map((v) => (
-        <span key={v.n}>
-          {!hideNumber && <span className="present-verse-n">{v.n}</span>}
+        <span key={v.c ? `${v.c}:${v.n}` : v.n}>
+          {!hideNumber && <span className="present-verse-n">{v.label ?? v.n}</span>}
           {v.text}{' '}
         </span>
       ))}

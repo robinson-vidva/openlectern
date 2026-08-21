@@ -860,12 +860,12 @@ function Console({ row, creds }) {
                 <div className="verse-chips scroll-x">
                   {stepResults[0].verses.map((v, k) => (
                     <button
-                      key={v.n}
+                      key={v.c ? `${v.c}:${v.n}` : v.n}
                       className={`vchip${k === cursor.verseIndex ? ' on' : ''}`}
-                      aria-label={`Show verse ${v.n}`}
+                      aria-label={`Show verse ${v.label ?? v.n}`}
                       onClick={() => showItemAtVerse(activeItem, k)}
                     >
-                      {v.n}
+                      {v.label ?? v.n}
                     </button>
                   ))}
                 </div>
@@ -874,12 +874,12 @@ function Console({ row, creds }) {
                 <div className="verse-chips scroll-x">
                   {current.primary.verses.map((v, k) => (
                     <button
-                      key={v.n}
+                      key={v.c ? `${v.c}:${v.n}` : v.n}
                       className={`vchip${pagedPages[curPage].includes(k) ? ' on' : ''}`}
-                      aria-label={`Go to verse ${v.n}`}
+                      aria-label={`Go to verse ${v.label ?? v.n}`}
                       onClick={() => jumpToVersePage(k)}
                     >
-                      {v.n}
+                      {v.label ?? v.n}
                     </button>
                   ))}
                 </div>

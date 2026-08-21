@@ -2,6 +2,9 @@
 // Bundled shape: public/bibles/<versionId>/<BOOKID>.json =
 //   { id, name, chapters: [ ["v1 text", "v2 text", ...], ... ] }
 
+import { formatRange } from './parseRef.js'
+import { MAX_PASSAGE_VERSES } from './paginate.js'
+
 const BASE = import.meta.env.BASE_URL || '/'
 const HELLOAO = 'https://bible.helloao.org/api'
 
@@ -108,35 +111,49 @@ async function getChapterVerses(version, book, bookId, chapter) {
 }
 
 // Given a parsed reference and a version, return
-// { bookName, reference, verses: [{ n, text }] } or throws with a clear message.
+// { bookName, reference, startChapter, verses: [{ n, text, c, label }] } or throws
+// with a clear message. Verses are gathered across the chapter span; each carries
+// its chapter `c` and a `label` (bare "n" in the first chapter, "c:n" after a
+// boundary) so the congregation always knows where they are.
 export async function getPassage(version, ref) {
   const book = await getBook(version, ref.bookId)
   if (!book) throw new Error(`${version.name} does not include that book.`)
 
-  const chapterVerses = await getChapterVerses(version, book, ref.bookId, ref.chapter)
-  if (!chapterVerses || chapterVerses.length === 0) {
-    throw new Error(`${book.name || ref.bookName} has no chapter ${ref.chapter}.`)
-  }
-
-  const total = chapterVerses.length
-  let start = ref.verseStart ?? 1
-  let end = ref.verseEnd ?? total
-  start = Math.max(1, Math.min(start, total))
-  end = Math.max(start, Math.min(end, total))
+  const bookName = book.name || ref.bookName
+  const startChapter = ref.chapter
+  const endChapter = ref.endChapter && ref.endChapter >= startChapter ? ref.endChapter : startChapter
 
   const verses = []
-  for (let n = start; n <= end; n++) {
-    const text = chapterVerses[n - 1]
-    if (text != null && text !== '') verses.push({ n, text })
+  for (let c = startChapter; c <= endChapter; c++) {
+    const chapterVerses = await getChapterVerses(version, book, ref.bookId, c)
+    if (!chapterVerses || chapterVerses.length === 0) {
+      // A missing start chapter is an error; running past the book's last chapter
+      // just ends the span.
+      if (c === startChapter) throw new Error(`${bookName} has no chapter ${c}.`)
+      break
+    }
+    const total = chapterVerses.length
+    let start = c === startChapter ? (ref.verseStart ?? 1) : 1
+    let end = c === endChapter ? (ref.verseEnd ?? total) : total
+    start = Math.max(1, Math.min(start, total))
+    end = Math.max(start, Math.min(end, total))
+    for (let n = start; n <= end; n++) {
+      const text = chapterVerses[n - 1]
+      if (text != null && text !== '') {
+        verses.push({ n, text, c, label: c === startChapter ? String(n) : `${c}:${n}` })
+      }
+    }
+    if (verses.length > MAX_PASSAGE_VERSES) {
+      throw new Error(`That range is too long to show as one passage (over ${MAX_PASSAGE_VERSES} verses). Split it into smaller pieces.`)
+    }
   }
 
-  const bookName = book.name || ref.bookName
-  const wholeChapter = ref.verseStart == null
-  const reference = wholeChapter
-    ? `${bookName} ${ref.chapter}`
-    : start === end
-      ? `${bookName} ${ref.chapter}:${start}`
-      : `${bookName} ${ref.chapter}:${start}-${end}`
+  const reference = formatRange(bookName, {
+    chapter: startChapter,
+    verseStart: ref.verseStart ?? null,
+    endChapter,
+    verseEnd: ref.verseEnd ?? null
+  })
 
-  return { bookName, reference, verses }
+  return { bookName, reference, startChapter, verses }
 }

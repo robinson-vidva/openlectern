@@ -36,6 +36,7 @@ function refOf(parsed) {
     bookId: parsed.bookId,
     chapter: parsed.chapter,
     verseStart: parsed.verseStart ?? null,
+    endChapter: parsed.endChapter ?? parsed.chapter,
     verseEnd: parsed.verseEnd ?? null
   }
 }
@@ -59,20 +60,22 @@ export function wholeCurrent(results, parsed) {
 }
 
 // Single-verse display object (step mode). verseIndex indexes the primary list.
-// Secondary is matched by verse number so mismatched versions stay aligned.
+// Secondary is matched by chapter+verse so mismatched versions stay aligned even
+// across a chapter boundary (verse numbers repeat between chapters).
 export function stepCurrent(results, parsed, verseIndex) {
   const p = results[0]
   const s = results[1] || null
   const pv = p.verses[verseIndex]
-  if (!pv) return wholeCurrent(results)
-  const sv = s ? s.verses.find((x) => x.n === pv.n) : null
+  if (!pv) return wholeCurrent(results, parsed)
+  const c = pv.c ?? parsed.chapter
+  const sv = s ? s.verses.find((x) => x.n === pv.n && (x.c ?? c) === c) : null
   return {
     id: crypto.randomUUID(),
     step: true,
     verseIndex,
     verseNumber: pv.n,
-    reference: `${p.bookName} ${parsed.chapter}:${pv.n}`,
-    ref: { bookId: parsed.bookId, chapter: parsed.chapter, verseStart: pv.n, verseEnd: pv.n },
+    reference: `${p.bookName} ${c}:${pv.n}`,
+    ref: { bookId: parsed.bookId, chapter: c, verseStart: pv.n, endChapter: c, verseEnd: pv.n },
     primary: { language: p.version.language, verses: [pv] },
     secondary: s ? { language: s.version.language, verses: sv ? [sv] : [] } : null
   }
