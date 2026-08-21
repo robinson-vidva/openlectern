@@ -6,12 +6,12 @@ import { friendlyError, supabaseConfigured } from '../lib/supabase.js'
 // Controllers join with code + PIN (and an optional name) and can write.
 // Presenters/viewers join with the code only (read-only, no PIN).
 // Controllers can also join via a one-time invite code from another controller.
-export default function JoinForm({ role, initialCode = '', onJoined }) {
+export default function JoinForm({ role, initialCode = '', initialInvite = false, onJoined }) {
   const [code, setCode] = useState(initialCode.toUpperCase())
   const [pin, setPin] = useState('')
   const [invite, setInvite] = useState('')
   const [name, setName] = useState('')
-  const [mode, setMode] = useState('pin') // pin | invite (control only)
+  const [mode, setMode] = useState(initialInvite && role === 'control' ? 'invite' : 'pin') // pin | invite
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 

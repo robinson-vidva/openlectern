@@ -3,8 +3,11 @@ import JoinForm from '../components/JoinForm.jsx'
 import VoiceControls from '../components/VoiceControls.jsx'
 import VoiceChips from '../components/VoiceChips.jsx'
 import { useVoice } from '../components/useVoice.js'
-import { updateSession } from '../lib/session.js'
+import { updateSession, joinSession } from '../lib/session.js'
 import { supabase, friendlyError } from '../lib/supabase.js'
+import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
+import { loadPrefs, savePrefs, clearPrefs, hintSeen, markHintSeen } from '../lib/prefs.js'
+import Qr from '../components/Qr.jsx'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
@@ -49,6 +52,16 @@ function Console({ row, creds }) {
   const [listenerMode, setListenerMode] = useState(false)
   const [presenceEntries, setPresenceEntries] = useState([])
   const [listenerBanner, setListenerBanner] = useState('')
+  const [showHint, setShowHint] = useState(() => !hintSeen())
+  const [qrBig, setQrBig] = useState(false)
+  function dismissHint() {
+    markHintSeen()
+    setShowHint(false)
+  }
+  function resetRemembered() {
+    clearPrefs()
+    setStatus('Remembered settings cleared. New sessions will start from defaults.')
+  }
   const voiceRef = useRef(null)
   const channelRef = useRef(null)
   const keyRef = useRef(null)
@@ -179,6 +192,7 @@ function Console({ row, creds }) {
       setConfig(prev)
       return setStatus(friendlyError(err))
     }
+    savePrefs({ config: newConfig }) // remember translations for the next session
     await reresolveCurrent(newConfig.versions)
   }
 
@@ -275,12 +289,15 @@ function Console({ row, creds }) {
   // clobber each other with stale closure values.
   function setTheme(t) {
     const d = stateRef.current.display || {}
-    patchState({ display: { theme: t, fontScale: d.fontScale || 100 } })
+    const next = { theme: t, fontScale: d.fontScale || 100 }
+    savePrefs({ display: next })
+    patchState({ display: next })
   }
   function nudgeFont(delta) {
     const d = stateRef.current.display || {}
-    const v = Math.max(80, Math.min(140, (d.fontScale || 100) + delta))
-    patchState({ display: { theme: d.theme || 'light', fontScale: v } })
+    const next = { theme: d.theme || 'light', fontScale: Math.max(80, Math.min(140, (d.fontScale || 100) + delta)) }
+    savePrefs({ display: next })
+    patchState({ display: next })
   }
 
   const itemById = (id) => queue.find((q) => q.id === id) || null
@@ -536,8 +553,18 @@ function Console({ row, creds }) {
     }
   }
   function leaveSession() {
+    clearCreds()
     window.location.hash = '#/'
   }
+
+  // Creator only: apply this device's remembered theme/font to the fresh session
+  // (translations were already applied via the remembered config at creation).
+  useEffect(() => {
+    if (!creds.creator) return
+    const d = loadPrefs().display
+    if (d && (d.theme !== 'light' || d.fontScale !== 100)) patchState({ display: d })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function revealPin() {
     setPinReveal(true)
@@ -796,6 +823,19 @@ function Console({ row, creds }) {
         </button>
         {panelOpen && (
           <div className="session-panel">
+            <div className="sp-code-block">
+              <div className="sp-code-label muted">Screen code</div>
+              <div className="sp-code">{code}</div>
+              <button
+                className="sp-qr"
+                aria-label="Enlarge the presenter QR code"
+                title="Scan to watch on a phone. Tap to enlarge."
+                onClick={() => setQrBig(true)}
+              >
+                <Qr text={linkFor('present')} size={92} />
+              </button>
+              <div className="sp-qr-hint muted">Scan to watch</div>
+            </div>
             <div className="sp-row">
               <button className="btn small" onClick={() => copyLink('present')}>
                 {copied === 'present' ? 'Copied' : 'Copy presenter link'}
@@ -830,14 +870,42 @@ function Console({ row, creds }) {
             </div>
             {inviteNote && <p className="muted" style={{ margin: 0 }}>{inviteNote}</p>}
             <div className="sp-row">
-              <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open presenter</a>
+              <a className="link-btn" href={`#/present?s=${code}`} target="_blank" rel="noopener">Open the screen (new tab)</a>
               <button className="link-btn danger" onClick={leaveSession}>Leave session</button>
+            </div>
+            <div className="sp-row">
+              <button className="link-btn" onClick={resetRemembered}>Reset remembered settings</button>
             </div>
           </div>
         )}
       </div>
 
+      {qrBig && (
+        <div className="qr-modal" role="dialog" aria-label="Presenter QR code" onClick={() => setQrBig(false)}>
+          <div className="qr-modal-inner" onClick={(e) => e.stopPropagation()}>
+            <Qr text={linkFor('present')} size={Math.min(320, window.innerWidth - 80)} />
+            <div className="qr-modal-code">{code}</div>
+            <div className="muted">Scan to watch on any phone</div>
+            <button className="btn small" onClick={() => setQrBig(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
       <div className="control-scroll">
+        {showHint && (
+          <div className="first-hint">
+            <button
+              className="first-hint-body"
+              onClick={() => {
+                setPanelOpen(true)
+                dismissHint()
+              }}
+            >
+              Your code and PIN live here. Open the screen on the big display from here too.
+            </button>
+            <button className="first-hint-x" aria-label="Dismiss" onClick={dismissHint}>Got it</button>
+          </div>
+        )}
         {status && <p className="error control-status">{status}</p>}
         {listenerBanner && <p className="listener-banner">{listenerBanner}</p>}
         {otherListeners.length > 0 && (
@@ -1156,16 +1224,60 @@ function Console({ row, creds }) {
 }
 
 export default function Control({ params }) {
-  const [row, setRow] = useState(null)
-  const [creds, setCreds] = useState(null)
+  const code = params.get('s') || params.get('c') || ''
+  const inviteWanted = params.get('invite') === '1'
+  // Take a fresh handoff from the landing page exactly once (survives StrictMode
+  // double-render via the ref guard).
+  const handoffRef = useRef()
+  if (handoffRef.current === undefined) {
+    const h = takeHandoff()
+    handoffRef.current = h && h.creds?.code === code ? h : null
+  }
+  const handoff = handoffRef.current
+
+  const [row, setRow] = useState(handoff ? handoff.row : null)
+  const [creds, setCreds] = useState(handoff ? handoff.creds : null)
+  // Only show "Opening..." when we actually have creds to rejoin with.
+  const [resolving, setResolving] = useState(() => !handoff && !!loadCreds(code)?.pin && !inviteWanted)
+
+  useEffect(() => {
+    if (row || !resolving) return
+    const cached = loadCreds(code)
+    if (!cached?.pin) {
+      setResolving(false)
+      return
+    }
+    joinSession(code, cached.pin)
+      .then((r) => {
+        setRow(r)
+        setCreds(cached)
+        setResolving(false)
+      })
+      .catch(() => {
+        clearCreds()
+        setResolving(false)
+      })
+  }, [code, row, resolving])
 
   if (!row) {
+    if (resolving) {
+      return (
+        <div className="center-wrap">
+          <div className="card">
+            <h1>OpenLectern</h1>
+            <p className="tagline">Opening your remote...</p>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="center-wrap">
         <JoinForm
           role="control"
-          initialCode={params.get('s') || params.get('c') || ''}
+          initialCode={code}
+          initialInvite={inviteWanted}
           onJoined={(r, c) => {
+            saveCreds(c)
             setRow(r)
             setCreds(c)
           }}

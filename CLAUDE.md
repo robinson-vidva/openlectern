@@ -13,10 +13,17 @@ no accounts, no installs. MIT license.
 
 ## User flow
 
-- Start page: "Start a session" -> pick 1 or 2 bible translations -> choose a
-  4-digit PIN -> receive a short random session code (like K7PM4Q).
+- Landing page: exactly two actions. "Start" (one tap: generates a non-ambiguous
+  4-digit PIN, creates the session with default/remembered config, and lands the
+  creator DIRECTLY in the live controller -- no interstitial, no decisions) and a
+  "Join" area with a single code field: "Watch" opens the view-only presenter
+  (code only); a quiet "I have a PIN" expander reveals the PIN field + "Control"
+  and the "Join with an invite code instead" path. Translations are NOT chosen at
+  creation -- they are switchable in-session (Display tab). See "Start/join flow"
+  under Shipped for remembered-config + handoff details.
 - Presenter page (church projector or a shared browser tab in Zoom): joined with
-  code + PIN, shows the code on screen but NEVER the PIN. Fullscreen button.
+  code only (view-only), shows the code on screen but NEVER the PIN. A ?s=CODE URL
+  opens it directly (no click). Fullscreen button.
   White/beige background, dark text, large auto-fitting serif type, reference
   shown above the verses, second language below a subtle divider.
 - Controller page (mobile-first): join with code + PIN, optional display name.
@@ -295,6 +302,28 @@ no accounts, no installs. MIT license.
   Genesis 1:1 at ~4 whitespace tokens) cannot reach the 6-word threshold. Pure
   parts unit-tested with 30+ fixtures (verbatim both testaments, near-verbatim,
   cross-segment, Tamil verbatim, negatives); measured scan ~0.01 ms/window.
+- Start/join flow redesign (fewest decisions before a session is live). Landing =
+  two actions (see User flow). "Start" is one tap: generatePin() (src/lib/newpin.js,
+  rejects all-same and straight runs like 0000/1234, unit-tested) + createSession
+  with default (eng-web) or REMEMBERED config, then hands the fresh row+creds to
+  the controller route via an in-memory handoff (src/lib/handoff.js; survives the
+  hash nav, taken once, no re-join) and navigates -- the creator never sees a PIN
+  prompt or interstitial (the old "session ready" screen is deleted). Per-tab creds
+  are also cached in sessionStorage so a controller reload silently rejoins and
+  "Show PIN" still works; a shared control link (new tab, no cache) still shows the
+  PIN form. Remembered config (src/lib/prefs.js, localStorage 'ol-prefs'): the
+  Display tab's translation changes and theme/font are persisted whenever they
+  change in-session and reused silently at the next Start (translations feed
+  create_session's config; the creator applies remembered theme/font via one
+  patchState on mount). "Reset remembered settings" in the session panel clears it.
+  One-time first-run hint on the controller points at the session panel (localStorage
+  'ol-hint-seen'). Join: "Watch" -> #/present?s=CODE which auto-joins view (Present
+  no longer needs a click when the code is in the URL); "Control" joins inline with
+  code+PIN then hands off; invite path delegates to JoinForm via ?invite=1. Session
+  panel now carries the code, a client-side QR of the presenter link (src/components/
+  Qr.jsx via qrcode-generator, no network; tap to enlarge for cross-room scanning),
+  Show PIN, Open the screen, Copy presenter/controller links, and Reset. NO schema
+  change: create_session already took config; everything else is client state.
 
 ## AI roadmap
 

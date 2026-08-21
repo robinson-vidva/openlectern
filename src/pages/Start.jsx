@@ -1,61 +1,79 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadManifest } from '../lib/bibleData.js'
-import { createSession } from '../lib/session.js'
+import { createSession, joinSession } from '../lib/session.js'
 import { friendlyError, supabaseConfigured } from '../lib/supabase.js'
+import { generatePin } from '../lib/newpin.js'
+import { loadPrefs } from '../lib/prefs.js'
+import { setHandoff, saveCreds } from '../lib/handoff.js'
+
+function goto(route, code) {
+  window.location.hash = `#/${route}?s=${code}`
+}
 
 export default function Start() {
-  const [versions, setVersions] = useState([])
-  const [primary, setPrimary] = useState('')
-  const [secondary, setSecondary] = useState('')
-  const [pin, setPin] = useState('')
+  const [defaultConfig, setDefaultConfig] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [created, setCreated] = useState(null) // { code }
-  const [copied, setCopied] = useState('')
+  const [code, setCode] = useState('')
+  const [havePin, setHavePin] = useState(false)
+  const [pin, setPin] = useState('')
+  const controlBusy = useRef(false)
 
-  function linkFor(route) {
-    return `${window.location.origin}${window.location.pathname}#/${route}?s=${created?.code}`
-  }
-  async function copyLink(route) {
-    try {
-      await navigator.clipboard.writeText(linkFor(route))
-      setCopied(route)
-      setTimeout(() => setCopied(''), 1500)
-    } catch {
-      setCopied('')
-    }
-  }
-
+  // Only needed when there is no remembered config: pick the bundled default.
   useEffect(() => {
+    if (loadPrefs().config?.versions?.length) return
     loadManifest()
       .then((m) => {
         const list = m.versions || []
-        setVersions(list)
-        if (list[0]) setPrimary(list[0].id)
+        const web = list.find((v) => v.id === 'eng-web') || list[0]
+        if (web) setDefaultConfig({ versions: [{ id: web.id, name: web.name, language: web.language, helloaoId: web.helloaoId || null }] })
       })
       .catch((e) => setError(e.message))
   }, [])
 
-  async function start(e) {
-    e.preventDefault()
+  async function start() {
     setError('')
-    if (!primary) return setError('Pick at least one translation.')
-    if (!/^\d{4}$/.test(pin)) return setError('Choose a 4-digit PIN.')
-    const chosen = [primary, secondary].filter(Boolean)
-    const config = {
-      versions: chosen.map((id) => {
-        const v = versions.find((x) => x.id === id)
-        return { id: v.id, name: v.name, language: v.language, helloaoId: v.helloaoId || null }
-      })
-    }
+    const remembered = loadPrefs()
+    const config = remembered.config?.versions?.length ? { versions: remembered.config.versions } : defaultConfig
+    if (!config) return setError('Still loading. Try again in a moment.')
     setBusy(true)
     try {
-      const row = await createSession(pin, config)
-      setCreated({ code: row.code })
+      const newPin = generatePin()
+      const row = await createSession(newPin, config)
+      const creds = { code: row.code, pin: newPin, name: '', creator: true }
+      saveCreds(creds)
+      setHandoff({ row, creds })
+      goto('control', row.code)
     } catch (err) {
       setError(friendlyError(err))
-    } finally {
       setBusy(false)
+    }
+  }
+
+  function watch() {
+    const c = code.trim().toUpperCase()
+    if (c.length < 4) return setError('Enter the code from the screen.')
+    goto('present', c)
+  }
+
+  async function control() {
+    setError('')
+    const c = code.trim().toUpperCase()
+    if (c.length < 4) return setError('Enter the code from the screen.')
+    if (!/^\d{4}$/.test(pin)) return setError('The PIN is 4 digits.')
+    if (controlBusy.current) return
+    controlBusy.current = true
+    setBusy(true)
+    try {
+      const row = await joinSession(c, pin)
+      const creds = { code: c, pin, name: '' }
+      saveCreds(creds)
+      setHandoff({ row, creds })
+      goto('control', c)
+    } catch (err) {
+      setError(friendlyError(err))
+      setBusy(false)
+      controlBusy.current = false
     }
   }
 
@@ -65,40 +83,7 @@ export default function Start() {
         <div className="card">
           <h1>OpenLectern</h1>
           <p className="error">
-            Not configured yet. Copy .env.example to .env and set VITE_SUPABASE_URL and
-            VITE_SUPABASE_ANON_KEY.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  if (created) {
-    return (
-      <div className="center-wrap">
-        <div className="card">
-          <h1>Session ready</h1>
-          <p className="tagline">Share the presenter link to let anyone watch. Keep the PIN for controllers.</p>
-          <div className="code-badge">{created.code}</div>
-          <p className="muted" style={{ textAlign: 'center', margin: '0.75rem 0 1.25rem' }}>
-            The presenter link is view-only. Controllers need the code and PIN.
-          </p>
-          <div className="row">
-            <a className="btn primary" href={`#/present?s=${created.code}`} target="_blank" rel="noopener">
-              Open presenter
-            </a>
-            <a className="btn" href={`#/control?s=${created.code}`}>Open controller</a>
-          </div>
-          <div className="row" style={{ marginTop: '0.6rem' }}>
-            <button className="btn" onClick={() => copyLink('present')}>
-              {copied === 'present' ? 'Copied' : 'Copy presenter link'}
-            </button>
-            <button className="btn" onClick={() => copyLink('control')}>
-              {copied === 'control' ? 'Copied' : 'Copy controller link'}
-            </button>
-          </div>
-          <p style={{ marginTop: '1rem', textAlign: 'center' }}>
-            <button className="link-btn" onClick={() => setCreated(null)}>Start another</button>
+            Not configured yet. Copy .env.example to .env and set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.
           </p>
         </div>
       </div>
@@ -107,56 +92,59 @@ export default function Start() {
 
   return (
     <div className="center-wrap">
-      <form className="card" onSubmit={start}>
+      <div className="card landing">
         <h1>OpenLectern</h1>
         <p className="tagline">Show scripture on a screen. Control it from any phone.</p>
 
-        <div className="field">
-          <label htmlFor="primary">First translation</label>
-          <select id="primary" value={primary} onChange={(e) => setPrimary(e.target.value)}>
-            {versions.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-        </div>
+        <button className="btn primary wide start-btn" onClick={start} disabled={busy}>
+          {busy ? 'Starting...' : 'Start'}
+        </button>
+        <p className="muted start-sub">One tap. You go straight to the remote; your code and PIN are inside.</p>
 
-        <div className="field">
-          <label htmlFor="secondary">Second translation (optional)</label>
-          <select id="secondary" value={secondary} onChange={(e) => setSecondary(e.target.value)}>
-            <option value="">None</option>
-            {versions
-              .filter((v) => v.id !== primary)
-              .map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
-              ))}
-          </select>
-        </div>
+        <div className="join-block">
+          <div className="field">
+            <label htmlFor="code">Have a code? Join a screen</label>
+            <input
+              id="code"
+              type="text"
+              autoCapitalize="characters"
+              autoComplete="off"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. K7PM4Q"
+            />
+          </div>
 
-        <div className="field">
-          <label htmlFor="pin">Choose a 4-digit PIN</label>
-          <input
-            id="pin"
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="4 digits"
-          />
+          <button className="btn wide" onClick={watch} disabled={busy}>Watch</button>
+
+          {!havePin ? (
+            <p className="have-pin">
+              <button type="button" className="link-btn" onClick={() => setHavePin(true)}>I have a PIN</button>
+            </p>
+          ) : (
+            <div className="pin-block">
+              <div className="field">
+                <label htmlFor="pin">PIN</label>
+                <input
+                  id="pin"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={4}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="4 digits"
+                />
+              </div>
+              <button className="btn primary wide" onClick={control} disabled={busy}>Control</button>
+              <p className="muted invite-line">
+                <a className="link-btn" href={`#/control?s=${code.trim().toUpperCase()}&invite=1`}>Join with an invite code instead</a>
+              </p>
+            </div>
+          )}
         </div>
 
         {error && <p className="error">{error}</p>}
-
-        <button className="btn primary wide" type="submit" disabled={busy || !versions.length}>
-          {busy ? 'Starting...' : 'Start a session'}
-        </button>
-
-        <p style={{ marginTop: '1.25rem', textAlign: 'center' }} className="muted">
-          Already have a code?{' '}
-          <a className="link-btn" href="#/control">Control</a>{' or '}
-          <a className="link-btn" href="#/present">Present</a>
-        </p>
 
         <p className="muted credits">
           Scripture: World English Bible (public domain) and community translations.
@@ -164,7 +152,7 @@ export default function Start() {
           <a className="link-btn" href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noreferrer">openbible.info</a>{' '}
           (CC BY).
         </p>
-      </form>
+      </div>
     </div>
   )
 }

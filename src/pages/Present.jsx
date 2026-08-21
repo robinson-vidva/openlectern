@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
-import { subscribeSession } from '../lib/session.js'
+import { subscribeSession, joinView } from '../lib/session.js'
+import { friendlyError } from '../lib/supabase.js'
 import { passagePages } from '../lib/resolve.js'
 import { MIN_FONT_VMIN } from '../lib/paginate.js'
 
@@ -167,8 +168,23 @@ function Stage({ state, code }) {
 export default function Present({ params }) {
   const [row, setRow] = useState(null)
   const [state, setState] = useState(null)
+  const [joinError, setJoinError] = useState('')
   const codeRef = useRef('')
   const revRef = useRef(-1)
+  const initialCode = params.get('s') || params.get('c') || ''
+
+  // A presenter link is view-only and code-only, so open the screen directly
+  // when the code is in the URL -- no click needed.
+  useEffect(() => {
+    if (row || !initialCode) return
+    let live = true
+    joinView(initialCode)
+      .then((r) => live && setRow(r))
+      .catch((e) => live && setJoinError(friendlyError(e)))
+    return () => {
+      live = false
+    }
+  }, [initialCode, row])
 
   useEffect(() => {
     if (!row) return
@@ -187,9 +203,19 @@ export default function Present({ params }) {
   }, [row])
 
   if (!row) {
+    if (initialCode && !joinError) {
+      return (
+        <div className="center-wrap">
+          <div className="card">
+            <h1>OpenLectern</h1>
+            <p className="tagline">Opening the screen...</p>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="center-wrap">
-        <JoinForm role="present" initialCode={params.get('s') || params.get('c') || ''} onJoined={(r) => setRow(r)} />
+        <JoinForm role="present" initialCode={initialCode} onJoined={(r) => setRow(r)} />
       </div>
     )
   }
