@@ -1049,11 +1049,35 @@ function Console({ row, creds }) {
         </div>
 
         <div className="tb-tools">
-          <button className="tb-admins" onClick={() => setPanelOpen(true)} title="You — tap to rename or see who's here">
-            <Icon name="pencil" size={13} />
-            <span className="tb-name">{displayName}</span>
-            {adminCount > 1 && <span className="tb-plus">+{adminCount - 1}</span>}
-          </button>
+          {editingName ? (
+            <span className="tb-name-edit">
+              <input
+                value={nameDraft}
+                maxLength={24}
+                autoFocus
+                aria-label="Your name"
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveName()
+                  else if (e.key === 'Escape') setEditingName(false)
+                }}
+                onBlur={saveName}
+              />
+            </span>
+          ) : (
+            <button
+              className="tb-admins"
+              onClick={() => {
+                setNameDraft(displayName)
+                setEditingName(true)
+              }}
+              title="Edit your name"
+            >
+              <Icon name="pencil" size={13} />
+              <span className="tb-name">{displayName}</span>
+              {adminCount > 1 && <span className="tb-plus">+{adminCount - 1}</span>}
+            </button>
+          )}
           <button className="btn small ghost" onClick={() => toggleListener(true)}>Listener mode</button>
           <button className="iconbtn" title="Settings and sharing" aria-label="Settings and sharing" onClick={() => setPanelOpen(true)}>
             <span aria-hidden="true">⚙</span>
@@ -1167,14 +1191,6 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
-              {current && !current.step && (current.primary?.verses?.length || 0) > 2 && (
-                <div className="vps-live">
-                  <span className="vps-live-label">Per screen</span>
-                  <button className="icon-btn" aria-label="Fewer verses per screen" onClick={() => stepPerPage(-1)}>-</button>
-                  <span className="vps-live-val">{perPage ? perPage : 'Auto'}</span>
-                  <button className="icon-btn" aria-label="More verses per screen" onClick={() => stepPerPage(1)}>+</button>
-                </div>
-              )}
               {cursor?.savedPlan && (
                 <button className="btn small back-to-plan" onClick={backToPlan}>Back to plan</button>
               )}
@@ -1208,6 +1224,24 @@ function Console({ row, creds }) {
             <div className="now-empty">Nothing on screen yet</div>
           )}
         </section>
+
+        {current && !current.step && (
+          <div className="vps-bar">
+            <span className="vps-bar-label">Verses per screen</span>
+            <div className="vps-row">
+              {[[0, 'Auto'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10'], [12, '12']].map(([n, label]) => (
+                <button
+                  key={n}
+                  className={`vps-btn${perPage === n ? ' on' : ''}`}
+                  aria-pressed={perPage === n}
+                  onClick={() => setVersesPerScreen(n)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <nav className="transport">
           <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
@@ -1302,6 +1336,32 @@ function Console({ row, creds }) {
 
         <aside className="console-right">
           <PresenterPreview state={state} onOpen={() => window.open(linkFor('present'), '_blank', 'noopener')} />
+
+          <section className="panel-card screen-card">
+            <div className="screen-row">
+              <span className="mini-label">Theme</span>
+              <div className="theme-swatches">
+                {['light', 'sepia', 'dark', 'contrast'].map((t) => (
+                  <button
+                    key={t}
+                    className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
+                    aria-label={`${t} theme`}
+                    aria-pressed={theme === t}
+                    onClick={() => setTheme(t)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="screen-row">
+              <span className="mini-label">Font size</span>
+              <div className="font-size">
+                <button className="icon-btn" aria-label="Smaller" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
+                <span className="fs-val">{fontScale}%</span>
+                <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
+              </div>
+            </div>
+          </section>
+
           <section className="panel-card plan-card">
             <div className="plan-head">
               <h3 className="card-h">Plan ({queue.length})</h3>
@@ -1427,76 +1487,7 @@ function Console({ row, creds }) {
               </div>
 
               <div className="scard">
-                <div className="section-title">Presenter screen</div>
-                <label className="mini-label">Theme</label>
-                <div className="theme-swatches">
-                  {['light', 'sepia', 'dark', 'contrast'].map((t) => (
-                    <button
-                      key={t}
-                      className={`swatch sw-${t}${theme === t ? ' on' : ''}`}
-                      aria-label={`${t} theme`}
-                      aria-pressed={theme === t}
-                      onClick={() => setTheme(t)}
-                    />
-                  ))}
-                </div>
-                <label className="mini-label" style={{ marginTop: '0.8rem' }}>Font size</label>
-                <div className="font-size">
-                  <button className="icon-btn" aria-label="Smaller" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
-                  <span className="fs-val">{fontScale}%</span>
-                  <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
-                </div>
-              </div>
-
-              <div className="scard">
-                <div className="section-title">Verses per screen</div>
-                <div className="vps-row">
-                  {[[0, 'Auto'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10'], [12, '12']].map(([n, label]) => (
-                    <button
-                      key={n}
-                      className={`vps-btn${perPage === n ? ' on' : ''}`}
-                      aria-pressed={perPage === n}
-                      onClick={() => setVersesPerScreen(n)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="muted vps-hint">Auto fits as many as stay readable. A number shows exactly that many per screen for long passages.</p>
-              </div>
-
-              <div className="scard">
                 <div className="section-title">This session</div>
-                <div className="name-row">
-                  <span className="muted">Your name</span>
-                  {editingName ? (
-                    <span className="name-edit">
-                      <input
-                        value={nameDraft}
-                        maxLength={24}
-                        autoFocus
-                        aria-label="Your name"
-                        onChange={(e) => setNameDraft(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && saveName()}
-                      />
-                      <button className="icon-btn" aria-label="Save name" onClick={saveName}><Icon name="check" /></button>
-                    </span>
-                  ) : (
-                    <span className="name-view">
-                      <strong>{displayName}</strong>
-                      <button
-                        className="icon-btn ghost"
-                        aria-label="Change your name"
-                        onClick={() => {
-                          setNameDraft(displayName)
-                          setEditingName(true)
-                        }}
-                      >
-                        <Icon name="pencil" />
-                      </button>
-                    </span>
-                  )}
-                </div>
                 <div className="sp-admins">
                   {presence.length ? presence.map((n, i) => <span className="chip" key={i}>{n}</span>) : <span className="chip">just you</span>}
                 </div>

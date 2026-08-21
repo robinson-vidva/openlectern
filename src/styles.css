@@ -1839,3 +1839,19 @@ select:focus {
 .queue-row .icon-btn:hover:not(:disabled){background:var(--panel-2);color:var(--ink)}
 .queue-row .icon-btn.danger:hover:not(:disabled){color:var(--danger)}
 .queue-row .icon-btn:disabled{opacity:.3}
+
+/* ---- moved settings: presenter controls in the rail, verses under now card ---- */
+.screen-card{padding:.7rem .85rem}
+.screen-row{display:flex;align-items:center;justify-content:space-between;gap:.8rem}
+.screen-row + .screen-row{margin-top:.6rem}
+.screen-card .mini-label{margin:0}
+.screen-card .theme-swatches{margin:0}
+.screen-card .font-size{margin:0}
+
+.vps-bar{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-sm);padding:.5rem .75rem}
+.vps-bar-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.vps-bar .vps-row{display:flex;gap:.35rem;flex-wrap:wrap}
+
+/* top-bar inline name edit */
+.tb-name-edit{display:inline-flex}
+.tb-name-edit input{width:8.5rem;font-size:.9rem;padding:.32rem .7rem;border:1px solid var(--accent);border-radius:999px;background:var(--panel);color:var(--ink)}
