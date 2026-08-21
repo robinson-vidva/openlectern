@@ -6,7 +6,7 @@ import { supabase, friendlyError } from '../lib/supabase.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs, hintSeen, markHintSeen } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
-import { parseReference, formatLabel, searchBooks } from '../lib/parseRef.js'
+import { parseReference, formatLabel, searchBooks, parsePartialRef } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
 import { extractReferences } from '../lib/planText.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
@@ -331,36 +331,74 @@ function Console({ row, creds }) {
 
   const itemById = (id) => queue.find((q) => q.id === id) || null
 
-  // Per-chapter verse counts for the primary version, for ad-hoc stepping bounds.
+  // Per-chapter verse counts for the primary version (ad-hoc stepping bounds +
+  // chapter/verse type-ahead). Reloads when the primary translation changes; a
+  // bundled WEB copy is kept as a fallback so type-ahead still works when the
+  // primary is online-only or lacks a book.
   const structureRef = useRef(null)
+  const fallbackStructRef = useRef(null)
+  const primaryId = versions[0]?.id
   useEffect(() => {
-    loadStructure(versions[0]?.id)
+    loadStructure(primaryId)
       .then((s) => (structureRef.current = s || {}))
       .catch(() => (structureRef.current = {}))
+  }, [primaryId])
+  useEffect(() => {
+    loadStructure('eng-web')
+      .then((s) => (fallbackStructRef.current = s || {}))
+      .catch(() => (fallbackStructRef.current = {}))
   }, [])
-  function chapterCount(bookId, chapter) {
+  function structOf(bookId) {
     const s = structureRef.current
-    return s && s[bookId] ? s[bookId][chapter - 1] || 0 : 0
+    if (s && s[bookId] && s[bookId].length) return s[bookId]
+    const f = fallbackStructRef.current
+    return f && f[bookId] ? f[bookId] : null
   }
+  function chapterCount(bookId, chapter) {
+    const arr = structOf(bookId)
+    return arr ? arr[chapter - 1] || 0 : 0
+  }
+  const chaptersOf = (bookId) => structOf(bookId)?.length || 0
+  const versesOf = (bookId, chapter) => structOf(bookId)?.[chapter - 1] || 0
 
   // ---- reference input + preview ----
   const [input, setInput] = useState('')
   const refInputRef = useRef(null)
   const debounced = useDebounced(input, 300)
   const parsed = useMemo(() => parseReference(debounced), [debounced])
-  // Type-ahead book suggestions while the book name is still being typed (before
-  // a chapter number). Tapping one fills "<Book> " so the operator types "3:16".
+  // Type-ahead in three stages: book -> chapter -> verse. `partial` reads the
+  // in-progress reference; a book is "settled" once a chapter digit exists or the
+  // input ends with a space after a recognized book.
+  const partial = useMemo(() => parsePartialRef(input), [input])
+  const endsWithSpace = /\s$/.test(input)
+  const bookSettled = !!(partial && partial.book && (partial.chapter != null || endsWithSpace))
+
   const bookHits = useMemo(() => {
-    if (parsed) return []
+    if (bookSettled) return []
     const t = input.trim()
     if (!t) return []
     const afterOrdinal = t.replace(/^\s*(iii|ii|i|1|2|3|first|second|third)\s+/i, '')
     if (/\d/.test(afterOrdinal)) return [] // already onto chapter/verse
     return searchBooks(t, 6)
-  }, [parsed, input])
-  function pickBook(b) {
-    const val = `${b.name} `
+  }, [bookSettled, input])
+
+  // Chapter suggestions once the book is settled but no chapter is chosen.
+  const chapterChips = useMemo(() => {
+    if (!bookSettled || !partial || partial.chapter != null) return null
+    const n = chaptersOf(partial.book.id)
+    return n > 1 ? { book: partial.book, count: n } : null
+  }, [bookSettled, partial])
+
+  // Verse suggestions once a chapter is present but no verse is chosen.
+  const verseChips = useMemo(() => {
+    if (!partial || !partial.book || partial.chapter == null || partial.verse != null) return null
+    const n = versesOf(partial.book.id, partial.chapter)
+    return n > 1 ? { book: partial.book, chapter: partial.chapter, count: n } : null
+  }, [partial])
+
+  function fillRef(val, focus = true) {
     setInput(val)
+    if (!focus) return
     requestAnimationFrame(() => {
       const el = refInputRef.current
       if (el) {
@@ -369,6 +407,9 @@ function Console({ row, creds }) {
       }
     })
   }
+  const pickBook = (b) => fillRef(`${b.name} `)
+  const pickChapter = (n) => fillRef(`${chapterChips.book.name} ${n}:`)
+  const pickVerse = (n) => fillRef(`${verseChips.book.name} ${verseChips.chapter}:${n}`)
   // When a typed phrase is not a reference, offer named-passage aliases
   // ("the prodigal son" -> Luke 15:11-32). Flatten multi-ref entries to one
   // suggestion per reference; never auto-pick among them.
@@ -1099,6 +1140,26 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
+              {chapterChips && (
+                <div className="numpick">
+                  <span className="numpick-label">{chapterChips.book.name} · chapter</span>
+                  <div className="numpick-row scroll-x">
+                    {Array.from({ length: chapterChips.count }, (_, i) => i + 1).map((n) => (
+                      <button key={n} className="numchip" onClick={() => pickChapter(n)}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {verseChips && (
+                <div className="numpick">
+                  <span className="numpick-label">{verseChips.book.name} {verseChips.chapter} · verse</span>
+                  <div className="numpick-row scroll-x">
+                    {Array.from({ length: verseChips.count }, (_, i) => i + 1).map((n) => (
+                      <button key={n} className="numchip" onClick={() => pickVerse(n)}>{n}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {aliasHits.length > 0 && (
                 <div className="alias-suggest">
                   <p className="muted alias-hint">Did you mean...</p>
@@ -1114,7 +1175,7 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
-              {previewErr && aliasHits.length === 0 && bookHits.length === 0 && <p className="error">{previewErr}</p>}
+              {previewErr && aliasHits.length === 0 && bookHits.length === 0 && !chapterChips && !verseChips && <p className="error">{previewErr}</p>}
               {preview && (
                 <div className="preview">
                   <div className="ref">{preview.reference}</div>

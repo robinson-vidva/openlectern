@@ -1689,3 +1689,10 @@ select:focus {
   .settings-grid{grid-template-columns:1fr}
   .scard.share{grid-template-columns:1fr;justify-items:center;text-align:center}
 }
+
+/* ---- chapter / verse type-ahead ---- */
+.numpick{margin-top:.5rem}
+.numpick-label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:.3rem}
+.numpick-row{display:flex;gap:.35rem;padding-bottom:.15rem}
+.numchip{flex:none;min-width:40px;text-align:center;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:8px;padding:.4rem .2rem;font-weight:600;font-variant-numeric:tabular-nums}
+.numchip:hover{border-color:var(--accent);color:var(--accent)}

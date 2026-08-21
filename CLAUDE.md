@@ -338,10 +338,13 @@ The controller is a dashboard (`.console`), not a single mobile column. Zones:
   change: create_session already took config; everything else is client state.
 
 - Operator UX pass (search, pagination control, plan input) + light visual polish.
-  (1) Fast reference search: the Go tab input offers instant book type-ahead
-  (searchBooks in parseRef.js, pure + unit-tested; canonical order within
-  relevance tiers, honors ordinals) -- tap a book to fill "<Book> " and keep
-  focus for the chapter:verse; Enter shows immediately. (2) Manual verses-per-
+  (1) Fast reference search: three-stage type-ahead in the Go input -- book, then
+  chapter, then verse. searchBooks (parseRef.js) offers book chips; once a book is
+  settled (a chapter digit, or a trailing space after a recognized book)
+  parsePartialRef drives chapter chips, then verse chips, each validated against
+  the primary version's structure.json (WEB fallback), so tapping Book -> N -> V
+  builds "Book N:V" with no number typing. Both pure + unit-tested; Enter shows
+  immediately. (2) Manual verses-per-
   screen: display.versesPerScreen (0 = auto by weight) overrides pagination for
   whole passages; paginateVerses in paginate.js groups exactly N verses/page even
   if a page then hits the legibility floor (the operator's explicit choice).

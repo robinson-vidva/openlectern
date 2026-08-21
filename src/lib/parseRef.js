@@ -52,6 +52,26 @@ export function searchBooks(query, limit = 6) {
   return tiers.flat().slice(0, limit)
 }
 
+// Parse an in-progress reference for type-ahead: identify the book plus whatever
+// chapter/verse has been typed so far, even when it is not yet a valid reference.
+// Returns { book, chapter, hasColon, verse } or null. book is the book object.
+export function parsePartialRef(input) {
+  if (!input) return null
+  const cleaned = input.trim().replace(/[‒–—―]/g, '-')
+  if (!cleaned) return null
+  // Leading book token (may start with an ordinal), then optional "C[:V]".
+  const m = cleaned.match(/^((?:[1-3]|iii|ii|i|first|second|third)?\.?\s*[a-z][a-z.\s]*?)\s*(\d+)?\s*(:)?\s*(\d+)?\s*$/i)
+  if (!m) return null
+  const book = findBook(m[1].trim())
+  if (!book) return null
+  return {
+    book,
+    chapter: m[2] != null ? parseInt(m[2], 10) : null,
+    hasColon: !!m[3],
+    verse: m[4] != null ? parseInt(m[4], 10) : null
+  }
+}
+
 function findBook(rawToken) {
   const token = normalizeOrdinals(rawToken)
   const n = norm(token)
