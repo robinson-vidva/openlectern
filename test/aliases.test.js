@@ -53,13 +53,25 @@ describe('alias matching', () => {
 })
 
 describe('alias data integrity', () => {
-  it('has 100+ entries and every ref parses within a single chapter', () => {
+  it('has 100+ entries and every ref parses', () => {
     expect(aliasData.entries.length).toBeGreaterThanOrEqual(100)
     for (const e of aliasData.entries) {
       const refs = Array.isArray(e.ref) ? e.ref : [e.ref]
       expect(refs.length).toBeGreaterThan(0)
       for (const r of refs) expect(parseReference(r), `${e.name} -> ${r}`).not.toBeNull()
     }
+  })
+
+  it('multi-chapter narratives use their true cross-chapter ranges', () => {
+    const byName = (n) => aliasData.entries.find((e) => e.name === n)
+    expect(byName('The Sermon on the Mount').ref).toBe('Matthew 5-7')
+    expect(byName('The Creation').ref).toBe('Genesis 1:1-2:3')
+    const sermon = parseReference(byName('The Sermon on the Mount').ref)
+    expect(sermon.endChapter).toBe(7)
+    expect(sermon.chapter).toBe(5)
+    const creation = parseReference(byName('The Creation').ref)
+    expect(creation.chapter).toBe(1)
+    expect(creation.endChapter).toBe(2)
   })
 
   it('has unique canonical names', () => {
