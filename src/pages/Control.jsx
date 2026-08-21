@@ -924,6 +924,7 @@ function Console({ row, creds }) {
 
   // ---- derived UI bits ----
   const activeItem = cursor?.queueId ? itemById(cursor.queueId) : null
+  const savedPlanItem = cursor?.savedPlan ? itemById(cursor.savedPlan.queueId) : null
   const stepping = activeItem && !activeItem.whole && cursor?.verseIndex != null
   const stepResults = curResults && curResults.id === cursor?.queueId ? curResults.results : null
   const stepTotal = stepResults ? verseCount(stepResults) : 0
@@ -981,30 +982,35 @@ function Console({ row, creds }) {
     return { bookId: r.bookId, chapter: r.chapter, verse: r.verseStart || 1 }
   }, [current])
   const relatedKey = relatedAnchor ? `${relatedAnchor.bookId}:${relatedAnchor.chapter}:${relatedAnchor.verse}` : ''
-  const [relatedOpen, setRelatedOpen] = useState(false)
   const [related, setRelated] = useState([])
   const [relatedLoading, setRelatedLoading] = useState(false)
-  // Collapse and forget whenever the shown verse changes (remembers nothing).
+  const [relatedExpanded, setRelatedExpanded] = useState(false)
+  // Auto-load cross-references whenever the shown verse changes: the first 3
+  // surface inline, the rest behind "More". Forgets nothing between verses.
   useEffect(() => {
-    setRelatedOpen(false)
     setRelated([])
-  }, [relatedKey])
-  async function openRelated() {
-    setRelatedOpen(true)
-    if (!relatedAnchor || related.length) return
+    setRelatedExpanded(false)
+    if (!relatedAnchor) return
+    let cancelled = false
     setRelatedLoading(true)
-    try {
-      const chunk = await loadXrefBook(relatedAnchor.bookId)
-      const refs = lookupXrefs(chunk, relatedAnchor.chapter, relatedAnchor.verse)
-      const items = refs.map((ref) => ({ ref, parsed: parseReference(ref) })).filter((x) => x.parsed)
-      const withPreview = await Promise.all(
-        items.map(async (x) => ({ ...x, preview: await resolvePreviewText(versions, x.parsed) }))
-      )
-      setRelated(withPreview)
-    } finally {
-      setRelatedLoading(false)
+    ;(async () => {
+      try {
+        const chunk = await loadXrefBook(relatedAnchor.bookId)
+        const refs = lookupXrefs(chunk, relatedAnchor.chapter, relatedAnchor.verse)
+        const items = refs.map((ref) => ({ ref, parsed: parseReference(ref) })).filter((x) => x.parsed)
+        const withPreview = await Promise.all(
+          items.map(async (x) => ({ ...x, preview: await resolvePreviewText(versions, x.parsed) }))
+        )
+        if (!cancelled) setRelated(withPreview)
+      } finally {
+        if (!cancelled) setRelatedLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relatedKey])
 
   if (listenerMode) {
     return <ListenerView v={voice} name={displayName} code={code} onExit={() => toggleListener(false)} />
@@ -1192,30 +1198,25 @@ function Console({ row, creds }) {
                 </div>
               )}
               {cursor?.savedPlan && (
-                <button className="btn small back-to-plan" onClick={backToPlan}>Back to plan</button>
+                <button className="btn small back-to-plan" onClick={backToPlan} title="Return to where you left off in the plan">
+                  &#8617; Resume plan{savedPlanItem ? ` · ${savedPlanItem.label}` : ''}
+                </button>
               )}
-              {relatedAnchor && (
+              {related.length > 0 && (
                 <div className="related">
-                  <button
-                    className="related-toggle"
-                    aria-expanded={relatedOpen}
-                    onClick={() => (relatedOpen ? setRelatedOpen(false) : openRelated())}
-                  >
-                    {relatedOpen ? 'Hide related' : 'Related'}
-                  </button>
-                  {relatedOpen && (
-                    <div className="related-list">
-                      {relatedLoading && <p className="muted related-note">Loading...</p>}
-                      {!relatedLoading && !related.length && (
-                        <p className="muted related-note">No cross-references for this verse.</p>
-                      )}
-                      {related.map((x) => (
-                        <button key={x.ref} className="related-chip" onClick={() => showAdhoc(x.parsed, 'related')}>
-                          <span className="related-ref">{x.ref}</span>
-                          {x.preview && <span className="related-preview">{x.preview}</span>}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="related-head">Related verses</div>
+                  <div className="related-list">
+                    {(relatedExpanded ? related : related.slice(0, 3)).map((x) => (
+                      <button key={x.ref} className="related-chip" onClick={() => showAdhoc(x.parsed, 'related')}>
+                        <span className="related-ref">{x.ref}</span>
+                        {x.preview && <span className="related-preview">{x.preview}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {related.length > 3 && (
+                    <button className="link-btn related-more" onClick={() => setRelatedExpanded((v) => !v)}>
+                      {relatedExpanded ? 'Show fewer' : `More (${related.length - 3})`}
+                    </button>
                   )}
                 </div>
               )}

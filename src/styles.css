@@ -1855,3 +1855,8 @@ select:focus {
 /* top-bar inline name edit */
 .tb-name-edit{display:inline-flex}
 .tb-name-edit input{width:8.5rem;font-size:.9rem;padding:.32rem .7rem;border:1px solid var(--accent);border-radius:999px;background:var(--panel);color:var(--ink)}
+
+/* ---- related verses: inline top-3 + more ---- */
+.related-head{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);font-weight:700;margin:.75rem 0 .4rem}
+.related-more{margin-top:.45rem;font-size:.85rem}
+.back-to-plan{margin-top:.6rem}
