@@ -1860,3 +1860,8 @@ select:focus {
 .related-head{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);font-weight:700;margin:.75rem 0 .4rem}
 .related-more{margin-top:.45rem;font-size:.85rem}
 .back-to-plan{margin-top:.6rem}
+
+/* ---- plan progress: upcoming prominent, already-shown dimmed ---- */
+.queue-row .qr-show{font-weight:600}
+.queue-row.viewed .qr-show{color:var(--ink-soft);font-weight:400}
+.queue-row.viewed{background:var(--panel-2)}

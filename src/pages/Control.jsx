@@ -241,6 +241,13 @@ function Console({ row, creds }) {
   const current = state.current || null
   const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
   const history = state.history || []
+  // Track which plan items have been shown, so the list dims what's done and
+  // keeps upcoming items prominent (local to this device; resets on reload).
+  const [shownItems, setShownItems] = useState(() => new Set())
+  useEffect(() => {
+    const id = cursor?.queueId
+    if (id != null) setShownItems((s) => (s.has(id) ? s : new Set(s).add(id)))
+  }, [cursor?.queueId])
 
   // Voice engine lives here (always alive) so its chips can render in a
   // persistent slot while the controls live in a tab.
@@ -698,15 +705,6 @@ function Console({ row, creds }) {
     }
   }
 
-  async function backToPlan() {
-    const saved = stateRef.current.cursor?.savedPlan
-    if (!saved) return
-    const item = itemById(saved.queueId)
-    if (!item) return setStatus('That plan item is no longer in the queue.')
-    if (saved.verseIndex != null) await showItemAtVerse(item, saved.verseIndex)
-    else await showItemWhole(item)
-  }
-
   // Re-show a history entry (goes through the normal show path, so it re-logs).
   function reShow(entry) {
     const p = parseReference(entry.ref)
@@ -924,7 +922,6 @@ function Console({ row, creds }) {
 
   // ---- derived UI bits ----
   const activeItem = cursor?.queueId ? itemById(cursor.queueId) : null
-  const savedPlanItem = cursor?.savedPlan ? itemById(cursor.savedPlan.queueId) : null
   const stepping = activeItem && !activeItem.whole && cursor?.verseIndex != null
   const stepResults = curResults && curResults.id === cursor?.queueId ? curResults.results : null
   const stepTotal = stepResults ? verseCount(stepResults) : 0
@@ -1197,11 +1194,6 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
-              {cursor?.savedPlan && (
-                <button className="btn small back-to-plan" onClick={backToPlan} title="Return to where you left off in the plan">
-                  &#8617; Resume plan{savedPlanItem ? ` · ${savedPlanItem.label}` : ''}
-                </button>
-              )}
               {related.length > 0 && (
                 <div className="related">
                   <div className="related-head">Related verses</div>
@@ -1379,8 +1371,9 @@ function Console({ row, creds }) {
             <div className="queue">
               {queue.map((item, i) => {
                 const active = cursor?.queueId === item.id
+                const viewed = !active && shownItems.has(item.id)
                 return (
-                  <div className={`queue-row${active ? ' active' : ''}`} key={item.id}>
+                  <div className={`queue-row${active ? ' active' : ''}${viewed ? ' viewed' : ''}`} key={item.id}>
                     <button className="qr-show" onClick={() => enterItemStart(item)} title={`Show ${item.label}`}>
                       {item.label}
                     </button>
