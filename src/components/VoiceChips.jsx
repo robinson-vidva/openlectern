@@ -10,6 +10,7 @@ export default function VoiceChips({ v }) {
           className={`voice-chip${chip.shown ? ' shown' : ''}`}
           onClick={() => v.tapChip(chip)}
         >
+          {chip.quote && <span className="vc-quote">quote</span>}
           <span className="vc-ref">{chip.ref}</span>
           {chip.text && <span className="vc-text">{chip.text}</span>}
           {chip.from && <span className="vc-from">{chip.from}</span>}

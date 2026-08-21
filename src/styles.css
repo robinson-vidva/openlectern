@@ -990,6 +990,18 @@ select:focus {
   letter-spacing: 0;
 }
 
+/* Quote-detection badge: distinct from the "auto" badge (filled accent). */
+.vc-quote {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  white-space: nowrap;
+}
+
 .listener-toggle {
   margin-top: 0.6rem;
   width: 100%;

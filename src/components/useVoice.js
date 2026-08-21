@@ -4,6 +4,11 @@ import { loadStructure, loadIndex } from '../lib/bibleData.js'
 import { resolvePreviewText } from '../lib/voiceData.js'
 import { matchAliases } from '../lib/aliases.js'
 import { parseReference, formatLabel } from '../lib/parseRef.js'
+import { BOOK_BY_ID } from '../lib/books.js'
+import { WINDOW_WORDS } from '../lib/quote/quoteIndex.js'
+import { normalizeTokens } from '../lib/quote/shingle.js'
+
+const BASE = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.BASE_URL || '/' : '/'
 
 const Rec = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
 export const VOICE_SUPPORTED = !!Rec
@@ -38,6 +43,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const transcriptRef = useRef('')
   const onDetectRef = useRef(onDetect)
   onDetectRef.current = onDetect
+  const quoteWorkerRef = useRef(null)
+  const quoteWindowRef = useRef([])
+  const quoteSeqRef = useRef(0)
   useEffect(() => {
     autoRef.current = auto
   }, [auto])
@@ -64,8 +72,56 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const versionsKey = versions.map((v) => v.id).join(',')
   useEffect(() => {
     indexRef.current = null
-    if (runningRef.current) ensureIndex()
+    if (runningRef.current) {
+      ensureIndex()
+      loadQuoteIndex()
+    }
   }, [versionsKey])
+
+  // ---- quotation detection (stage 1) ----
+  // A Web Worker holds the shingle index and scans a rolling window off the main
+  // thread. Detected quotes become chips that NEVER auto-show.
+  function ensureQuoteWorker() {
+    if (quoteWorkerRef.current || typeof Worker === 'undefined') return quoteWorkerRef.current
+    try {
+      const w = new Worker(new URL('../workers/quoteWorker.js', import.meta.url), { type: 'module' })
+      w.onmessage = (e) => {
+        const msg = e.data
+        if (msg?.type !== 'result' || !msg.hits?.length) return
+        const hit = msg.hits[0]
+        const name = BOOK_BY_ID[hit.bookId]?.name || hit.bookId
+        const cand = {
+          bookId: hit.bookId,
+          bookName: name,
+          chapter: hit.chapter,
+          verseStart: hit.verse,
+          endChapter: hit.chapter,
+          verseEnd: hit.verse,
+          ref: `${name} ${hit.chapter}:${hit.verse}`,
+          confidence: 'quote'
+        }
+        pushCandidate(cand, { allowAuto: false })
+        onDetectRef.current?.(cand)
+      }
+      quoteWorkerRef.current = w
+    } catch {
+      /* workers unavailable: quote detection is simply off */
+    }
+    return quoteWorkerRef.current
+  }
+  function loadQuoteIndex() {
+    const w = ensureQuoteWorker()
+    if (w) w.postMessage({ type: 'load', base: BASE, versionIds: versions.map((v) => v.id) })
+  }
+  function feedQuoteWindow(text) {
+    const w = quoteWorkerRef.current
+    if (!w) return
+    const words = normalizeTokens(text)
+    if (!words.length) return
+    const win = quoteWindowRef.current.concat(words).slice(-WINDOW_WORDS)
+    quoteWindowRef.current = win
+    w.postMessage({ type: 'scan', seq: ++quoteSeqRef.current, tokens: win })
+  }
 
   async function requestWake() {
     try {
@@ -91,8 +147,18 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     if (last && now - last < DEDUPE_MS) return // cross-device dedupe
     recentRef.current.set(cand.ref, now)
 
+    // Quote chips NEVER auto-show, regardless of the auto toggle.
     const fired = opts.allowAuto !== false && autoRef.current && cand.confidence === 'high'
-    const chip = { key: `${cand.ref}-${now}`, ref: cand.ref, detail: cand, text: '', shown: fired, auto: fired, from: opts.from || null }
+    const chip = {
+      key: `${cand.ref}-${now}`,
+      ref: cand.ref,
+      detail: cand,
+      text: cand.preview || '',
+      shown: fired,
+      auto: fired,
+      quote: cand.confidence === 'quote',
+      from: opts.from || null
+    }
     setChips((prev) => [chip, ...prev].slice(0, 3))
     resolvePreviewText(versions, cand)
       .then((t) => setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, text: t } : c))))
@@ -135,6 +201,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       if (r.isFinal) {
         didFinal = true
         runDetect(text, true)
+        feedQuoteWindow(text)
       } else {
         interim += text
       }
@@ -198,6 +265,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     runningRef.current = true
     setActive(true)
     await ensureIndex()
+    loadQuoteIndex()
     await requestWake()
     makeRecognition()
   }
@@ -217,6 +285,11 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       }
     }
     releaseWake()
+    if (quoteWorkerRef.current) {
+      quoteWorkerRef.current.terminate()
+      quoteWorkerRef.current = null
+    }
+    quoteWindowRef.current = []
     setMicState('off')
     setTranscript('')
     transcriptRef.current = ''

@@ -55,6 +55,10 @@ export default function VoiceControls({ v, listenerMode, onListenerMode }) {
       {v.auto && (
         <p className="muted voice-hint">Auto shows exact book + valid verse instantly. Anything unsure still waits as a chip.</p>
       )}
+      <p className="muted voice-hint">
+        Quote-catch flags scripture spoken without a citation. It matches the loaded translations wording
+        (e.g. WEB); a verse remembered in another wording may not match.
+      </p>
       {v.error && <p className="error" style={{ margin: '0.4rem 0 0' }}>{v.error}</p>}
       {v.micState === 'listening' && (
         <p className="voice-transcript">{v.transcript || 'Listening for a reference...'}</p>

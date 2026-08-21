@@ -258,11 +258,49 @@ no accounts, no installs. MIT license.
   current verse in step mode and the passage's FIRST verse in whole mode. Pure
   lookup + capping and a John 3:16 sanity check are unit-tested.
 
+- Cross-chapter references. The ref model gained endChapter (=== chapter for the
+  common single-chapter case), so the parser accepts "Matthew 5-7", "Genesis
+  1:1-2:3", "Matt 5:3-7:29", "Psalm 22-24" (formatRange in parseRef.js renders
+  them back). getPassage gathers verses across the span; each verse carries its
+  chapter c and a label (bare "n" in the first chapter, "c:n" after a boundary) so
+  the congregation always knows the position. Step mode and pagination walk across
+  boundaries via the flat verse list; step-mode reference uses the verse's own
+  chapter (Matthew 6:9) and secondary alignment matches on chapter+verse. Voice
+  gains "chapters five through seven" / "chapter one verse one through chapter two
+  verse three", validating BOTH endpoints against structure. Guardrail:
+  MAX_PASSAGE_VERSES (400, in paginate.js) refuses an over-long span (e.g. Genesis
+  1-50) with a clear message. Aliases upgraded to true ranges (Sermon on the Mount
+  -> Matthew 5-7, Creation -> Genesis 1:1-2:3, the Flood -> Genesis 6-9, Job 1-2).
+- Quotation detection, stage 1 (exact / near-verbatim, phrase-matching only). A
+  build script scripts/build-quote-index.mjs (npm run build:quoteidx) turns each
+  bundled translation into public/quoteidx/<versionId>.{bin,json}: normalized text
+  (Tamil script kept), 4-word shingles hashed to 32-bit (all-stopword shingles
+  skipped), packed as sorted keys + offsets + packed verse locations (loc =
+  bookIdx<<16 | chapter<<8 | verse). Sizes: eng-web ~6.6 MB (~4.1 MB gzip),
+  tam_irv ~4.0 MB (~2.5 MB gzip). At runtime a Web Worker (src/workers/
+  quoteWorker.js) lazy-loads the indexes for the ACTIVE translations when voice
+  starts (reloads on translation switch) and scans a rolling ~20-word window
+  (WINDOW_WORDS) on each final segment, off the main thread. scanWindow scores each
+  verse by the longest run of consecutive-ish matched words, tolerating one small
+  gap (a changed/dropped word leaves exactly one uncovered index), and fires only
+  at MIN_MATCH_WORDS = 6 (three back-to-back 4-grams) so commonplaces never match.
+  Tuning constants live in src/lib/quote/quoteIndex.js. Top hits become chips with
+  a distinct "quote" badge + matched-verse preview; QUOTE CHIPS NEVER AUTO-SHOW
+  regardless of the auto toggle (confidence 'quote' is not 'high'), and otherwise
+  flow through the existing chip slot, dedupe, listener-mode sharing, and history
+  unchanged. HONEST LIMITATION (surfaced in the voice UI copy): matching is against
+  the LOADED translations' wording -- a pastor quoting a different remembered
+  wording (e.g. KJV while the session runs WEB) may not match; that gap is what the
+  future semantic stage is for. Very short verses (esp. agglutinative Tamil, e.g.
+  Genesis 1:1 at ~4 whitespace tokens) cannot reach the 6-word threshold. Pure
+  parts unit-tested with 30+ fixtures (verbatim both testaments, near-verbatim,
+  cross-segment, Tamil verbatim, negatives); measured scan ~0.01 ms/window.
+
 ## AI roadmap
 
-- Session B (NEXT): quotation detection -- recognize a spoken/typed verse quoted
-  without a citation and offer to show it. Builds on the alias matcher + voice
-  engine already shipped.
+- Session B stage 2 (NEXT, PARKED - do not build now): semantic quotation matching
+  (embeddings / paraphrase tolerance) so a verse quoted in a wording other than the
+  loaded translation still surfaces. Stage 1 (exact/near-verbatim) shipped above.
 
 ## Parked for later (do not build now)
 
