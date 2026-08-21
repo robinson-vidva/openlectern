@@ -928,8 +928,7 @@ select:focus {
 }
 
 .toolbar .btn {
-  flex: 1;
-  min-width: 7rem;
+  flex: 0 0 auto;
 }
 
 /* ---------- voice mode ---------- */
@@ -1625,7 +1624,12 @@ select:focus {
 .vb-unsupported{font-size:.85rem}
 
 .tb-tools{display:flex;align-items:center;gap:.55rem;flex:none}
-.tb-admins{font-size:.82rem;color:var(--ink-soft)}
+.tb-admins{display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:.3rem .7rem;max-width:11rem}
+.tb-admins:hover{border-color:var(--accent);color:var(--accent)}
+.tb-admins .ic{flex:none;color:var(--ink-soft)}
+.tb-admins:hover .ic{color:var(--accent)}
+.tb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-plus{color:var(--ink-soft);font-weight:600}
 .iconbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink-soft);font-size:1.1rem;display:grid;place-items:center}
 .btn.ghost{background:none}
 

@@ -975,7 +975,11 @@ function Console({ row, creds }) {
         </div>
 
         <div className="tb-tools">
-          <span className="tb-admins">{adminCount} {adminCount === 1 ? 'admin' : 'admins'}</span>
+          <button className="tb-admins" onClick={() => setPanelOpen(true)} title="You — tap to rename or see who's here">
+            <Icon name="pencil" size={13} />
+            <span className="tb-name">{displayName}</span>
+            {adminCount > 1 && <span className="tb-plus">+{adminCount - 1}</span>}
+          </button>
           <button className="btn small ghost" onClick={() => toggleListener(true)}>Listener mode</button>
           <button className="iconbtn" title="Settings and sharing" aria-label="Settings and sharing" onClick={() => setPanelOpen(true)}>
             <span aria-hidden="true">⚙</span>
