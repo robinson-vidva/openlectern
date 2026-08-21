@@ -399,8 +399,8 @@ function Console({ row, creds }) {
   const [comboActive, setComboActive] = useState(0)
   const comboBlurRef = useRef(null)
 
-  const comboOptions = useMemo(() => {
-    const t = input.trim()
+  function computeOptions(text) {
+    const t = text.trim()
     if (!t) return []
     const out = []
     const seen = new Set()
@@ -411,12 +411,13 @@ function Console({ row, creds }) {
         out.push(o)
       }
     }
-    if (parsedNow) push({ kind: 'show', label: `Show ${formatLabel(parsedNow)}`, hint: 'Enter', value: input, action: 'show' })
-    for (const h of matchAliases(input).slice(0, 4)) {
+    const parsed = parseReference(text)
+    if (parsed) push({ kind: 'show', label: `Show ${formatLabel(parsed)}`, hint: 'Enter', value: text, action: 'show' })
+    for (const h of matchAliases(text).slice(0, 4)) {
       for (const ref of h.refs) push({ kind: 'alias', label: h.name, hint: ref, value: ref, action: 'fill' })
     }
-    const partial = parsePartialRef(input)
-    const endsWithSpace = /\s$/.test(input)
+    const partial = parsePartialRef(text)
+    const endsWithSpace = /\s$/.test(text)
     const bookSettled = !!(partial && partial.book && (partial.chapter != null || endsWithSpace))
     if (!bookSettled) {
       const afterOrdinal = t.replace(/^\s*(iii|ii|i|1|2|3|first|second|third)\s+/i, '')
@@ -436,8 +437,30 @@ function Console({ row, creds }) {
       }
     }
     return out.slice(0, 80)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, parsedNow, structVersion])
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const comboOptions = useMemo(() => computeOptions(input), [input, parsedNow, structVersion])
+
+  // Typing (not deleting) that narrows to a single book completes it, so "Matt"
+  // jumps straight to "Matthew " and its chapters. Guarded to a strict prefix so
+  // backspacing never re-adds what you just removed.
+  function onRefChange(val) {
+    const deleting = val.length < input.length
+    setInput(val)
+    setComboOpen(true)
+    setComboActive(0)
+    if (deleting) return
+    const opts = computeOptions(val)
+    if (opts.length === 1 && opts[0].kind === 'book') {
+      const full = opts[0].value
+      const bookLower = full.trim().toLowerCase()
+      const valLower = val.trim().toLowerCase()
+      if (valLower && valLower.length < bookLower.length && bookLower.startsWith(valLower)) {
+        setInput(full)
+        focusInputEnd(full)
+      }
+    }
+  }
 
   function focusInputEnd(val) {
     requestAnimationFrame(() => {
@@ -1214,11 +1237,7 @@ function Console({ row, creds }) {
                     aria-controls="ref-listbox"
                     aria-autocomplete="list"
                     value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value)
-                      setComboOpen(true)
-                      setComboActive(0)
-                    }}
+                    onChange={(e) => onRefChange(e.target.value)}
                     onFocus={() => setComboOpen(true)}
                     onBlur={() => {
                       comboBlurRef.current = setTimeout(() => setComboOpen(false), 120)
