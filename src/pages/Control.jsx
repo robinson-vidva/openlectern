@@ -389,41 +389,58 @@ function Console({ row, creds }) {
   const refInputRef = useRef(null)
   const debounced = useDebounced(input, 300)
   const parsed = useMemo(() => parseReference(debounced), [debounced])
-  // Type-ahead in three stages: book -> chapter -> verse. `partial` reads the
-  // in-progress reference; a book is "settled" once a chapter digit exists or the
-  // input ends with a space after a recognized book.
-  const partial = useMemo(() => parsePartialRef(input), [input])
-  const endsWithSpace = /\s$/.test(input)
-  const bookSettled = !!(partial && partial.book && (partial.chapter != null || endsWithSpace))
+  // Live parse (not debounced) so the combobox + action buttons react instantly.
+  const parsedNow = useMemo(() => parseReference(input), [input])
 
-  const bookHits = useMemo(() => {
-    if (bookSettled) return []
+  // ---- Select2-style autocomplete combobox ----
+  // One dropdown of ranked suggestions: a "show" row for a complete reference,
+  // named passages, then book -> chapter -> verse completions (validated against
+  // structure data). Options either fill the box or continue to the next stage.
+  const [comboOpen, setComboOpen] = useState(false)
+  const [comboActive, setComboActive] = useState(0)
+  const comboBlurRef = useRef(null)
+
+  const comboOptions = useMemo(() => {
     const t = input.trim()
     if (!t) return []
-    const afterOrdinal = t.replace(/^\s*(iii|ii|i|1|2|3|first|second|third)\s+/i, '')
-    if (/\d/.test(afterOrdinal)) return [] // already onto chapter/verse
-    return searchBooks(t, 6)
-  }, [bookSettled, input])
-
-  // Chapter suggestions once the book is settled but no chapter is chosen.
-  const chapterChips = useMemo(() => {
-    if (!bookSettled || !partial || partial.chapter != null) return null
-    const n = chaptersOf(partial.book.id)
-    return n > 1 ? { book: partial.book, count: n } : null
+    const out = []
+    const seen = new Set()
+    const push = (o) => {
+      const k = o.action + '|' + o.value
+      if (!seen.has(k)) {
+        seen.add(k)
+        out.push(o)
+      }
+    }
+    if (parsedNow) push({ kind: 'show', label: `Show ${formatLabel(parsedNow)}`, hint: 'Enter', value: input, action: 'show' })
+    for (const h of matchAliases(input).slice(0, 4)) {
+      for (const ref of h.refs) push({ kind: 'alias', label: h.name, hint: ref, value: ref, action: 'fill' })
+    }
+    const partial = parsePartialRef(input)
+    const endsWithSpace = /\s$/.test(input)
+    const bookSettled = !!(partial && partial.book && (partial.chapter != null || endsWithSpace))
+    if (!bookSettled) {
+      const afterOrdinal = t.replace(/^\s*(iii|ii|i|1|2|3|first|second|third)\s+/i, '')
+      if (!/\d/.test(afterOrdinal)) {
+        for (const b of searchBooks(t, 8)) push({ kind: 'book', label: b.name, hint: 'chapter & verse next', value: `${b.name} `, action: 'continue' })
+      }
+    } else if (partial.chapter == null) {
+      const bk = partial.book
+      for (let c = 1; c <= chaptersOf(bk.id); c++) push({ kind: 'chapter', label: `${bk.name} ${c}`, hint: `chapter ${c}`, value: `${bk.name} ${c}:`, action: 'continue' })
+    } else {
+      const bk = partial.book
+      const typed = partial.verse != null ? String(partial.verse) : ''
+      if (!typed) push({ kind: 'wholechapter', label: `${bk.name} ${partial.chapter}`, hint: 'whole chapter', value: `${bk.name} ${partial.chapter}`, action: 'fill' })
+      for (let v = 1; v <= versesOf(bk.id, partial.chapter); v++) {
+        if (typed && !String(v).startsWith(typed)) continue
+        push({ kind: 'verse', label: `${bk.name} ${partial.chapter}:${v}`, hint: `verse ${v}`, value: `${bk.name} ${partial.chapter}:${v}`, action: 'fill' })
+      }
+    }
+    return out.slice(0, 80)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookSettled, partial, structVersion])
+  }, [input, parsedNow, structVersion])
 
-  // Verse suggestions once a chapter is present but no verse is chosen.
-  const verseChips = useMemo(() => {
-    if (!partial || !partial.book || partial.chapter == null || partial.verse != null) return null
-    const n = versesOf(partial.book.id, partial.chapter)
-    return n > 1 ? { book: partial.book, chapter: partial.chapter, count: n } : null
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partial, structVersion])
-
-  function fillRef(val, focus = true) {
-    setInput(val)
-    if (!focus) return
+  function focusInputEnd(val) {
     requestAnimationFrame(() => {
       const el = refInputRef.current
       if (el) {
@@ -432,16 +449,40 @@ function Console({ row, creds }) {
       }
     })
   }
-  const pickBook = (b) => fillRef(`${b.name} `)
-  const pickChapter = (n) => fillRef(`${chapterChips.book.name} ${n}:`)
-  const pickVerse = (n) => fillRef(`${verseChips.book.name} ${verseChips.chapter}:${n}`)
-  // When a typed phrase is not a reference, offer named-passage aliases
-  // ("the prodigal son" -> Luke 15:11-32). Flatten multi-ref entries to one
-  // suggestion per reference; never auto-pick among them.
-  const aliasHits = useMemo(() => {
-    if (parsed || !debounced.trim()) return []
-    return matchAliases(debounced).flatMap((h) => h.refs.map((ref) => ({ name: h.name, ref })))
-  }, [parsed, debounced])
+  function selectOption(opt) {
+    if (!opt) return
+    clearTimeout(comboBlurRef.current)
+    if (opt.action === 'show') {
+      setComboOpen(false)
+      showNow()
+      return
+    }
+    setInput(opt.value)
+    setComboActive(0)
+    setComboOpen(opt.action === 'continue') // keep open to pick chapter/verse; close on a complete pick
+    focusInputEnd(opt.value)
+  }
+  function comboKeyDown(e) {
+    const opts = comboOptions
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setComboOpen(true)
+      setComboActive((i) => Math.min(opts.length - 1, i + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setComboActive((i) => Math.max(0, i - 1))
+    } else if (e.key === 'Enter') {
+      if (comboOpen && opts[comboActive]) {
+        e.preventDefault()
+        selectOption(opts[comboActive])
+      } else if (parsedNow && !previewing) {
+        e.preventDefault()
+        showNow()
+      }
+    } else if (e.key === 'Escape') {
+      setComboOpen(false)
+    }
+  }
   const [preview, setPreview] = useState(null)
   const [previewErr, setPreviewErr] = useState('')
   const [previewing, setPreviewing] = useState(false)
@@ -594,8 +635,9 @@ function Console({ row, creds }) {
   }
 
   function showNow() {
-    if (!parsed) return
-    return showAdhoc(parsed, 'manual')
+    const p = parseReference(input)
+    if (!p) return
+    return showAdhoc(p, 'manual')
   }
 
   // Show a reference detected by voice. A single-verse detection has verseEnd
@@ -786,11 +828,13 @@ function Console({ row, creds }) {
 
   // ---- queue editing ----
   function addToQueue() {
-    if (!parsed) return
-    const item = { id: crypto.randomUUID(), input: debounced.trim(), label: formatLabel(parsed), whole: false }
+    const p = parseReference(input)
+    if (!p) return
+    const item = { id: crypto.randomUUID(), input: input.trim(), label: formatLabel(p), whole: false }
     patchState({ queue: [...queue, item] })
     setInput('')
     setPreview(null)
+    setComboOpen(false)
   }
 
   function removeItem(id) {
@@ -1130,68 +1174,53 @@ function Console({ row, creds }) {
           <h3 className="card-h">Find a passage</h3>
               <div className="field" style={{ margin: 0 }}>
                 <label htmlFor="ref">Reference</label>
-                <input
-                  id="ref"
-                  ref={refInputRef}
-                  type="text"
-                  autoComplete="off"
-                  enterKeyHint="send"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && parsed && !previewing) {
-                      e.preventDefault()
-                      showNow()
-                    }
-                  }}
-                  placeholder="Type a book, e.g. John"
-                />
+                <div className="combo">
+                  <input
+                    id="ref"
+                    ref={refInputRef}
+                    type="text"
+                    autoComplete="off"
+                    enterKeyHint="send"
+                    role="combobox"
+                    aria-expanded={comboOpen && comboOptions.length > 0}
+                    aria-controls="ref-listbox"
+                    aria-autocomplete="list"
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value)
+                      setComboOpen(true)
+                      setComboActive(0)
+                    }}
+                    onFocus={() => setComboOpen(true)}
+                    onBlur={() => {
+                      comboBlurRef.current = setTimeout(() => setComboOpen(false), 120)
+                    }}
+                    onKeyDown={comboKeyDown}
+                    placeholder="Search a book, reference, or name (e.g. John 3:16, the love chapter)"
+                  />
+                  {comboOpen && comboOptions.length > 0 && (
+                    <ul className="combo-list" id="ref-listbox" role="listbox">
+                      {comboOptions.map((o, i) => (
+                        <li
+                          key={o.action + '|' + o.value}
+                          role="option"
+                          aria-selected={i === comboActive}
+                          className={`combo-opt${i === comboActive ? ' active' : ''} co-${o.kind}`}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            selectOption(o)
+                          }}
+                          onMouseEnter={() => setComboActive(i)}
+                        >
+                          <span className="co-label">{o.label}</span>
+                          <span className="co-hint">{o.hint}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
-              {bookHits.length > 0 && (
-                <div className="book-hints scroll-x">
-                  {bookHits.map((b) => (
-                    <button key={b.id} className="book-hint" onClick={() => pickBook(b)}>
-                      {b.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {chapterChips && (
-                <div className="numpick">
-                  <span className="numpick-label">{chapterChips.book.name} · chapter</span>
-                  <div className="numpick-row scroll-x">
-                    {Array.from({ length: chapterChips.count }, (_, i) => i + 1).map((n) => (
-                      <button key={n} className="numchip" onClick={() => pickChapter(n)}>{n}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {verseChips && (
-                <div className="numpick">
-                  <span className="numpick-label">{verseChips.book.name} {verseChips.chapter} · verse</span>
-                  <div className="numpick-row scroll-x">
-                    {Array.from({ length: verseChips.count }, (_, i) => i + 1).map((n) => (
-                      <button key={n} className="numchip" onClick={() => pickVerse(n)}>{n}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {aliasHits.length > 0 && (
-                <div className="alias-suggest">
-                  <p className="muted alias-hint">Did you mean...</p>
-                  {aliasHits.map((h, i) => (
-                    <button
-                      key={`${h.name}-${h.ref}-${i}`}
-                      className="alias-chip"
-                      onClick={() => setInput(h.ref)}
-                    >
-                      <span className="alias-name">{h.name}</span>
-                      <span className="alias-ref">{h.ref}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {previewErr && aliasHits.length === 0 && bookHits.length === 0 && !chapterChips && !verseChips && <p className="error">{previewErr}</p>}
+              {previewErr && comboOptions.length === 0 && <p className="error">{previewErr}</p>}
               {preview && (
                 <div className="preview">
                   <div className="ref">{preview.reference}</div>
@@ -1214,10 +1243,10 @@ function Console({ row, creds }) {
                 </div>
               )}
               <div className="toolbar" style={{ marginTop: '0.6rem' }}>
-                <button className="btn primary" onClick={showNow} disabled={!parsed || previewing}>
+                <button className="btn primary" onClick={showNow} disabled={!parsedNow || previewing}>
                   Show now
                 </button>
-                <button className="btn" onClick={addToQueue} disabled={!parsed}>
+                <button className="btn" onClick={addToQueue} disabled={!parsedNow}>
                   Add to queue
                 </button>
               </div>
