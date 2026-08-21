@@ -829,7 +829,7 @@ function Console({ row, creds }) {
   function addToQueue() {
     const p = parseReference(input)
     if (!p) return
-    const item = { id: crypto.randomUUID(), input: input.trim(), label: formatLabel(p), whole: false }
+    const item = { id: crypto.randomUUID(), input: input.trim(), label: formatLabel(p), whole: true }
     patchState({ queue: [...queue, item] })
     setInput('')
     setPreview(null)
@@ -911,6 +911,30 @@ function Console({ row, creds }) {
   const firstLine = current?.primary?.verses?.[0]?.text || ''
   const firstLineShort = firstLine.length > 90 ? firstLine.slice(0, 90).trim() + '...' : firstLine
   const adminCount = presence.length || 1
+  // A single-verse reference can't meaningfully step, so hide the mode switch.
+  // For a queue item in step mode, current.ref is the single stepped verse, so
+  // judge by the item's full passage instead.
+  const nowPassageRef = cursor?.queueId != null && activeItem ? parseReference(activeItem.input) : current?.ref
+  const nowSingleVerse = !!(
+    nowPassageRef &&
+    nowPassageRef.verseStart != null &&
+    nowPassageRef.verseStart === (nowPassageRef.verseEnd ?? nowPassageRef.verseStart) &&
+    (nowPassageRef.endChapter ?? nowPassageRef.chapter) === nowPassageRef.chapter
+  )
+
+  // Switch the passage that's on screen between whole-passage and verse-by-verse.
+  function toggleNowMode() {
+    const st = stateRef.current
+    const c = st.current
+    if (!c || !c.ref) return
+    const cur = st.cursor
+    const item = cur?.queueId != null ? itemById(cur.queueId) : null
+    if (item) return toggleWhole(item)
+    const rf = c.ref
+    if (c.step) return showAdhoc(rf, 'manual') // step -> whole
+    const verse = rf.verseStart || 1 // whole -> step at the first verse
+    return showAdhocVerse({ bookId: rf.bookId, chapter: rf.chapter, first: verse, last: verse, count: chapterCount(rf.bookId, rf.chapter) }, verse)
+  }
 
   // Paginated whole passage (for the Now card page indicator + verse jump).
   // Pages are computed live from the current verses-per-screen setting.
@@ -1082,6 +1106,16 @@ function Console({ row, creds }) {
                 </div>
               </div>
               {firstLineShort && <div className="now-line">{firstLineShort}</div>}
+              {!nowSingleVerse && (
+                <div className="now-modeswitch" role="group" aria-label="How to show this passage">
+                  <button className={`nm-opt${!current.step ? ' on' : ''}`} onClick={() => current.step && toggleNowMode()} aria-pressed={!current.step}>
+                    Whole passage
+                  </button>
+                  <button className={`nm-opt${current.step ? ' on' : ''}`} onClick={() => !current.step && toggleNowMode()} aria-pressed={current.step}>
+                    Verse by verse
+                  </button>
+                </div>
+              )}
               {stepping && stepResults && (
                 <div className="verse-chips scroll-x">
                   {stepResults[0].verses.map((v, k) => (
@@ -1266,23 +1300,17 @@ function Console({ row, creds }) {
               {queue.map((item, i) => {
                 const active = cursor?.queueId === item.id
                 return (
-                  <div className={`queue-item${active ? ' active' : ''}`} key={item.id}>
-                    <span className="label">{item.label}</span>
-                    <button
-                      className={`icon-btn mode${item.whole ? '' : ' on'}`}
-                      aria-label={item.whole ? 'Showing whole passage, tap to step' : 'Stepping verse by verse, tap for whole'}
-                      onClick={() => toggleWhole(item)}
-                    >
-                      {item.whole ? 'Whole' : 'Step'}
+                  <div className={`queue-row${active ? ' active' : ''}`} key={item.id}>
+                    <button className="qr-show" onClick={() => enterItemStart(item)} title={`Show ${item.label}`}>
+                      {item.label}
                     </button>
-                    <button className="icon-btn" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
-                    <button className="icon-btn" aria-label="Move down" onClick={() => move(i, 1)} disabled={i === queue.length - 1}>↓</button>
-                    <button className="icon-btn show" aria-label={`Show ${item.label}`} onClick={() => enterItemStart(item)}>Show</button>
+                    <button className="icon-btn" aria-label={`Move ${item.label} up`} onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
+                    <button className="icon-btn" aria-label={`Move ${item.label} down`} onClick={() => move(i, 1)} disabled={i === queue.length - 1}>↓</button>
                     <button className="icon-btn danger" aria-label={`Remove ${item.label}`} onClick={() => removeItem(item.id)}>✕</button>
                   </div>
                 )
               })}
-              {!queue.length && <p className="muted">Add passages from the search — they build up here.</p>}
+              {!queue.length && <p className="muted">Add passages from the search — they build up here. Tap one to put it on screen.</p>}
             </div>
           </section>
         </aside>
