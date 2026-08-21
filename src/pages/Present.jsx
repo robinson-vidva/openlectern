@@ -98,9 +98,13 @@ function Stage({ state, code }) {
   const theme = display.theme || 'light'
   const scale = (display.fontScale || 100) / 100
 
-  // Whole passages paginate; render only the current page's verses.
-  const paged = current && !current.step && (current.pageCount || 1) > 1
-  const pages = paged ? passagePages(current) : null
+  // Whole passages paginate; render only the current page's verses. A manual
+  // verses-per-screen override (display.versesPerScreen) takes precedence over
+  // the automatic by-weight pagination.
+  const perPage = display.versesPerScreen || 0
+  const allPages = current && !current.step ? passagePages(current, perPage) : null
+  const paged = allPages && allPages.length > 1
+  const pages = paged ? allPages : null
   const pageIdx = paged ? Math.min(current.page || 0, pages.length - 1) : 0
   const pageVerses = paged ? pages[pageIdx] : null
   const pagePrimary =

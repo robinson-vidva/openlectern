@@ -29,6 +29,29 @@ function normalizeOrdinals(token) {
     .replace(/^\s*third\s+/i, '3 ')
 }
 
+// Fast type-ahead book search for the reference input. Returns matching books
+// (canonical order within each relevance tier): exact, name-prefix, alias-prefix,
+// then substring. Ordinal words/numerals are honored ("1 co" -> 1 Corinthians).
+export function searchBooks(query, limit = 6) {
+  const n = norm(normalizeOrdinals(query || ''))
+  if (!n) return []
+  const collapsed = n.replace(/\s+/g, '')
+  const scoreOf = (b) => {
+    const bnc = norm(b.name).replace(/\s+/g, '')
+    if (bnc === collapsed) return 0
+    if (bnc.startsWith(collapsed)) return 1
+    if (b.aliases.some((a) => norm(a).replace(/\s+/g, '').startsWith(collapsed))) return 2
+    if (norm(b.name).includes(n)) return 3
+    return -1
+  }
+  const tiers = [[], [], [], []]
+  for (const b of BOOKS) {
+    const s = scoreOf(b)
+    if (s >= 0) tiers[s].push(b)
+  }
+  return tiers.flat().slice(0, limit)
+}
+
 function findBook(rawToken) {
   const token = normalizeOrdinals(rawToken)
   const n = norm(token)

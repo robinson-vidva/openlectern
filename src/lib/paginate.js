@@ -32,6 +32,22 @@ export function paginate(weights, capacity) {
   return pages
 }
 
+// Pagination honoring an optional manual verses-per-screen override. perPage > 0
+// groups exactly that many verses per page (the operator's explicit choice, even
+// if a page then shrinks to the legibility floor); 0/undefined = auto (by weight).
+export function paginateVerses(weights, capacity, perPage) {
+  if (perPage && perPage > 0) {
+    const pages = []
+    for (let i = 0; i < weights.length; i += perPage) {
+      const page = []
+      for (let k = i; k < Math.min(i + perPage, weights.length); k++) page.push(k)
+      pages.push(page)
+    }
+    return pages.length ? pages : [[]]
+  }
+  return paginate(weights, capacity)
+}
+
 // Which page holds a given verse index.
 export function pageOfVerse(pages, verseIndex) {
   for (let p = 0; p < pages.length; p++) {

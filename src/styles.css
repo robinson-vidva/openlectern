@@ -687,14 +687,59 @@ select:focus {
   padding: 0.55rem 0.7rem;
 }
 
-.queue-item.active {
+.queue-item-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+}
+
+.queue-item-wrap.active {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.queue-item-wrap .queue-item {
+  border: none;
+  background: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 .queue-item .label {
   flex: 1;
   font-family: var(--serif-latin);
+}
+
+.queue-note {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink-soft);
+}
+
+.queue-note:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  color: var(--ink);
+}
+
+.plan-paste {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  resize: vertical;
 }
 
 .icon-btn {
@@ -1415,4 +1460,121 @@ select:focus {
   font-weight: 700;
   letter-spacing: 0.14em;
   color: var(--accent);
+}
+
+/* ---- fast reference search: book type-ahead ---- */
+.book-hints {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding-bottom: 0.15rem;
+}
+.book-hint {
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  min-height: 40px;
+}
+.book-hint:first-child {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---- verses per screen (Display default + live NOW-card stepper) ---- */
+.vps-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.vps-btn {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  min-width: 44px;
+  font-weight: 600;
+}
+.vps-btn.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.vps-hint {
+  font-size: 0.8rem;
+  margin: 0.4rem 0 0;
+}
+.vps-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+.vps-live-label {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.vps-live-val {
+  min-width: 2.6rem;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- visual polish pass ---------- */
+/* Warmer landing/join backdrop so the card doesn't float in flat emptiness. */
+.center-wrap {
+  background:
+    radial-gradient(140% 90% at 50% -20%, rgba(122, 92, 62, 0.06), transparent 60%),
+    var(--bg);
+}
+.card {
+  border-radius: 18px;
+  box-shadow: 0 14px 44px rgba(40, 30, 10, 0.09);
+}
+/* A short gold rule under the wordmark for a touch of identity. */
+.card h1 {
+  letter-spacing: -0.01em;
+}
+.landing h1::after {
+  content: '';
+  display: block;
+  width: 2.2rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.85;
+}
+.landing .start-btn {
+  box-shadow: 0 8px 20px rgba(122, 92, 62, 0.22);
+}
+
+/* Softer, friendlier first-run hint (was a heavy full-accent border). */
+.first-hint {
+  background: linear-gradient(0deg, rgba(122, 92, 62, 0.06), rgba(122, 92, 62, 0.06)), var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+}
+.first-hint-body {
+  color: var(--ink-soft);
+}
+
+/* Tidy the section labels used across tabs. */
+.section-title {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }

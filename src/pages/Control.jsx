@@ -8,8 +8,9 @@ import { supabase, friendlyError } from '../lib/supabase.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs, hintSeen, markHintSeen } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
-import { parseReference, formatLabel } from '../lib/parseRef.js'
+import { parseReference, formatLabel, searchBooks } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
+import { extractReferences } from '../lib/planText.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
 import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
@@ -208,9 +209,12 @@ function Console({ row, creds }) {
         next = stepCurrent(results, rf, 0)
       } else {
         next = wholeCurrent(results, rf)
-        const oldPages = passagePages(c)
+        const pp = stateRef.current.display?.versesPerScreen || 0
+        const oldPages = passagePages(c, pp)
         const firstIdx = oldPages[Math.min(c.page || 0, oldPages.length - 1)]?.[0] ?? 0
-        next.page = pageOfVerse(passagePages(next), firstIdx)
+        const newPages = passagePages(next, pp)
+        next.page = pageOfVerse(newPages, firstIdx)
+        next.pageCount = newPages.length
       }
       await patchState({ current: next })
     } catch {
@@ -285,19 +289,46 @@ function Console({ row, creds }) {
   const display = state.display || {}
   const theme = display.theme || 'light'
   const fontScale = display.fontScale || 100
+  const perPage = display.versesPerScreen || 0 // 0 = auto (by weight)
   // Read the freshest display from stateRef so rapid theme/font taps never
   // clobber each other with stale closure values.
-  function setTheme(t) {
+  function displayBase() {
     const d = stateRef.current.display || {}
-    const next = { theme: t, fontScale: d.fontScale || 100 }
+    return { theme: d.theme || 'light', fontScale: d.fontScale || 100, versesPerScreen: d.versesPerScreen || 0 }
+  }
+  function setTheme(t) {
+    const next = { ...displayBase(), theme: t }
     savePrefs({ display: next })
     patchState({ display: next })
   }
   function nudgeFont(delta) {
-    const d = stateRef.current.display || {}
-    const next = { theme: d.theme || 'light', fontScale: Math.max(80, Math.min(140, (d.fontScale || 100) + delta)) }
+    const cur = displayBase()
+    const next = { ...cur, fontScale: Math.max(80, Math.min(140, cur.fontScale + delta)) }
     savePrefs({ display: next })
     patchState({ display: next })
+  }
+  // Live stepper values (2..12, then Auto=0 as the "most" end).
+  const VPS_STEPS = [2, 4, 6, 8, 10, 12, 0]
+  function stepPerPage(dir) {
+    const i = VPS_STEPS.indexOf(display.versesPerScreen || 0)
+    const j = Math.max(0, Math.min(VPS_STEPS.length - 1, i + dir))
+    setVersesPerScreen(VPS_STEPS[j])
+  }
+  // Manual verses-per-screen for whole passages. Remap the current page to keep
+  // the shown verse visible, and update both display + the passage atomically.
+  function setVersesPerScreen(n) {
+    const st = stateRef.current
+    const next = { ...displayBase(), versesPerScreen: n || 0 }
+    savePrefs({ display: next })
+    const c = st.current
+    if (c && !c.step) {
+      const oldPages = passagePages(c, st.display?.versesPerScreen || 0)
+      const firstIdx = oldPages[Math.min(c.page || 0, oldPages.length - 1)]?.[0] ?? 0
+      const newPages = passagePages(c, n || 0)
+      patchState({ display: next, current: { ...c, page: pageOfVerse(newPages, firstIdx), pageCount: newPages.length } })
+    } else {
+      patchState({ display: next })
+    }
   }
 
   const itemById = (id) => queue.find((q) => q.id === id) || null
@@ -316,8 +347,30 @@ function Console({ row, creds }) {
 
   // ---- reference input + preview ----
   const [input, setInput] = useState('')
+  const refInputRef = useRef(null)
   const debounced = useDebounced(input, 300)
   const parsed = useMemo(() => parseReference(debounced), [debounced])
+  // Type-ahead book suggestions while the book name is still being typed (before
+  // a chapter number). Tapping one fills "<Book> " so the operator types "3:16".
+  const bookHits = useMemo(() => {
+    if (parsed) return []
+    const t = input.trim()
+    if (!t) return []
+    const afterOrdinal = t.replace(/^\s*(iii|ii|i|1|2|3|first|second|third)\s+/i, '')
+    if (/\d/.test(afterOrdinal)) return [] // already onto chapter/verse
+    return searchBooks(t, 6)
+  }, [parsed, input])
+  function pickBook(b) {
+    const val = `${b.name} `
+    setInput(val)
+    requestAnimationFrame(() => {
+      const el = refInputRef.current
+      if (el) {
+        el.focus()
+        el.setSelectionRange(val.length, val.length)
+      }
+    })
+  }
   // When a typed phrase is not a reference, offer named-passage aliases
   // ("the prodigal son" -> Luke 15:11-32). Flatten multi-ref entries to one
   // suggestion per reference; never auto-pick among them.
@@ -420,7 +473,9 @@ function Console({ row, creds }) {
       try {
         const results = await resolveItem(versions, p)
         const c = wholeCurrent(results, p)
-        c.page = Math.max(0, (c.pageCount || 1) - 1)
+        const pages = passagePages(c, perPage)
+        c.pageCount = pages.length
+        c.page = Math.max(0, pages.length - 1)
         return commitShow(c, { queueId: item.id, verseIndex: null }, 'queue')
       } catch (e) {
         return setStatus(e.message)
@@ -600,8 +655,11 @@ function Console({ row, creds }) {
     const cur = st.cursor || null
     const c = st.current
     // Paginated whole passage: page forward before leaving the passage.
-    if (c && !c.step && (c.pageCount || 1) > 1 && (c.page || 0) < c.pageCount - 1) {
-      return patchState({ current: { ...c, page: (c.page || 0) + 1 } })
+    if (c && !c.step) {
+      const pageCount = passagePages(c, st.display?.versesPerScreen || 0).length
+      if (pageCount > 1 && (c.page || 0) < pageCount - 1) {
+        return patchState({ current: { ...c, page: (c.page || 0) + 1 } })
+      }
     }
     // Ad-hoc stepping: continue through the chapter.
     if (cur && cur.adhoc) {
@@ -674,6 +732,23 @@ function Console({ row, creds }) {
     patchState({ queue: queue.filter((q) => q.id !== id) })
   }
 
+  // Operator-only note on a plan item (never shown on the big screen).
+  function setItemNote(id, note) {
+    const q = (stateRef.current.queue || []).map((x) => (x.id === id ? { ...x, note: note.trim() || undefined } : x))
+    patchState({ queue: q })
+  }
+
+  // Paste a pastor's note and add every reference it contains, in order.
+  const [planText, setPlanText] = useState('')
+  function addPlanFromText() {
+    const refs = extractReferences(planText)
+    if (!refs.length) return setStatus('No references found in that note.')
+    const items = refs.map((r) => ({ id: crypto.randomUUID(), input: r.input, label: r.label, whole: false }))
+    patchState({ queue: [...(stateRef.current.queue || []), ...items] })
+    setPlanText('')
+    setStatus(`Added ${items.length} passage${items.length === 1 ? '' : 's'} to the plan.`)
+  }
+
   function move(index, delta) {
     const next = [...queue]
     const j = index + delta
@@ -697,7 +772,7 @@ function Console({ row, creds }) {
     const data = {
       openlectern: 'queue',
       version: 1,
-      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole })),
+      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole, note: q.note || undefined })),
       history: history.map((e) => ({ ref: e.ref, at: e.at, source: e.source }))
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -721,7 +796,7 @@ function Console({ row, creds }) {
           .map((it) => {
             const p = parseReference(it.input || it.label || '')
             if (!p) return null
-            return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p), whole: !!it.whole }
+            return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p), whole: !!it.whole, note: it.note || undefined }
           })
           .filter(Boolean)
         if (!items.length) return setStatus('No readable references in that file.')
@@ -747,13 +822,15 @@ function Console({ row, creds }) {
   const adminCount = presence.length || 1
 
   // Paginated whole passage (for the Now card page indicator + verse jump).
-  const pagedWhole = current && !current.step && (current.pageCount || 1) > 1
-  const pagedPages = pagedWhole ? passagePages(current) : null
+  // Pages are computed live from the current verses-per-screen setting.
+  const allWholePages = current && !current.step ? passagePages(current, perPage) : null
+  const pagedWhole = !!allWholePages && allWholePages.length > 1
+  const pagedPages = pagedWhole ? allWholePages : null
   const curPage = pagedWhole ? Math.min(current.page || 0, pagedPages.length - 1) : 0
   function jumpToVersePage(k) {
     const cc = stateRef.current.current
     if (!cc) return
-    patchState({ current: { ...cc, page: pageOfVerse(passagePages(cc), k) } })
+    patchState({ current: { ...cc, page: pageOfVerse(passagePages(cc, perPage), k) } })
   }
 
   // ---- related verses (cross-references, openbible.info CC-BY) ----
@@ -957,6 +1034,14 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
+              {current && !current.step && (current.primary?.verses?.length || 0) > 2 && (
+                <div className="vps-live">
+                  <span className="vps-live-label">Per screen</span>
+                  <button className="icon-btn" aria-label="Fewer verses per screen" onClick={() => stepPerPage(-1)}>-</button>
+                  <span className="vps-live-val">{perPage ? perPage : 'Auto'}</span>
+                  <button className="icon-btn" aria-label="More verses per screen" onClick={() => stepPerPage(1)}>+</button>
+                </div>
+              )}
               {cursor?.savedPlan && (
                 <button className="btn small back-to-plan" onClick={backToPlan}>Back to plan</button>
               )}
@@ -1014,13 +1099,30 @@ function Console({ row, creds }) {
                 <label htmlFor="ref">Reference</label>
                 <input
                   id="ref"
+                  ref={refInputRef}
                   type="text"
                   autoComplete="off"
+                  enterKeyHint="send"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="John 3:16-18"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && parsed && !previewing) {
+                      e.preventDefault()
+                      showNow()
+                    }
+                  }}
+                  placeholder="Type a book, e.g. John"
                 />
               </div>
+              {bookHits.length > 0 && (
+                <div className="book-hints scroll-x">
+                  {bookHits.map((b) => (
+                    <button key={b.id} className="book-hint" onClick={() => pickBook(b)}>
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               {aliasHits.length > 0 && (
                 <div className="alias-suggest">
                   <p className="muted alias-hint">Did you mean...</p>
@@ -1036,7 +1138,7 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
-              {previewErr && aliasHits.length === 0 && <p className="error">{previewErr}</p>}
+              {previewErr && aliasHits.length === 0 && bookHits.length === 0 && <p className="error">{previewErr}</p>}
               {preview && (
                 <div className="preview">
                   <div className="ref">{preview.reference}</div>
@@ -1077,25 +1179,51 @@ function Console({ row, creds }) {
                 {queue.map((item, i) => {
                   const active = cursor?.queueId === item.id
                   return (
-                    <div className={`queue-item${active ? ' active' : ''}`} key={item.id}>
-                      <button className="icon-btn" aria-label="Move up" onClick={() => move(i, -1)}>up</button>
-                      <button className="icon-btn" aria-label="Move down" onClick={() => move(i, 1)}>dn</button>
-                      <span className="label">{item.label}</span>
-                      <button
-                        className={`icon-btn mode${item.whole ? '' : ' on'}`}
-                        aria-label={item.whole ? 'Showing whole passage, tap to step' : 'Stepping verse by verse, tap for whole'}
-                        onClick={() => toggleWhole(item)}
-                      >
-                        {item.whole ? 'Whole' : 'Step'}
-                      </button>
-                      <button className="icon-btn" aria-label={`Show ${item.label}`} onClick={() => enterItemStart(item)}>Show</button>
-                      <button className="icon-btn" aria-label={`Remove ${item.label}`} onClick={() => removeItem(item.id)}>x</button>
+                    <div className={`queue-item-wrap${active ? ' active' : ''}`} key={item.id}>
+                      <div className="queue-item">
+                        <button className="icon-btn" aria-label="Move up" onClick={() => move(i, -1)}>up</button>
+                        <button className="icon-btn" aria-label="Move down" onClick={() => move(i, 1)}>dn</button>
+                        <span className="label">{item.label}</span>
+                        <button
+                          className={`icon-btn mode${item.whole ? '' : ' on'}`}
+                          aria-label={item.whole ? 'Showing whole passage, tap to step' : 'Stepping verse by verse, tap for whole'}
+                          onClick={() => toggleWhole(item)}
+                        >
+                          {item.whole ? 'Whole' : 'Step'}
+                        </button>
+                        <button className="icon-btn" aria-label={`Show ${item.label}`} onClick={() => enterItemStart(item)}>Show</button>
+                        <button className="icon-btn" aria-label={`Remove ${item.label}`} onClick={() => removeItem(item.id)}>x</button>
+                      </div>
+                      <input
+                        className="queue-note"
+                        type="text"
+                        defaultValue={item.note || ''}
+                        placeholder="Add a note (e.g. sermon intro) - not shown on screen"
+                        aria-label={`Note for ${item.label}`}
+                        onBlur={(e) => {
+                          if ((e.target.value.trim() || '') !== (item.note || '')) setItemNote(item.id, e.target.value)
+                        }}
+                      />
                     </div>
                   )
                 })}
                 {!queue.length && <p className="muted">Nothing queued yet.</p>}
               </div>
-              <div className="toolbar" style={{ marginTop: '0.6rem' }}>
+
+              <div className="section-title" style={{ marginTop: '1rem' }}>Paste a plan</div>
+              <textarea
+                className="plan-paste"
+                rows={3}
+                value={planText}
+                onChange={(e) => setPlanText(e.target.value)}
+                placeholder="Paste the pastor's note, e.g. Psalm 100, John 3:16-21, then Romans 8:28-30"
+                aria-label="Paste a plan"
+              />
+              <div className="toolbar" style={{ marginTop: '0.5rem' }}>
+                <button className="btn primary" onClick={addPlanFromText} disabled={!planText.trim()}>Add all to plan</button>
+              </div>
+
+              <div className="toolbar" style={{ marginTop: '0.9rem' }}>
                 <button className="btn" onClick={exportQueue} disabled={!queue.length && !history.length}>Export</button>
                 <button className="btn" onClick={() => fileRef.current?.click()}>Import</button>
                 <input
@@ -1185,6 +1313,29 @@ function Console({ row, creds }) {
                 <span className="fs-val">{fontScale}%</span>
                 <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
               </div>
+
+              <div className="section-title" style={{ marginTop: '0.9rem' }}>Verses per screen</div>
+              <div className="vps-row">
+                {[
+                  [0, 'Auto'],
+                  [2, '2'],
+                  [4, '4'],
+                  [6, '6'],
+                  [8, '8'],
+                  [10, '10'],
+                  [12, '12']
+                ].map(([n, label]) => (
+                  <button
+                    key={n}
+                    className={`vps-btn${perPage === n ? ' on' : ''}`}
+                    aria-pressed={perPage === n}
+                    onClick={() => setVersesPerScreen(n)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="muted vps-hint">Auto fits as many verses as stay readable. A number shows exactly that many per screen for long passages.</p>
             </div>
           )}
         </div>

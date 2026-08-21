@@ -325,6 +325,27 @@ no accounts, no installs. MIT license.
   Show PIN, Open the screen, Copy presenter/controller links, and Reset. NO schema
   change: create_session already took config; everything else is client state.
 
+- Operator UX pass (search, pagination control, plan input) + light visual polish.
+  (1) Fast reference search: the Go tab input offers instant book type-ahead
+  (searchBooks in parseRef.js, pure + unit-tested; canonical order within
+  relevance tiers, honors ordinals) -- tap a book to fill "<Book> " and keep
+  focus for the chapter:verse; Enter shows immediately. (2) Manual verses-per-
+  screen: display.versesPerScreen (0 = auto by weight) overrides pagination for
+  whole passages; paginateVerses in paginate.js groups exactly N verses/page even
+  if a page then hits the legibility floor (the operator's explicit choice).
+  Adjustable from the Display tab (Auto/2/4/6/8/10/12) AND a live -/+ stepper on
+  the NOW card; changing it remaps the current page to keep the shown verse
+  visible and fans out to the presenter, which re-pages. passagePages/pageOfVerse
+  now take a perPage arg threaded through every pagination site (Present, Back/
+  Next, verse-jump, translation re-resolve). (3) Plan input: each queue item gains
+  an operator-only note (never shown on the big screen; included in export/import),
+  and a "Paste a plan" box extracts every reference from a pastor's free-text note
+  (extractReferences in planText.js, pure + unit-tested: splits on list separators
+  + scans prose, dedupes, keeps order) and adds them in one action. (4) Visual
+  polish: warmer landing backdrop + wordmark rule, softer first-run hint,
+  consistent section labels. No schema change (versesPerScreen rides state.display;
+  notes ride state.queue items).
+
 ## AI roadmap
 
 - Session B stage 2 (NEXT, PARKED - do not build now): semantic quotation matching

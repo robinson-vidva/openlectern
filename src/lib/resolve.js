@@ -1,5 +1,5 @@
 import { getPassage } from './bibleData.js'
-import { paginate, PAGE_CAPACITY } from './paginate.js'
+import { paginateVerses, PAGE_CAPACITY } from './paginate.js'
 
 // Per-verse size cost = combined length across both languages (kept aligned by
 // index so both languages page together on the same verse boundaries).
@@ -9,8 +9,9 @@ export function verseWeights(current) {
   return p.map((v, i) => (v?.text?.length || 0) + (s[i]?.text?.length || 0))
 }
 
-export function passagePages(current) {
-  return paginate(verseWeights(current), PAGE_CAPACITY)
+// perPage = manual verses-per-screen override (0/undefined = auto by weight).
+export function passagePages(current, perPage) {
+  return paginateVerses(verseWeights(current), PAGE_CAPACITY, perPage)
 }
 
 // Resolve a parsed reference across all versions. Returns per-version results:
