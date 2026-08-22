@@ -567,6 +567,7 @@ function Console({ row, creds }) {
   async function commitShow(currentObj, cursorObj, source) {
     const history = appendHistory(stateRef.current.history || [], {
       ref: currentObj.reference,
+      sref: currentObj.ref || null, // structured ref so re-show works in any language
       at: Date.now(),
       source
     })
@@ -706,9 +707,11 @@ function Console({ row, creds }) {
   }
 
   // Re-show a history entry (goes through the normal show path, so it re-logs).
+  // Prefer the structured ref (works in any language); fall back to parsing the
+  // English display string for older entries.
   function reShow(entry) {
-    const p = parseReference(entry.ref)
-    if (!p) return setStatus('Could not re-read that reference.')
+    const p = entry.sref?.bookId ? entry.sref : parseReference(entry.ref)
+    if (!p || !p.bookId) return setStatus('Could not re-read that reference.')
     return showAdhoc(p, 'manual')
   }
 
@@ -885,7 +888,7 @@ function Console({ row, creds }) {
       openlectern: 'queue',
       version: 1,
       items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole, note: q.note || undefined })),
-      history: history.map((e) => ({ ref: e.ref, at: e.at, source: e.source }))
+      history: history.map((e) => ({ ref: e.ref, sref: e.sref || null, at: e.at, source: e.source }))
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
