@@ -1667,7 +1667,7 @@ select:focus {
 .console-status{margin:0;padding:.4rem .9rem;font-size:.85rem;border-bottom:1px solid var(--line)}
 
 /* body split: activity rail + main + live screen preview */
-.console-body{flex:1;min-height:0;display:grid;grid-template-columns:300px 1fr 360px}
+.console-body{flex:1;min-height:0;display:grid;grid-template-columns:280px 1fr 440px}
 .activity{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 .activity-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem .5rem}
 .activity-head h2{margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft)}
@@ -1819,7 +1819,7 @@ select:focus {
    activity, then main (now card + transport + find), then the right rail
    (live screen + plan). Nothing is hidden, so the plan stays reachable. */
 @media (max-width:1180px){
-  .console-body{grid-template-columns:260px minmax(0,1fr) 320px}
+  .console-body{grid-template-columns:250px minmax(0,1fr) 380px}
 }
 @media (max-width:1024px){
   .console-right{border-left:none;border-top:1px solid var(--line)}
