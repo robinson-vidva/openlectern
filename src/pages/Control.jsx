@@ -329,8 +329,8 @@ function Console({ row, creds }) {
     savePrefs({ display: next })
     patchState({ display: next })
   }
-  // Live stepper values (2..12, then Auto=0 as the "most" end).
-  const VPS_STEPS = [2, 4, 6, 8, 10, 12, 0]
+  // Live stepper values (1..5, then Auto=0 as the "most" end).
+  const VPS_STEPS = [1, 2, 3, 4, 5, 0]
   function stepPerPage(dir) {
     const i = VPS_STEPS.indexOf(display.versesPerScreen || 0)
     const j = Math.max(0, Math.min(VPS_STEPS.length - 1, i + dir))
@@ -655,7 +655,9 @@ function Console({ row, creds }) {
       const cursorNext = {
         queueId: null,
         verseIndex: null,
-        adhoc: { bookId: ref.bookId, chapter: ref.chapter, first, last, count },
+        // `span` is the passage the operator chose; it stays fixed while stepping
+        // so the mode switch and per-verse chips can always restore/enumerate it.
+        adhoc: { bookId: ref.bookId, chapter: ref.chapter, first, last, count, span: { first, last } },
         savedPlan
       }
       await commitShow(wholeCurrent(results, ref), cursorNext, source)
@@ -933,10 +935,20 @@ function Console({ row, creds }) {
   const lastSource = history[0]?.source
   const modeLabel = inQueue ? 'queue' : cursor?.adhoc ? (lastSource === 'voice' ? 'voice' : lastSource === 'auto' ? 'auto' : 'ad-hoc') : ''
   const adminCount = presence.length || 1
+  // Ad-hoc passage the operator chose (fixed while stepping through it).
+  const adhocCur = cursor?.queueId == null ? cursor?.adhoc : null
+  const adhocSpan = adhocCur?.span || null
+  // Stepping an ad-hoc passage verse-by-verse (not a queue item).
+  const adhocStepping = !!(current?.step && adhocSpan)
   // A single-verse reference can't meaningfully step, so hide the mode switch.
-  // For a queue item in step mode, current.ref is the single stepped verse, so
-  // judge by the item's full passage instead.
-  const nowPassageRef = cursor?.queueId != null && activeItem ? parseReference(activeItem.input) : current?.ref
+  // For a queue item in step mode, current.ref is the single stepped verse; for
+  // an ad-hoc passage in step mode, current.ref is likewise a single verse, so
+  // judge the passage by the item input / remembered span instead.
+  const nowPassageRef = cursor?.queueId != null && activeItem
+    ? parseReference(activeItem.input)
+    : adhocSpan
+      ? { bookId: adhocCur.bookId, chapter: adhocCur.chapter, verseStart: adhocSpan.first, endChapter: adhocCur.chapter, verseEnd: adhocSpan.last }
+      : current?.ref
   const nowSingleVerse = !!(
     nowPassageRef &&
     nowPassageRef.verseStart != null &&
@@ -953,9 +965,16 @@ function Console({ row, creds }) {
     const item = cur?.queueId != null ? itemById(cur.queueId) : null
     if (item) return toggleWhole(item)
     const rf = c.ref
-    if (c.step) return showAdhoc(rf, 'manual') // step -> whole
-    const verse = rf.verseStart || 1 // whole -> step at the first verse
-    return showAdhocVerse({ bookId: rf.bookId, chapter: rf.chapter, first: verse, last: verse, count: chapterCount(rf.bookId, rf.chapter) }, verse)
+    const a = cur?.adhoc
+    // Fall back to the shown verse's own bounds if there is no remembered span.
+    const span = a?.span || { first: rf.verseStart || 1, last: rf.verseEnd || rf.verseStart || 1 }
+    if (c.step) {
+      // step -> whole: restore the full passage the operator originally chose.
+      return showAdhoc({ bookId: rf.bookId, chapter: rf.chapter, verseStart: span.first, verseEnd: span.last }, 'manual')
+    }
+    // whole -> step at the first verse of the passage, keeping the span.
+    const count = chapterCount(rf.bookId, rf.chapter)
+    return showAdhocVerse({ bookId: rf.bookId, chapter: rf.chapter, first: span.first, last: span.last, count, span }, span.first)
   }
 
   // Paginated whole passage (for the Now card page indicator + verse jump).
@@ -1167,6 +1186,8 @@ function Console({ row, creds }) {
                     <span className="now-pos">{curPage + 1} / {pagedPages.length}</span>
                   ) : inQueue && stepping && stepTotal ? (
                     <span className="now-pos">{cursor.verseIndex + 1} / {stepTotal}</span>
+                  ) : adhocStepping && current.ref?.verseStart >= adhocSpan.first && current.ref?.verseStart <= adhocSpan.last ? (
+                    <span className="now-pos">{current.ref.verseStart - adhocSpan.first + 1} / {adhocSpan.last - adhocSpan.first + 1}</span>
                   ) : null}
                   {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
                 </div>
@@ -1217,6 +1238,20 @@ function Console({ row, creds }) {
                   ))}
                 </div>
               )}
+              {adhocStepping && (
+                <div className="verse-chips scroll-x">
+                  {Array.from({ length: adhocSpan.last - adhocSpan.first + 1 }, (_, k) => adhocSpan.first + k).map((n) => (
+                    <button
+                      key={n}
+                      className={`vchip${n === current.ref?.verseStart ? ' on' : ''}`}
+                      aria-label={`Show verse ${n}`}
+                      onClick={() => showAdhocVerse(adhocCur, n)}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
               {pagedWhole && (
                 <div className="verse-chips scroll-x">
                   {current.primary.verses.map((v, k) => (
@@ -1259,11 +1294,12 @@ function Console({ row, creds }) {
           <div className="vps-bar">
             <span className="vps-bar-label">Verses per screen</span>
             <div className="vps-row">
-              {[[0, 'Auto'], [2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10'], [12, '12']].map(([n, label]) => (
+              {[[0, 'Auto'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']].map(([n, label]) => (
                 <button
                   key={n}
                   className={`vps-btn${perPage === n ? ' on' : ''}`}
                   aria-pressed={perPage === n}
+                  title={n === 0 ? 'Fits as many whole verses as read comfortably; more when they are short, fewer when they are long, never splitting a verse' : `${label} per screen`}
                   onClick={() => setVersesPerScreen(n)}
                 >
                   {label}
