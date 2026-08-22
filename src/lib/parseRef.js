@@ -191,3 +191,12 @@ export function formatLabel(parsed) {
   if (!parsed) return ''
   return formatRange(parsed.bookName, parsed)
 }
+
+// English label for a structured ref (bookId-based), for pinning/exports where
+// only the structured ref is on hand and the display string may be localized.
+export function labelFromRef(ref) {
+  if (!ref || !ref.bookId) return ''
+  const book = BOOK_BY_ID[ref.bookId]
+  if (!book) return ''
+  return formatRange(book.name, ref)
+}

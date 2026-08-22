@@ -34,6 +34,12 @@ const ICONS = {
     </>
   ),
   check: <polyline points="20 6 9 17 4 12" />,
+  pin: (
+    <>
+      <line x1="12" y1="17" x2="12" y2="22" />
+      <path d="M9 2h6l-1 6 3 3v2H7v-2l3-3-1-6z" />
+    </>
+  ),
   download: (
     <>
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

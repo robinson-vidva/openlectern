@@ -116,6 +116,13 @@ function Stage({ state, code }) {
       ? { language: current.secondary.language, verses: pageVerses.map((i) => current.secondary.verses[i]).filter(Boolean) }
       : current?.secondary
 
+  // Which translation(s) to show. Secondary-only with no secondary loaded falls
+  // back to primary so the screen is never blank.
+  const showMode = display.show || 'both'
+  const effShow = showMode === 'secondary' && !current?.secondary ? 'primary' : showMode
+  const showPrimary = effShow !== 'secondary'
+  const showSecondary = effShow !== 'primary'
+
   const fitKey = blank ? 'blank' : `${current?.id || 'empty'}:${pageIdx}`
   useAutoFit(blockRef, fitKey, scale)
 
@@ -139,8 +146,8 @@ function Stage({ state, code }) {
         {!blank && current ? (
           <div className="present-block" ref={blockRef}>
             <div className="present-ref">{current.reference}</div>
-            <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} />
-            <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} />
+            {showPrimary && <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} />}
+            {showSecondary && <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} />}
           </div>
         ) : blank ? (
           <div className="present-block" ref={blockRef} />

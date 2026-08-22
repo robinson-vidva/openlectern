@@ -39,6 +39,12 @@ export default function PresenterPreview({ state, onOpen }) {
       ? { language: current.secondary.language, verses: pageVerses.map((i) => current.secondary.verses[i]).filter(Boolean) }
       : current?.secondary
 
+  // Mirror the presenter's translation-visibility choice.
+  const showMode = display.show || 'both'
+  const effShow = showMode === 'secondary' && !current?.secondary ? 'primary' : showMode
+  const showPrimary = effShow !== 'secondary'
+  const showSecondary = effShow !== 'primary'
+
   return (
     <div className="pv-panel">
       <div className="pv-head">
@@ -51,8 +57,8 @@ export default function PresenterPreview({ state, onOpen }) {
         ) : current ? (
           <div className="pv-body" style={{ fontSize: `${(0.9 * fontScale).toFixed(3)}rem` }}>
             <div className="pv-ref">{current.reference}</div>
-            <PvVerses block={primary} hideNumber={current.step} />
-            <PvVerses block={secondary} hideNumber={current.step} />
+            {showPrimary && <PvVerses block={primary} hideNumber={current.step} />}
+            {showSecondary && <PvVerses block={secondary} hideNumber={current.step} />}
           </div>
         ) : (
           <div className="pv-hint">Waiting for the first verse...</div>

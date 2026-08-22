@@ -1854,6 +1854,24 @@ select:focus {
 .nm-opt{border:none;background:none;color:var(--ink-soft);border-radius:999px;padding:.32rem .8rem;font-size:.85rem;font-weight:600}
 .nm-opt.on{background:var(--accent);color:var(--accent-ink)}
 
+/* ---- pin affordances (search / related / activity) ---- */
+.pin-now{margin-left:.15rem;color:var(--ink-soft)}
+.pin-now:hover{color:var(--accent)}
+.related-row{display:flex;align-items:stretch;gap:.3rem}
+.related-row .related-chip{flex:1;min-width:0}
+.related-pin,.feed-pin{flex:0 0 auto;color:var(--ink-soft);align-self:center;opacity:0;transition:opacity .12s ease,color .12s ease}
+.related-row:hover .related-pin,.feed-hist-row:hover .feed-pin{opacity:1}
+.related-pin:hover,.feed-pin:hover{color:var(--accent)}
+.feed-hist-row{display:flex;align-items:center;gap:.3rem}
+.feed-hist-row .feed-hist{flex:1;min-width:0}
+/* Touch devices have no hover: keep pins visible. */
+@media (hover:none){.related-pin,.feed-pin{opacity:1}}
+
+/* ---- which translation to show ---- */
+.show-switch{display:inline-flex;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:2px}
+.ss-opt{border:none;background:none;color:var(--ink-soft);border-radius:999px;padding:.28rem .6rem;font-size:.78rem;font-weight:600}
+.ss-opt.on{background:var(--accent);color:var(--accent-ink)}
+
 /* ---- plan: compact one-line rows (tap the row to show) ---- */
 .plan-card .queue{display:flex;flex-direction:column;gap:.4rem}
 .queue-row{display:flex;align-items:center;gap:.25rem;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:.15rem .25rem .15rem 0}

@@ -8,7 +8,7 @@ import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
 import Icon from '../components/Icon.jsx'
 import PresenterPreview from '../components/PresenterPreview.jsx'
-import { parseReference, formatLabel, searchBooks, parsePartialRef } from '../lib/parseRef.js'
+import { parseReference, formatLabel, labelFromRef, searchBooks, parsePartialRef } from '../lib/parseRef.js'
 import { matchAliases } from '../lib/aliases.js'
 import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, passagePages } from '../lib/resolve.js'
 import { pageOfVerse } from '../lib/paginate.js'
@@ -316,10 +316,16 @@ function Console({ row, creds }) {
   // clobber each other with stale closure values.
   function displayBase() {
     const d = stateRef.current.display || {}
-    return { theme: d.theme || 'light', fontScale: d.fontScale || 100, versesPerScreen: d.versesPerScreen || 0 }
+    return { theme: d.theme || 'light', fontScale: d.fontScale || 100, versesPerScreen: d.versesPerScreen || 0, show: d.show || 'both' }
   }
   function setTheme(t) {
     const next = { ...displayBase(), theme: t }
+    savePrefs({ display: next })
+    patchState({ display: next })
+  }
+  // Which translation(s) the presenter shows: 'both' | 'primary' | 'secondary'.
+  function setShow(mode) {
+    const next = { ...displayBase(), show: mode }
     savePrefs({ display: next })
     patchState({ display: next })
   }
@@ -851,12 +857,29 @@ function Console({ row, creds }) {
     patchState({ blank: !state.blank })
   }
 
-  // ---- queue editing ----
+  // ---- pinned verses (the running list on the right rail) ----
+  // Pin a reference from anywhere (search, related verses, activity). Accepts an
+  // English reference string; de-dups by label so the same verse isn't pinned
+  // twice. Confirms with a brief hint.
+  function pin(inputStr) {
+    const p = parseReference(inputStr)
+    if (!p) return setStatus('Could not read that reference.')
+    const label = formatLabel(p)
+    if (queue.some((q) => q.label === label)) return flash('pinned-dup')
+    const item = { id: crypto.randomUUID(), input: (inputStr || label).trim(), label, whole: true }
+    patchState({ queue: [...queue, item] })
+    flash('pinned-ok')
+  }
+
+  // Pin from a structured ref (display string may be localized).
+  function pinRef(ref, fallback) {
+    return pin((ref && ref.bookId ? labelFromRef(ref) : '') || fallback || '')
+  }
+
   function addToQueue() {
     const p = parseReference(input)
     if (!p) return
-    const item = { id: crypto.randomUUID(), input: input.trim(), label: formatLabel(p), whole: true }
-    patchState({ queue: [...queue, item] })
+    pin(input.trim())
     setInput('')
     setPreview(null)
     setComboOpen(false)
@@ -997,6 +1020,14 @@ function Console({ row, creds }) {
       ? { language: current.secondary.language, verses: nowPageVerses.map((i) => current.secondary.verses[i]).filter(Boolean) }
       : current.secondary
     : null
+
+  // Which translation(s) to render. Secondary-only with no secondary loaded
+  // falls back to primary so the screen is never empty.
+  const showMode = display.show || 'both'
+  const hasSecondary = !!current?.secondary
+  const effShow = showMode === 'secondary' && !hasSecondary ? 'primary' : showMode
+  const showPrimary = effShow !== 'secondary'
+  const showSecondary = effShow !== 'primary'
 
   function jumpToVersePage(k) {
     const cc = stateRef.current.current
@@ -1154,11 +1185,21 @@ function Console({ row, creds }) {
             ))}
             {(voice.chips.length > 0 || history.length > 0) && <div className="feed-divider">Shown earlier</div>}
             {history.map((e, i) => (
-              <button className="feed-hist" key={i} onClick={() => reShow(e)}>
-                <span className="fh-ref">{e.ref}</span>
-                {e.source === 'auto' && <span className="badge auto">auto</span>}
-                <span className="fh-time">{fmtTime(e.at)}</span>
-              </button>
+              <div className="feed-hist-row" key={i}>
+                <button className="feed-hist" onClick={() => reShow(e)} title={`Show ${e.ref} again`}>
+                  <span className="fh-ref">{e.ref}</span>
+                  {e.source === 'auto' && <span className="badge auto">auto</span>}
+                  <span className="fh-time">{fmtTime(e.at)}</span>
+                </button>
+                <button
+                  className="iconbtn sm feed-pin"
+                  title="Pin this verse"
+                  aria-label={`Pin ${e.ref}`}
+                  onClick={() => pinRef(e.sref, e.ref)}
+                >
+                  <Icon name="pin" />
+                </button>
+              </div>
             ))}
             {voice.chips.length === 0 && history.length === 0 && (
               <p className="feed-empty muted">
@@ -1190,10 +1231,20 @@ function Console({ row, creds }) {
                     <span className="now-pos">{current.ref.verseStart - adhocSpan.first + 1} / {adhocSpan.last - adhocSpan.first + 1}</span>
                   ) : null}
                   {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
+                  {!inQueue && (
+                    <button
+                      className="iconbtn sm pin-now"
+                      title="Pin this passage"
+                      aria-label="Pin this passage"
+                      onClick={() => pinRef(nowPassageRef, current.reference)}
+                    >
+                      <Icon name="pin" />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="now-full">
-                {nowPrimary && nowPrimary.verses.length > 0 && (
+                {showPrimary && nowPrimary && nowPrimary.verses.length > 0 && (
                   <p className="now-full-block" lang={nowPrimary.language}>
                     {nowPrimary.verses.map((v) => (
                       <span key={v.c ? `${v.c}:${v.n}` : v.n}>
@@ -1203,7 +1254,7 @@ function Console({ row, creds }) {
                     ))}
                   </p>
                 )}
-                {nowSecondary && nowSecondary.verses.length > 0 && (
+                {showSecondary && nowSecondary && nowSecondary.verses.length > 0 && (
                   <p className="now-full-block" lang={nowSecondary.language}>
                     {nowSecondary.verses.map((v) => (
                       <span key={v.c ? `${v.c}:${v.n}` : v.n}>
@@ -1271,10 +1322,15 @@ function Console({ row, creds }) {
                   <div className="related-head">Related verses</div>
                   <div className="related-list">
                     {(relatedExpanded ? related : related.slice(0, 3)).map((x) => (
-                      <button key={x.ref} className="related-chip" onClick={() => showAdhoc(x.parsed, 'related')}>
-                        <span className="related-ref">{x.ref}</span>
-                        {x.preview && <span className="related-preview">{x.preview}</span>}
-                      </button>
+                      <div key={x.ref} className="related-row">
+                        <button className="related-chip" onClick={() => showAdhoc(x.parsed, 'related')} title={`Show ${x.ref}`}>
+                          <span className="related-ref">{x.ref}</span>
+                          {x.preview && <span className="related-preview">{x.preview}</span>}
+                        </button>
+                        <button className="iconbtn sm related-pin" title={`Pin ${x.ref}`} aria-label={`Pin ${x.ref}`} onClick={() => pin(x.ref)}>
+                          <Icon name="pin" />
+                        </button>
+                      </div>
                     ))}
                   </div>
                   {related.length > 3 && (
@@ -1394,7 +1450,7 @@ function Console({ row, creds }) {
                   Show now
                 </button>
                 <button className="btn" onClick={addToQueue} disabled={!parsedNow}>
-                  Add to queue
+                  Pin
                 </button>
               </div>
         </section>
@@ -1426,16 +1482,38 @@ function Console({ row, creds }) {
                 <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
               </div>
             </div>
+            {versions.length > 1 && (
+              <div className="screen-row">
+                <span className="mini-label">Show</span>
+                <div className="show-switch" role="group" aria-label="Which translation to show">
+                  {[
+                    ['both', 'Both', 'Show both translations'],
+                    ['primary', 'Primary', versions[0]?.name || 'Primary'],
+                    ['secondary', 'Secondary', versions[1]?.name || 'Secondary']
+                  ].map(([mode, label, tip]) => (
+                    <button
+                      key={mode}
+                      className={`ss-opt${showMode === mode ? ' on' : ''}`}
+                      aria-pressed={showMode === mode}
+                      title={tip}
+                      onClick={() => setShow(mode)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="panel-card plan-card">
             <div className="plan-head">
-              <h3 className="card-h">Plan ({queue.length})</h3>
+              <h3 className="card-h">Pinned ({queue.length})</h3>
               <div className="plan-tools">
-                <button className="iconbtn sm" title="Export the plan" aria-label="Export the plan" onClick={exportQueue} disabled={!queue.length && !history.length}>
+                <button className="iconbtn sm" title="Export pinned verses" aria-label="Export pinned verses" onClick={exportQueue} disabled={!queue.length && !history.length}>
                   <Icon name="download" />
                 </button>
-                <button className="iconbtn sm" title="Import a plan" aria-label="Import a plan" onClick={() => fileRef.current?.click()}>
+                <button className="iconbtn sm" title="Import pinned verses" aria-label="Import pinned verses" onClick={() => fileRef.current?.click()}>
                   <Icon name="upload" />
                 </button>
                 <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={importQueue} />
@@ -1456,7 +1534,7 @@ function Console({ row, creds }) {
                   </div>
                 )
               })}
-              {!queue.length && <p className="muted">Add passages from the search — they build up here. Tap one to put it on screen.</p>}
+              {!queue.length && <p className="muted">Pin verses from the search, related verses, or the activity feed. Tap one to put it on screen.</p>}
             </div>
           </section>
         </aside>
@@ -1465,12 +1543,16 @@ function Console({ row, creds }) {
       {hint && (
         <div className="plan-hint">
           {hint === 'end'
-            ? 'End of plan'
+            ? 'End of list'
             : hint === 'start'
-              ? 'Start of plan'
+              ? 'Start of list'
               : hint === 'chapter-end'
                 ? 'End of chapter'
-                : 'Start of chapter'}
+                : hint === 'pinned-ok'
+                  ? 'Pinned'
+                  : hint === 'pinned-dup'
+                    ? 'Already pinned'
+                    : 'Start of chapter'}
         </div>
       )}
 
