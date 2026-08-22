@@ -44,10 +44,12 @@ function useFitPreview(bodyRef, screenRef, dep, scale) {
         el.style.fontSize = size + 'px'
         guard++
       }
+      // `fittedMax` is the largest size the whole passage fits at (scale 1). The
+      // font-size setting then scales from there, exactly like the real screen:
+      // A- shrinks cleanly; A+ grows past the fit and the small box crops, the
+      // honest consequence of "bigger than fits" in a preview this size.
       const fittedMax = size
-      // The setting scales a nominal size, capped at what fits so it never clips.
-      const desired = availH * 0.16 * (scale || 1)
-      el.style.fontSize = Math.max(FLOOR, Math.min(desired, fittedMax)) + 'px'
+      el.style.fontSize = Math.max(FLOOR, fittedMax * (scale || 1)) + 'px'
     }
     fit()
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit)
