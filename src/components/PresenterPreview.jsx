@@ -23,6 +23,8 @@ export default function PresenterPreview({ state, onOpen }) {
   const display = state?.display || {}
   const theme = display.theme || 'light'
   const perPage = display.versesPerScreen || 0
+  // Reflect the presenter font-size setting so the monitor previews it.
+  const fontScale = (display.fontScale || 100) / 100
 
   const allPages = current && !current.step ? passagePages(current, perPage) : null
   const paged = allPages && allPages.length > 1
@@ -47,7 +49,7 @@ export default function PresenterPreview({ state, onOpen }) {
         {blank ? (
           <div className="pv-blank">Screen is blank</div>
         ) : current ? (
-          <div className="pv-body">
+          <div className="pv-body" style={{ fontSize: `${(0.9 * fontScale).toFixed(3)}rem` }}>
             <div className="pv-ref">{current.reference}</div>
             <PvVerses block={primary} hideNumber={current.step} />
             <PvVerses block={secondary} hideNumber={current.step} />

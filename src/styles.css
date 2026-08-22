@@ -1779,8 +1779,8 @@ select:focus {
 .pv-dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--live);flex:none;animation:vbhalo 1.6s ease-out infinite}
 .pv-screen{position:relative;aspect-ratio:16/9;width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-sm);overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;padding:8% 7%}
 .pv-body{width:100%;max-height:100%;overflow:hidden}
-.pv-ref{font-family:var(--serif-latin);font-style:italic;color:var(--accent);font-size:.72rem;margin-bottom:.4rem}
-.pv-verses{font-family:var(--serif-latin);line-height:1.32;font-size:.86rem}
+.pv-ref{font-family:var(--serif-latin);font-style:italic;color:var(--accent);font-size:.82em;margin-bottom:.4rem}
+.pv-verses{font-family:var(--serif-latin);line-height:1.32;font-size:1em}
 .pv-verses[lang='ta']{font-family:var(--serif-tamil)}
 .pv-verses + .pv-verses{margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--line)}
 .pv-vn{font-size:.62em;vertical-align:super;color:var(--accent);margin-right:.2em;font-style:italic}
