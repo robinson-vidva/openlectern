@@ -597,11 +597,37 @@ select:focus {
   border-color: var(--accent);
 }
 
-.now-line {
+.now-full {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.now-full-block {
   font-family: var(--serif-latin);
+  color: var(--ink);
+  font-size: 1.15rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.now-full-block:nth-child(2) {
   color: var(--ink-soft);
-  margin-top: 0.4rem;
-  line-height: 1.35;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.now-full-block[lang^='ta'] {
+  font-family: var(--serif-tamil);
+}
+
+.now-vn {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: var(--accent);
+  vertical-align: super;
+  margin-right: 0.15em;
 }
 
 .now-blank,

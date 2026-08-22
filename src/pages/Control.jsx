@@ -932,8 +932,6 @@ function Console({ row, creds }) {
   const inQueue = cursor?.queueId != null
   const lastSource = history[0]?.source
   const modeLabel = inQueue ? 'queue' : cursor?.adhoc ? (lastSource === 'voice' ? 'voice' : lastSource === 'auto' ? 'auto' : 'ad-hoc') : ''
-  const firstLine = current?.primary?.verses?.[0]?.text || ''
-  const firstLineShort = firstLine.length > 90 ? firstLine.slice(0, 90).trim() + '...' : firstLine
   const adminCount = presence.length || 1
   // A single-verse reference can't meaningfully step, so hide the mode switch.
   // For a queue item in step mode, current.ref is the single stepped verse, so
@@ -966,6 +964,21 @@ function Console({ row, creds }) {
   const pagedWhole = !!allWholePages && allWholePages.length > 1
   const pagedPages = pagedWhole ? allWholePages : null
   const curPage = pagedWhole ? Math.min(current.page || 0, pagedPages.length - 1) : 0
+
+  // Full on-screen text for the Now card, mirroring exactly what the presenter
+  // renders (current page in whole mode, the single verse in step mode).
+  const nowPageVerses = pagedWhole ? pagedPages[curPage] : null
+  const nowPrimary = current
+    ? nowPageVerses && current.primary
+      ? { language: current.primary.language, verses: nowPageVerses.map((i) => current.primary.verses[i]).filter(Boolean) }
+      : current.primary
+    : null
+  const nowSecondary = current
+    ? nowPageVerses && current.secondary
+      ? { language: current.secondary.language, verses: nowPageVerses.map((i) => current.secondary.verses[i]).filter(Boolean) }
+      : current.secondary
+    : null
+
   function jumpToVersePage(k) {
     const cc = stateRef.current.current
     if (!cc) return
@@ -1158,7 +1171,28 @@ function Console({ row, creds }) {
                   {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
                 </div>
               </div>
-              {firstLineShort && <div className="now-line">{firstLineShort}</div>}
+              <div className="now-full">
+                {nowPrimary && nowPrimary.verses.length > 0 && (
+                  <p className="now-full-block" lang={nowPrimary.language}>
+                    {nowPrimary.verses.map((v) => (
+                      <span key={v.c ? `${v.c}:${v.n}` : v.n}>
+                        {!current.step && <span className="now-vn">{v.label ?? v.n}</span>}
+                        {v.text}{' '}
+                      </span>
+                    ))}
+                  </p>
+                )}
+                {nowSecondary && nowSecondary.verses.length > 0 && (
+                  <p className="now-full-block" lang={nowSecondary.language}>
+                    {nowSecondary.verses.map((v) => (
+                      <span key={v.c ? `${v.c}:${v.n}` : v.n}>
+                        {!current.step && <span className="now-vn">{v.label ?? v.n}</span>}
+                        {v.text}{' '}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </div>
               {!nowSingleVerse && (
                 <div className="now-modeswitch" role="group" aria-label="How to show this passage">
                   <button className={`nm-opt${!current.step ? ' on' : ''}`} onClick={() => current.step && toggleNowMode()} aria-pressed={!current.step}>
