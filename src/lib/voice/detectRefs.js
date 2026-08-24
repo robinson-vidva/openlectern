@@ -67,7 +67,11 @@ function readNumber(tokens, i) {
     return { value: v, next: n }
   }
   if (t in TEENS) return { value: TEENS[t], next: i + 1 }
-  if (t in ONES) return { value: ONES[t], next: i + 1 }
+  // A bare zero-word ("oh"/"o"/"zero") is never a standalone scripture number --
+  // it only carries meaning inside digit-spelling ("one oh five"), handled above.
+  // Treating it as 0 here would corrupt the following verse slot and get the whole
+  // candidate rejected by validation, dropping the reference on a common filler.
+  if (t in ONES && ONES[t] > 0) return { value: ONES[t], next: i + 1 }
   return null
 }
 
@@ -113,7 +117,8 @@ function readHundredCardinal(tokens, i) {
 }
 
 const isNumberStart = (tokens, i) =>
-  i < tokens.length && (isDigits(tokens[i]) || tokens[i] in ONES || tokens[i] in TEENS || tokens[i] in TENS)
+  i < tokens.length &&
+  (isDigits(tokens[i]) || (tokens[i] in ONES && ONES[tokens[i]] > 0) || tokens[i] in TEENS || tokens[i] in TENS)
 
 // Parse grammar after a book name. Supports single-chapter forms plus cross-
 // chapter ranges: "chapters five through seven", "chapter one verse one through

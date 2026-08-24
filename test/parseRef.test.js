@@ -21,6 +21,13 @@ describe('parseReference - single chapter (unchanged forms)', () => {
     expect(r('Jude 5')).toMatchObject({ bookId: 'JUD', chapter: 1, verseStart: 5, endChapter: 1, verseEnd: 5 })
     expect(r('Jude 3-5')).toMatchObject({ chapter: 1, verseStart: 3, endChapter: 1, verseEnd: 5 })
   })
+  it('the "hb" abbreviation resolves to Habakkuk, not Hebrews', () => {
+    // 'hb' was ambiguously listed on both HAB and HEB; the later entry (Hebrews)
+    // silently won, making Habakkuk's documented abbreviation unreachable.
+    expect(r('hb 3')).toMatchObject({ bookId: 'HAB', chapter: 3 })
+    expect(r('heb 11')).toMatchObject({ bookId: 'HEB', chapter: 11 })
+    expect(r('hab 3')).toMatchObject({ bookId: 'HAB', chapter: 3 })
+  })
 })
 
 describe('parseReference - cross chapter', () => {

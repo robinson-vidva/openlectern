@@ -20,25 +20,33 @@ export async function loadManifest() {
   return data
 }
 
+// Fetch + parse a bundled JSON asset, treating any failure (network error, non-ok
+// response, or a soft-404 that rewrites to index.html and fails to parse) as
+// "not bundled" -> null. Returning null (never throwing) is what lets getBook fall
+// through to the HelloAO fallback for online-only versions.
+async function fetchBundledJson(path) {
+  try {
+    const res = await fetch(path)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 async function loadBundledBook(versionId, bookId) {
-  const res = await fetch(`${BASE}bibles/${versionId}/${bookId}.json`)
-  if (!res.ok) return null
-  return res.json()
+  return fetchBundledJson(`${BASE}bibles/${versionId}/${bookId}.json`)
 }
 
 // Per-chapter verse counts for a bundled version (voice detection validation).
 export async function loadStructure(versionId) {
-  const res = await fetch(`${BASE}bibles/${versionId}/structure.json`)
-  if (!res.ok) return null
-  return res.json()
+  return fetchBundledJson(`${BASE}bibles/${versionId}/structure.json`)
 }
 
 // Book list for a bundled version: [{ id, name, chapters }]. Used for the
 // localized (e.g. Tamil) book names the voice matcher needs.
 export async function loadIndex(versionId) {
-  const res = await fetch(`${BASE}bibles/${versionId}/index.json`)
-  if (!res.ok) return null
-  return res.json()
+  return fetchBundledJson(`${BASE}bibles/${versionId}/index.json`)
 }
 
 // Translations available only via the HelloAO API (network-dependent). Marked

@@ -153,6 +153,11 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const now = Date.now()
     const last = recentRef.current.get(cand.ref)
     if (last && now - last < DEDUPE_MS) return // cross-device dedupe
+    // Evict entries past the dedupe window so an all-day session doesn't grow this
+    // map without bound (one entry per distinct detected reference otherwise).
+    for (const [ref, ts] of recentRef.current) {
+      if (now - ts >= DEDUPE_MS) recentRef.current.delete(ref)
+    }
     recentRef.current.set(cand.ref, now)
 
     // Quote chips NEVER auto-show, regardless of the auto toggle.
@@ -275,6 +280,10 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     await ensureIndex()
     loadQuoteIndex()
     await requestWake()
+    // The user may have toggled off while the awaits above were in flight; if so,
+    // stop() already ran and starting recognition now would leave an orphaned live
+    // mic that the UI shows as "off".
+    if (!runningRef.current) return
     makeRecognition()
   }
 

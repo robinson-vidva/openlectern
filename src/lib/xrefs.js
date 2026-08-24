@@ -29,5 +29,11 @@ export async function loadXrefBook(bookId) {
     }
   })()
   cache.set(bookId, p)
+  // Don't let a transient failure poison the cache for the whole session: once a
+  // fetch resolves to null (offline, not-yet-deployed), drop it so a later open of
+  // the Related panel retries. Successful loads stay cached.
+  p.then((r) => {
+    if (r == null) cache.delete(bookId)
+  })
   return p
 }
