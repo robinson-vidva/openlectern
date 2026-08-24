@@ -15,7 +15,7 @@ import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
 import { makeInviteCode, isInviteValid, hmacKey, signMsg, verifyMsg } from '../lib/crypto.js'
-import { checkInviteProof, buildInviteResponse } from '../lib/invite.js'
+import { buildInviteResponse } from '../lib/invite.js'
 import { activeListeners, listenerDrops } from '../lib/listener.js'
 import { loadXrefBook, lookupXrefs } from '../lib/xrefs.js'
 import { resolvePreviewText } from '../lib/voiceData.js'
@@ -125,8 +125,8 @@ function Console({ row, creds }) {
       inviteRef.current = { ...inv, used: true }
       setInvite(null)
       setInviteSecs(0)
-      if (await checkInviteProof(inv.code, payload.nonce, payload.proof)) {
-        const res = await buildInviteResponse(inv.code, credsRef.current.pin, payload.nonce)
+      const res = await buildInviteResponse(inv.code, credsRef.current.pin, payload)
+      if (res) {
         channel.send({ type: 'broadcast', event: 'invite-res', payload: res })
         setInviteNote(`${payload.name || 'A device'} joined via your invite.`)
       } else {

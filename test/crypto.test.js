@@ -1,30 +1,62 @@
 import { describe, it, expect } from 'vitest'
-import { deriveAesKey, encryptString, decryptString, sha256Hex, isInviteValid, hmacKey, signMsg, verifyMsg } from '../src/lib/crypto.js'
+import {
+  isInviteValid,
+  hmacKey,
+  signMsg,
+  verifyMsg,
+  generateEcdhKeyPair,
+  exportPublicKey,
+  deriveSharedAesKey,
+  decryptString
+} from '../src/lib/crypto.js'
+import { buildInviteResponse } from '../src/lib/invite.js'
 
-describe('invite crypto', () => {
-  it('derive/encrypt/decrypt roundtrip with the shared secret', async () => {
-    const inviteCode = '482913'
-    const nonce = 'abc123nonce'
-    const secret = `${inviteCode}:${nonce}`
-    const keyA = await deriveAesKey(secret, nonce) // inviting controller
-    const keyB = await deriveAesKey(secret, nonce) // new device
-    const payload = await encryptString(keyA, '1234')
-    expect(await decryptString(keyB, payload)).toBe('1234')
+// Stand in for the requester side of requestPinViaInvite (which itself needs a
+// live Supabase channel): build the request, then decrypt the built response.
+async function makeRequest(inviteCode, nonce) {
+  const pair = await generateEcdhKeyPair()
+  const pub = await exportPublicKey(pair.publicKey)
+  const mac = await signMsg(await hmacKey(inviteCode), `${nonce}:${pub}`)
+  return { pair, req: { nonce, pub, mac } }
+}
+
+describe('invite crypto (ECDH key exchange)', () => {
+  it('requester and inviter derive the same key; the PIN roundtrips', async () => {
+    const { pair, req } = await makeRequest('482913', 'abc123nonce')
+    const res = await buildInviteResponse('482913', '1234', req)
+    expect(res).toBeTruthy()
+    expect(res.nonce).toBe('abc123nonce')
+    const key = await deriveSharedAesKey(pair.privateKey, res.pub)
+    expect(await decryptString(key, res)).toBe('1234')
   })
 
-  it('wrong invite code cannot decrypt', async () => {
+  it('a wrong invite code fails authentication (no response is built)', async () => {
     const nonce = 'nonce-xyz'
-    const good = await deriveAesKey(`482913:${nonce}`, nonce)
-    const bad = await deriveAesKey(`000000:${nonce}`, nonce)
-    const payload = await encryptString(good, '1234')
-    await expect(decryptString(bad, payload)).rejects.toBeDefined()
+    const pair = await generateEcdhKeyPair()
+    const pub = await exportPublicKey(pair.publicKey)
+    // Requester signs with the wrong code.
+    const mac = await signMsg(await hmacKey('000000'), `${nonce}:${pub}`)
+    const res = await buildInviteResponse('482913', '1234', { nonce, pub, mac })
+    expect(res).toBe(null)
   })
 
-  it('proof hash matches only for the right invite code', async () => {
-    const nonce = 'n1'
-    const proof = await sha256Hex(`482913:${nonce}`)
-    expect(await sha256Hex(`482913:${nonce}`)).toBe(proof)
-    expect(await sha256Hex(`999999:${nonce}`)).not.toBe(proof)
+  it('a tampered public key fails authentication', async () => {
+    const { req } = await makeRequest('482913', 'n2')
+    // Attacker swaps in their own public key but cannot re-sign the HMAC.
+    const evil = await generateEcdhKeyPair()
+    req.pub = await exportPublicKey(evil.publicKey)
+    const res = await buildInviteResponse('482913', '1234', req)
+    expect(res).toBe(null)
+  })
+
+  it('an eavesdropper holding only the public keys cannot decrypt the PIN', async () => {
+    const { req } = await makeRequest('482913', 'n3')
+    const res = await buildInviteResponse('482913', '1234', req)
+    // The eavesdropper has both public keys but no private key -> a different
+    // ECDH result -> AES-GCM authentication fails.
+    const attacker = await generateEcdhKeyPair()
+    const wrongKey = await deriveSharedAesKey(attacker.privateKey, res.pub)
+    await expect(decryptString(wrongKey, res)).rejects.toBeDefined()
   })
 
   it('isInviteValid enforces single-use and expiry', () => {
