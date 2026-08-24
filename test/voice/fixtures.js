@@ -55,6 +55,18 @@ export const FIXTURES = [
   { text: 'John chapter 3 verse number 16', expect: { bookId: 'JHN', chapter: 3, verseStart: 16, verseEnd: null } },
   { text: 'Romans chapter number eight verse number twenty eight', expect: { bookId: 'ROM', chapter: 8, verseStart: 28, verseEnd: null } },
 
+  // --- number-word homophones (recognizer hears "four"->"for", "eight"->"ate") ---
+  // Accepted only when context confirms a number (an explicit "verse" or "and N").
+  { text: 'Psalms 91 for and five', expect: { bookId: 'PSA', chapter: 91, verseStart: 4, verseEnd: 5 } },
+  { text: 'Psalm 91 for through five', expect: { bookId: 'PSA', chapter: 91, verseStart: 4, verseEnd: 5 } },
+  { text: 'Psalms 91 verse for', expect: { bookId: 'PSA', chapter: 91, verseStart: 4, verseEnd: null } },
+  { text: 'Matthew 5 verse ate', expect: { bookId: 'MAT', chapter: 5, verseStart: 8, verseEnd: null } },
+  // Safety: a homophone in ordinary speech must NOT become a verse. "Romans 8,
+  // for I am persuaded" (the wording of Romans 8:38) stays chapter-only.
+  { text: 'Romans 8 for I am persuaded', expect: { bookId: 'ROM', chapter: 8, verseStart: null, verseEnd: null } },
+  { text: 'John 3 for God so loved the world', expect: { bookId: 'JHN', chapter: 3, verseStart: null, verseEnd: null } },
+  { text: 'we ate lunch at noon', expect: null },
+
   // --- single-chapter verse-only ---
   { text: 'Jude 5', expect: { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null } },
   { text: 'Jude verse 5', expect: { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null } },

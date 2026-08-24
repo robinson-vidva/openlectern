@@ -10,6 +10,13 @@ import { BOOKS, BOOK_BY_ID } from '../books.js'
 import { HOMOPHONES } from './homophones.js'
 
 const ONES = { zero: 0, oh: 0, o: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 }
+// Speech-recognition homophones of small numbers. Recognizers routinely emit
+// these for spoken verse numbers ("four" -> "for", "eight" -> "ate"). They are
+// NOT in ONES, so they never start a number on their own or feed digit-spelling;
+// parseNumberSpec only accepts them in the verse slot when the surrounding words
+// confirm a number is meant, so ordinary speech ("for I am persuaded") is safe.
+const NUM_HOMOPHONES = { for: 4, fore: 4, ate: 8, won: 1, too: 2 }
+const homoNum = (t) => (t in NUM_HOMOPHONES ? NUM_HOMOPHONES[t] : null)
 const TEENS = { ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 }
 const TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 }
 const ORDINAL_WORD = { 1: 'first', 2: 'second', 3: 'third' }
@@ -139,14 +146,31 @@ function parseNumberSpec(tokens) {
   let verseEnd = null
   let endChapter = null
 
+  let verseKeyword = false
   if (tokens[i] === 'verse' || tokens[i] === 'verses') {
     i++
     if (tokens[i] === 'number') i++ // "verse number sixteen"
+    verseKeyword = true
   }
   if (isNumberStart(tokens, i)) {
     const vs = readNumber(tokens, i)
     verseStart = vs.value
     i = vs.next
+  } else {
+    // Homophone verse ("Psalm 91 for and five" -> 91:4-5). Only when a number is
+    // clearly intended: an explicit "verse", or a following range / "and <num>".
+    const h = homoNum(tokens[i])
+    if (h != null) {
+      const after = tokens[i + 1]
+      const confirmed =
+        verseKeyword ||
+        RANGE_WORDS.has(after) ||
+        (after === 'and' && (isNumberStart(tokens, i + 2) || homoNum(tokens[i + 2]) != null))
+      if (confirmed) {
+        verseStart = h
+        i++
+      }
+    }
   }
 
   const sep = tokens[i]
@@ -167,8 +191,8 @@ function parseNumberSpec(tokens) {
           i = ve.next
         }
       } else i = save
-    } else if (isNumberStart(tokens, i)) {
-      const n = readNumber(tokens, i)
+    } else if (isNumberStart(tokens, i) || homoNum(tokens[i]) != null) {
+      const n = isNumberStart(tokens, i) ? readNumber(tokens, i) : { value: homoNum(tokens[i]), next: i + 1 }
       if (verseStart != null) {
         // "verse three through seven" -> verse range in the same chapter.
         verseEnd = n.value
