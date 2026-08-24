@@ -1235,7 +1235,11 @@ select:focus {
 .vb-toggle{border-radius:999px}
 .vb-sep{width:1px;height:1.3rem;background:var(--line);flex:none}
 .vb-auto-btn{border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.vb-auto-btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.vb-auto-btn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* Keep the active label legible on hover/focus -- the generic .btn:hover repaints
+   a light background, which would leave white text invisible right after a tap. */
+.vb-auto-btn.on:not(:disabled):hover{background:#24508f;border-color:#24508f;color:var(--accent-ink)}
+.vb-auto-btn.on:focus-visible{color:var(--accent-ink)}
 .vb-lang{border:1px solid var(--line);border-radius:999px;padding:.3rem .5rem;font-size:.82rem;background:var(--panel);color:var(--ink);width:auto}
 .vb-unsupported{font-size:.85rem}
 
