@@ -44,8 +44,10 @@ behind the settings gear, ready to share.
   switchable live mid‑service without losing your place.
 - **Voice assist (Chrome/Edge)** — let the room's mic listen; spoken references
   become tap‑to‑show suggestions, and OpenLectern even catches scripture the
-  speaker **quotes without citing**. A dedicated "listener mode" turns a spare
-  phone into a pulpit mic.
+  speaker **quotes without citing**. Optional hands‑free **auto‑capture** puts a
+  cited verse (or an announced chapter) straight on the screen, with a one‑tap
+  **Undo** if it mishears. A dedicated "listener mode" turns a spare phone into a
+  pulpit mic.
 - **Related verses** — one tap surfaces cross‑references for the current verse.
 - **Pinned list** — pin passages from search, related verses, or the activity
   feed into a running list you can reorder, step through live, and import/export

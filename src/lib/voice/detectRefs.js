@@ -129,6 +129,7 @@ function parseNumberSpec(tokens) {
   if (tokens[i] === 'chapter' || tokens[i] === 'chapters') {
     hadChapterWord = true
     i++
+    if (tokens[i] === 'number') i++ // "chapter number three"
   }
   const ch = readNumber(tokens, i)
   if (!ch) return null
@@ -138,7 +139,10 @@ function parseNumberSpec(tokens) {
   let verseEnd = null
   let endChapter = null
 
-  if (tokens[i] === 'verse' || tokens[i] === 'verses') i++
+  if (tokens[i] === 'verse' || tokens[i] === 'verses') {
+    i++
+    if (tokens[i] === 'number') i++ // "verse number sixteen"
+  }
   if (isNumberStart(tokens, i)) {
     const vs = readNumber(tokens, i)
     verseStart = vs.value
@@ -295,6 +299,9 @@ function buildCandidate(after, match, pos, bookIndex) {
     verseEnd,
     ref: refLabel(match.id, chapter, verseStart, ec, verseEnd),
     confidence: exact && hasVerse ? 'high' : 'medium',
+    // Whether the book name was an exact (non-homophone) match. Auto-capture uses
+    // this to decide whether an announced chapter ("Psalm 23") is safe to show.
+    exactBook: exact,
     pos,
     key: `${match.id} ${chapter}:${verseStart ?? '-'}-${ec}:${verseEnd ?? '-'}`
   }

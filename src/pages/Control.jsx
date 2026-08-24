@@ -568,9 +568,37 @@ function Console({ row, creds }) {
     hintTimer.current = setTimeout(() => setHint(''), 2500)
   }
 
+  // ---- undo the last auto-capture ----
+  // When AUTO puts a verse on the screen, keep a snapshot of what was showing so a
+  // wrong catch can be reverted with one tap. Auto-clears after a few seconds and
+  // whenever the operator navigates or shows something themselves.
+  const [autoUndo, setAutoUndo] = useState(null) // { prev, ref } | null
+  const autoUndoTimer = useRef(null)
+  function clearAutoUndo() {
+    clearTimeout(autoUndoTimer.current)
+    setAutoUndo(null)
+  }
+  function armAutoUndo(prev, ref) {
+    clearTimeout(autoUndoTimer.current)
+    setAutoUndo({ prev, ref })
+    autoUndoTimer.current = setTimeout(() => setAutoUndo(null), 9000)
+  }
+  function undoAuto() {
+    const u = autoUndo
+    clearAutoUndo()
+    if (!u) return
+    patchState({ current: u.prev.current, cursor: u.prev.cursor, blank: u.prev.blank })
+  }
+
   // ---- showing helpers ----
   // Every show goes through here so it lands on the presenter and is logged.
   async function commitShow(currentObj, cursorObj, source) {
+    // Snapshot the screen before we change it, so an auto-capture can be undone.
+    const prev = {
+      current: stateRef.current.current || null,
+      cursor: stateRef.current.cursor || null,
+      blank: !!stateRef.current.blank
+    }
     const history = appendHistory(stateRef.current.history || [], {
       ref: currentObj.reference,
       sref: currentObj.ref || null, // structured ref so re-show works in any language
@@ -578,6 +606,8 @@ function Console({ row, creds }) {
       source
     })
     await patchState({ current: currentObj, cursor: cursorObj, blank: false, history })
+    if (source === 'auto') armAutoUndo(prev, currentObj.reference)
+    else clearAutoUndo()
   }
 
   async function showItemAtVerse(item, verseIndex) {
@@ -788,6 +818,7 @@ function Console({ row, creds }) {
 
   // ---- Back / Next navigation ----
   async function goNext() {
+    clearAutoUndo()
     const st = stateRef.current
     const q = st.queue || []
     const cur = st.cursor || null
@@ -829,6 +860,7 @@ function Console({ row, creds }) {
   }
 
   async function goBack() {
+    clearAutoUndo()
     const st = stateRef.current
     const q = st.queue || []
     const cur = st.cursor || null
@@ -854,6 +886,7 @@ function Console({ row, creds }) {
   }
 
   function toggleBlank() {
+    clearAutoUndo()
     patchState({ blank: !state.blank })
   }
 
@@ -1102,10 +1135,14 @@ function Console({ row, creds }) {
                 {voice.active ? 'Stop' : 'Start listening'}
               </button>
               <span className="vb-sep" aria-hidden="true" />
-              <label className="vb-auto">
-                <input type="checkbox" checked={voice.auto} onChange={(e) => voice.setAuto(e.target.checked)} />
-                Auto
-              </label>
+              <button
+                className={`btn small vb-auto-btn${voice.autoMode !== 'off' ? ' on' : ''}`}
+                onClick={voice.cycleAutoMode}
+                title="Cycle auto-capture: Off, verses only, or verses + announced chapters"
+                aria-label={`Auto-capture: ${voice.autoModeLabel}. Tap to change.`}
+              >
+                {voice.autoModeLabel}
+              </button>
               <select className="vb-lang" value={voice.lang} onChange={(e) => voice.changeLang(e.target.value)} aria-label="Recognition language">
                 {voice.langs.map((l) => (
                   <option key={l.id} value={l.id}>{l.label}</option>
@@ -1539,6 +1576,17 @@ function Console({ row, creds }) {
           </section>
         </aside>
       </div>
+
+      {autoUndo && (
+        <div className="auto-undo" role="status">
+          <span className="au-text">
+            Auto‑showed <b>{autoUndo.ref}</b>
+          </span>
+          <button className="btn small au-btn" onClick={undoAuto}>
+            <Icon name="undo" />Undo
+          </button>
+        </div>
+      )}
 
       {hint && (
         <div className="plan-hint">

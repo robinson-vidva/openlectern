@@ -7,6 +7,8 @@ import { parseReference, formatLabel } from '../lib/parseRef.js'
 import { BOOK_BY_ID } from '../lib/books.js'
 import { WINDOW_WORDS } from '../lib/quote/quoteIndex.js'
 import { normalizeTokens } from '../lib/quote/shingle.js'
+import { shouldAutoShow, nextAutoMode, normalizeAutoMode, AUTO_MODE_LABELS } from '../lib/voice/autocapture.js'
+import { loadPrefs, savePrefs } from '../lib/prefs.js'
 
 const BASE = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.BASE_URL || '/' : '/'
 
@@ -24,7 +26,8 @@ const DEDUPE_MS = 10000
 // is identical to the previous VoiceMode component.
 export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const [lang, setLang] = useState(defaultLang || 'en-US')
-  const [auto, setAuto] = useState(false)
+  // Auto-capture mode: 'off' | 'verse' | 'chapter' (remembered per device).
+  const [autoMode, setAutoMode] = useState(() => normalizeAutoMode(loadPrefs().autoMode))
   const [active, setActive] = useState(false)
   const [micState, setMicState] = useState('off') // off | listening | error
   const [error, setError] = useState('')
@@ -38,7 +41,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const wakeRef = useRef(null)
   const indexRef = useRef(null)
   const recentRef = useRef(new Map())
-  const autoRef = useRef(auto)
+  const autoRef = useRef(autoMode)
   const langRef = useRef(lang)
   const transcriptRef = useRef('')
   const onDetectRef = useRef(onDetect)
@@ -54,8 +57,15 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const quoteWindowRef = useRef([])
   const quoteSeqRef = useRef(0)
   useEffect(() => {
-    autoRef.current = auto
-  }, [auto])
+    autoRef.current = autoMode
+  }, [autoMode])
+  function cycleAutoMode() {
+    setAutoMode((m) => {
+      const next = nextAutoMode(m)
+      savePrefs({ autoMode: next })
+      return next
+    })
+  }
 
   async function ensureIndex() {
     if (indexRef.current) return indexRef.current
@@ -160,8 +170,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     }
     recentRef.current.set(cand.ref, now)
 
-    // Quote chips NEVER auto-show, regardless of the auto toggle.
-    const fired = opts.allowAuto !== false && autoRef.current && cand.confidence === 'high'
+    // Quote/alias chips pass allowAuto:false and never auto-show. Citations go
+    // through the auto-capture policy for the current mode.
+    const fired = opts.allowAuto !== false && shouldAutoShow(cand, autoRef.current)
     const chip = {
       key: `${cand.ref}-${now}`,
       ref: cand.ref,
@@ -362,8 +373,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     langs: VOICE_LANGS,
     lang,
     changeLang,
-    auto,
-    setAuto,
+    autoMode,
+    autoModeLabel: AUTO_MODE_LABELS[autoMode],
+    cycleAutoMode,
     active,
     micState,
     error,

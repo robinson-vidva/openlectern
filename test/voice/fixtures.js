@@ -44,8 +44,16 @@ export const FIXTURES = [
   { text: 'songs of solomon 2 1', expect: { bookId: 'SNG', chapter: 2, verseStart: 1, verseEnd: null } },
   { text: 'song of solomon 2 1', expect: { bookId: 'SNG', chapter: 2, verseStart: 1, verseEnd: null } },
   { text: 'philippines 4 6 to 7', expect: { bookId: 'PHP', chapter: 4, verseStart: 6, verseEnd: 7 } },
+  { text: 'phillipians 4 6', expect: { bookId: 'PHP', chapter: 4, verseStart: 6, verseEnd: null } },
+  { text: 'galations 5 22', expect: { bookId: 'GAL', chapter: 5, verseStart: 22, verseEnd: null } },
+  { text: 'zachariah 4 6', expect: { bookId: 'ZEC', chapter: 4, verseStart: 6, verseEnd: null } },
+  { text: 'habakuk 2 4', expect: { bookId: 'HAB', chapter: 2, verseStart: 4, verseEnd: null } },
   { text: 'mathew 6 33', expect: { bookId: 'MAT', chapter: 6, verseStart: 33, verseEnd: null } },
   { text: 'ps 23 1', expect: { bookId: 'PSA', chapter: 23, verseStart: 1, verseEnd: null } },
+
+  // --- "verse number N" filler ---
+  { text: 'John chapter 3 verse number 16', expect: { bookId: 'JHN', chapter: 3, verseStart: 16, verseEnd: null } },
+  { text: 'Romans chapter number eight verse number twenty eight', expect: { bookId: 'ROM', chapter: 8, verseStart: 28, verseEnd: null } },
 
   // --- single-chapter verse-only ---
   { text: 'Jude 5', expect: { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null } },
