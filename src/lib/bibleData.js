@@ -3,6 +3,7 @@
 //   { id, name, chapters: [ ["v1 text", "v2 text", ...], ... ] }
 
 import { formatRange } from './parseRef.js'
+import { BOOK_BY_ID } from './books.js'
 import { MAX_PASSAGE_VERSES } from './paginate.js'
 
 const BASE = import.meta.env.BASE_URL || '/'
@@ -71,10 +72,25 @@ export async function loadHelloaoList() {
 
 // Fallback: fetch one chapter from HelloAO and adapt it to our shape.
 // HelloAO chapter endpoint returns { chapter: { content: [ { type:'verse', number, content:[...] }, ... ] } }.
+// Returns the verse array on success, or null ONLY when the chapter genuinely
+// does not exist (a real 404 = past the book's last chapter). A transient
+// failure (network error, 5xx, unparseable body) THROWS, so the caller surfaces
+// an error instead of silently ending the span mid-passage.
 async function loadHelloaoChapter(helloaoId, bookId, chapter) {
-  const res = await fetch(`${HELLOAO}/${helloaoId}/${bookId}/${chapter}.json`)
-  if (!res.ok) return null
-  const data = await res.json()
+  let res
+  try {
+    res = await fetch(`${HELLOAO}/${helloaoId}/${bookId}/${chapter}.json`)
+  } catch {
+    throw new Error('helloao-fetch-failed')
+  }
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('helloao-fetch-failed')
+  let data
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error('helloao-fetch-failed')
+  }
   const items = data?.chapter?.content || []
   const verses = []
   for (const item of items) {
@@ -99,14 +115,18 @@ async function getBook(version, bookId) {
     return book
   }
   if (version.helloaoId) {
-    // Lazy per-chapter book: chapters filled on demand.
-    book = { id: bookId, name: bookId, chapters: [], helloaoId: version.helloaoId }
+    // Lazy per-chapter book: chapters filled on demand. Carry the canonical
+    // English name (not the bare code) so the on-screen reference and any error
+    // read "Matthew", not "MAT", for online-only translations.
+    book = { id: bookId, name: BOOK_BY_ID[bookId]?.name || bookId, chapters: [], helloaoId: version.helloaoId }
     bookCache.set(key, book)
     return book
   }
   return null
 }
 
+// Returns the chapter's verse array, or null when the chapter does not exist
+// (end of the book). Propagates a thrown error from a transient HelloAO failure.
 async function getChapterVerses(version, book, bookId, chapter) {
   const bundled = book.chapters?.[chapter - 1]
   if (bundled) return bundled
@@ -133,7 +153,15 @@ export async function getPassage(version, ref) {
 
   const verses = []
   for (let c = startChapter; c <= endChapter; c++) {
-    const chapterVerses = await getChapterVerses(version, book, ref.bookId, c)
+    let chapterVerses
+    try {
+      chapterVerses = await getChapterVerses(version, book, ref.bookId, c)
+    } catch {
+      // A transient load failure mid-span must surface, not silently truncate the
+      // passage while still labeling it with the full range. (null vs. throw is
+      // what distinguishes "no such chapter" from "couldn't load it".)
+      throw new Error(`Could not load ${bookName} ${c}. Check the connection and try again.`)
+    }
     if (!chapterVerses || chapterVerses.length === 0) {
       // A missing start chapter is an error; running past the book's last chapter
       // just ends the span.
