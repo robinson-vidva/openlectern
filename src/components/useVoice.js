@@ -8,6 +8,7 @@ import { BOOK_BY_ID } from '../lib/books.js'
 import { WINDOW_WORDS } from '../lib/quote/quoteIndex.js'
 import { normalizeTokens } from '../lib/quote/shingle.js'
 import { shouldAutoShow, nextAutoMode, normalizeAutoMode, AUTO_MODE_LABELS } from '../lib/voice/autocapture.js'
+import { growContext } from '../lib/voice/context.js'
 import { loadPrefs, savePrefs } from '../lib/prefs.js'
 
 const BASE = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.BASE_URL || '/' : '/'
@@ -41,6 +42,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const wakeRef = useRef(null)
   const indexRef = useRef(null)
   const recentRef = useRef(new Map())
+  // Rolling window of recently finalized words, so a reference split across
+  // recognition segments is still detected as a whole.
+  const contextRef = useRef('')
   const autoRef = useRef(autoMode)
   const langRef = useRef(lang)
   const transcriptRef = useRef('')
@@ -159,10 +163,12 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
 
   // opts.from = source device name (shared chip from another device).
   // opts.allowAuto = whether this device may auto-show (local detections only).
+  // Returns true if a chip was created, false if the reference was suppressed as a
+  // recent duplicate -- so callers only broadcast genuinely new detections.
   function pushCandidate(cand, opts = {}) {
     const now = Date.now()
     const last = recentRef.current.get(cand.ref)
-    if (last && now - last < DEDUPE_MS) return // cross-device dedupe
+    if (last && now - last < DEDUPE_MS) return false // cross-device dedupe
     // Evict entries past the dedupe window so an all-day session doesn't grow this
     // map without bound (one entry per distinct detected reference otherwise).
     for (const [ref, ts] of recentRef.current) {
@@ -183,11 +189,12 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       quote: cand.confidence === 'quote',
       from: opts.from || null
     }
-    setChips((prev) => [chip, ...prev].slice(0, 3))
+    setChips((prev) => [chip, ...prev].slice(0, 5))
     resolvePreviewText(versionsRef.current, cand)
       .then((t) => setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, text: t } : c))))
       .catch(() => {})
     if (fired) onShowRef.current(cand, 'auto')
+    return true
   }
 
   // A detection broadcast by another (listening) device.
@@ -199,9 +206,16 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const idx = indexRef.current
     if (!idx || !text) return
     const res = detectRefs(text, idx)
-    if (res.length) {
-      pushCandidate(res[0])
-      onDetectRef.current?.(res[0])
+    // A single utterance can name several passages ("John 3:16 and Romans 8:28"),
+    // so surface every distinct one, not just the top-ranked. From interim (not-yet
+    // final) text, emit only high-confidence citations -- a chapter-only match is
+    // usually just a verse still mid-sentence, so waiting for the final avoids a
+    // spurious "Psalm 90" flash while "Psalm 91" is being said.
+    const emit = isFinal ? res : res.filter((c) => c.confidence === 'high')
+    if (emit.length) {
+      for (const cand of emit.slice(0, 4)) {
+        if (pushCandidate(cand)) onDetectRef.current?.(cand)
+      }
       return
     }
     // No citation. On final segments only, try named-passage aliases -- fuzzier
@@ -212,28 +226,30 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const parsed = parseReference(hit.refs[0])
     if (!parsed) return
     const cand = { ...parsed, ref: `${hit.name} -> ${formatLabel(parsed)}`, confidence: 'alias', alias: hit.name }
-    pushCandidate(cand, { allowAuto: false })
-    onDetectRef.current?.(cand)
+    if (pushCandidate(cand, { allowAuto: false })) onDetectRef.current?.(cand)
   }
 
   function handleResult(e) {
     let interim = ''
-    let didFinal = false
+    let finalText = ''
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i]
-      const text = r[0].transcript
-      if (r.isFinal) {
-        didFinal = true
-        runDetect(text, true)
-        feedQuoteWindow(text)
-      } else {
-        interim += text
-      }
+      if (r.isFinal) finalText += r[0].transcript + ' '
+      else interim += r[0].transcript
     }
-    const line = (interim || (didFinal ? '' : transcriptRef.current)).trim().slice(-140)
+    // Finalized words extend the rolling window; detect across the whole window so
+    // a reference split across segments is reassembled. Interim words are detected
+    // against the window too but not committed to it (they may still change).
+    if (finalText.trim()) {
+      contextRef.current = growContext(contextRef.current, finalText)
+      feedQuoteWindow(finalText)
+      runDetect(contextRef.current, true)
+    }
+    if (interim.trim()) runDetect(growContext(contextRef.current, interim), false)
+
+    const line = (interim || finalText || transcriptRef.current).trim().slice(-140)
     transcriptRef.current = line
     setTranscript(line)
-    if (interim) runDetect(interim, false)
     backoffRef.current = 300
   }
 
@@ -245,6 +261,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     rec.onstart = () => {
       setMicState('listening')
       setError('')
+      backoffRef.current = 300 // recovered; restart quickly if it drops again
     }
     rec.onresult = handleResult
     rec.onerror = (e) => {
@@ -318,6 +335,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       quoteWorkerRef.current = null
     }
     quoteWindowRef.current = []
+    contextRef.current = ''
     setMicState('off')
     setTranscript('')
     transcriptRef.current = ''
