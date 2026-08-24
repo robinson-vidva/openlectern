@@ -26,18 +26,3 @@ export function clearPrefs() {
     /* ignore */
   }
 }
-
-export function hintSeen() {
-  try {
-    return localStorage.getItem(HINT_KEY) === '1'
-  } catch {
-    return true
-  }
-}
-export function markHintSeen() {
-  try {
-    localStorage.setItem(HINT_KEY, '1')
-  } catch {
-    /* ignore */
-  }
-}
