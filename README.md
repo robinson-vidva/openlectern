@@ -47,9 +47,9 @@ behind the settings gear, ready to share.
   speaker **quotes without citing**. A dedicated "listener mode" turns a spare
   phone into a pulpit mic.
 - **Related verses** — one tap surfaces cross‑references for the current verse.
-- **Service plans** — queue passages, add private operator notes, paste a
-  pastor's plain‑text plan to add every reference at once, and import/export as
-  JSON.
+- **Pinned list** — pin passages from search, related verses, or the activity
+  feed into a running list you can reorder, step through live, and import/export
+  as JSON.
 - **Presenter themes** — light, sepia, dark, and high‑contrast, plus font size,
   synced live to the screen.
 - **Live and multi‑operator** — every device stays in sync in real time and sees
@@ -136,6 +136,10 @@ The voice quote‑detection index is generated per bundled translation with
   after 24 hours.
 - **PINs never leave the server in plaintext.** Only a bcrypt hash is stored; the
   4‑digit PIN is intentionally low‑security for short‑lived, in‑room sessions.
+- **Second‑controller invites are end‑to‑end encrypted.** A one‑time invite code
+  authenticates the joining device, and the PIN is handed off under a fresh
+  per‑exchange key agreement (ECDH P‑256) — so a view‑only device watching the
+  session channel can never recover it.
 - **Voice is on‑device‑controlled.** Voice assist uses the browser's built‑in Web
   Speech API (Chrome/Edge), so transcription is performed by the browser vendor's
   service and needs an internet connection. OpenLectern never records, stores, or

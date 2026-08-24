@@ -912,7 +912,7 @@ function Console({ row, creds }) {
     const data = {
       openlectern: 'queue',
       version: 1,
-      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole, note: q.note || undefined })),
+      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole })),
       history: history.map((e) => ({ ref: e.ref, sref: e.sref || null, at: e.at, source: e.source }))
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -936,7 +936,7 @@ function Console({ row, creds }) {
           .map((it) => {
             const p = parseReference(it.input || it.label || '')
             if (!p) return null
-            return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p), whole: !!it.whole, note: it.note || undefined }
+            return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p), whole: !!it.whole }
           })
           .filter(Boolean)
         if (!items.length) return setStatus('No readable references in that file.')

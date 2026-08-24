@@ -171,20 +171,6 @@ select:focus {
   color: var(--ink-soft);
 }
 
-.code-badge {
-  font-family: var(--serif-latin);
-  letter-spacing: 0.18em;
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-radius: 12px;
-  padding: 0.6rem 1rem;
-  text-align: center;
-  user-select: all;
-}
-
 .row {
   display: flex;
   gap: 0.6rem;
@@ -413,31 +399,6 @@ select:focus {
   border-bottom: 1px solid var(--line);
 }
 
-.statusbar-main {
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 1rem;
-  min-height: 44px;
-}
-
-.sb-code {
-  font-weight: 700;
-  letter-spacing: 0.12em;
-}
-
-.sb-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-}
-
 .sb-live .live-dot {
   width: 0.55rem;
   height: 0.55rem;
@@ -449,38 +410,8 @@ select:focus {
   background: #4bbf7b;
 }
 
-.sb-admins {
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-  margin-left: auto;
-}
-
-.sb-caret {
-  width: 0;
-  height: 0;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 6px solid var(--ink-soft);
-  transition: transform 0.15s ease;
-}
-
 .sb-caret.open {
   transform: rotate(180deg);
-}
-
-.session-panel {
-  padding: 0.75rem 1rem 1rem;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
-.sp-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  flex-wrap: wrap;
 }
 
 .sp-row .btn {
@@ -535,15 +466,6 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-}
-
-.statusbar-main {
-  max-width: 40rem;
-  margin: 0 auto;
-}
-
-.control-status {
-  margin: 0;
 }
 
 /* NOW card */
@@ -644,10 +566,6 @@ select:focus {
   color: var(--ink);
 }
 
-.back-to-plan {
-  margin-top: 0.6rem;
-}
-
 .scroll-x {
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -678,12 +596,6 @@ select:focus {
 .tab.on {
   background: var(--accent);
   color: var(--accent-ink);
-}
-
-.tab-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
 }
 
 .preview {
@@ -720,69 +632,14 @@ select:focus {
   gap: 0.5rem;
 }
 
-.queue-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.55rem 0.7rem;
-}
-
-.queue-item-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.55rem 0.7rem;
-}
-
 .queue-item-wrap.active {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.queue-item-wrap .queue-item {
-  border: none;
-  background: none;
-  border-radius: 0;
-  padding: 0;
-}
-
 .queue-item .label {
   flex: 1;
   font-family: var(--serif-latin);
-}
-
-.queue-note {
-  width: 100%;
-  font-size: 0.85rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--ink-soft);
-}
-
-.queue-note:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  color: var(--ink);
-}
-
-.plan-paste {
-  width: 100%;
-  font-family: inherit;
-  font-size: 1rem;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-  color: var(--ink);
-  resize: vertical;
 }
 
 .icon-btn {
@@ -803,16 +660,6 @@ select:focus {
   z-index: 7;
   padding: 0 0.6rem;
   pointer-events: none;
-}
-
-.chip-slot .voice-chips {
-  max-width: 32rem;
-  margin: 0 auto;
-  pointer-events: auto;
-}
-
-.chip-slot .voice-chip {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
 /* transport bar (fixed bottom): Back / Blank / Next, Next weighted */
@@ -871,41 +718,12 @@ select:focus {
   margin-top: 0.35rem;
 }
 
-.history-item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  text-align: left;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-  width: 100%;
-}
-
-.hi-ref {
-  font-family: var(--serif-latin);
-  flex: 1;
-}
-
-.hi-time {
-  font-size: 0.8rem;
-}
-
 /* ---------- display (theme + font size) ---------- */
 .display-panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.6rem 0.9rem;
-}
-
-.display-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.35rem;
 }
 
 .theme-swatches {
@@ -969,16 +787,6 @@ select:focus {
   padding: 0.75rem 0.9rem;
 }
 
-.voice-head {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.voice-title {
-  font-weight: 700;
-}
-
 .mic {
   display: inline-flex;
   align-items: center;
@@ -1020,61 +828,9 @@ select:focus {
   border-radius: 8px;
 }
 
-.voice-chips {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.6rem;
-}
-
-.voice-chip {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  text-align: left;
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  padding: 0.5rem 0.7rem;
-  width: 100%;
-}
-
 .voice-chip.shown {
   border-color: var(--line);
   opacity: 0.75;
-}
-
-.vc-ref {
-  font-family: var(--serif-latin);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.vc-text {
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-
-.vc-auto,
-.vc-from {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--accent);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.05rem 0.4rem;
-  white-space: nowrap;
-}
-
-.vc-from {
-  color: var(--ink-soft);
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 /* Quote-detection badge: distinct from the "auto" badge (filled accent). */
@@ -1089,11 +845,6 @@ select:focus {
   white-space: nowrap;
 }
 
-.listener-toggle {
-  margin-top: 0.6rem;
-  width: 100%;
-}
-
 /* Named-passage alias suggestions under the typed reference input. */
 .alias-suggest {
   display: flex;
@@ -1102,48 +853,9 @@ select:focus {
   margin-top: 0.5rem;
 }
 
-.alias-hint {
-  margin: 0;
-  font-size: 0.8rem;
-}
-
-.alias-chip {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  text-align: left;
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  padding: 0.45rem 0.7rem;
-  width: 100%;
-}
-
-.alias-name {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.alias-ref {
-  font-family: var(--serif-latin);
-  color: var(--accent);
-  white-space: nowrap;
-}
-
 /* Related verses (cross-references) in the Now card. Collapsed by default. */
 .related {
   margin-top: 0.5rem;
-}
-
-.related-toggle {
-  background: none;
-  border: none;
-  padding: 0.15rem 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--accent);
-  cursor: pointer;
 }
 
 .related-list {
@@ -1151,11 +863,6 @@ select:focus {
   flex-direction: column;
   gap: 0.3rem;
   margin-top: 0.35rem;
-}
-
-.related-note {
-  margin: 0.1rem 0;
-  font-size: 0.8rem;
 }
 
 .related-chip {
@@ -1184,23 +891,6 @@ select:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-}
-
-.listener-banner {
-  background: var(--danger);
-  color: #fff;
-  border-radius: 10px;
-  padding: 0.55rem 0.8rem;
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.listener-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  font-size: 0.85rem;
 }
 
 /* dedicated listener screen */
@@ -1254,46 +944,10 @@ select:focus {
   font-size: 0.85rem;
 }
 
-.voice-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  align-items: center;
-  margin-top: 0.7rem;
-}
-
-.voice-lang {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-
 .voice-lang select {
   width: auto;
   padding: 0.35rem 0.5rem;
   font-size: 0.9rem;
-}
-
-.voice-auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-}
-
-.voice-transcript {
-  margin: 0.5rem 0 0;
-  font-family: var(--serif-latin);
-  font-style: italic;
-  color: var(--ink-soft);
-  min-height: 1.2em;
-}
-
-.voice-hint {
-  margin: 0.3rem 0 0;
-  font-size: 0.8rem;
 }
 
 /* ---------- now showing / verse stepping ---------- */
@@ -1304,23 +958,10 @@ select:focus {
   padding: 0.7rem 0.9rem;
 }
 
-.ns-ref {
-  font-family: var(--serif-latin);
-}
-
 .ns-ref .pos {
   color: var(--accent);
   font-weight: 700;
   font-family: var(--sans);
-}
-
-.ns-note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
 }
 
 .verse-chips {
@@ -1407,28 +1048,6 @@ select:focus {
   padding: 0.5rem 0.6rem;
   margin-bottom: 0.7rem;
 }
-.first-hint-body {
-  flex: 1;
-  text-align: left;
-  background: none;
-  border: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.9rem;
-  cursor: pointer;
-  padding: 0.1rem 0.2rem;
-}
-.first-hint-x {
-  flex: none;
-  align-self: center;
-  background: var(--accent);
-  color: var(--accent-ink);
-  border: none;
-  border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
 
 /* ---- Session panel: code + QR ---- */
 .sp-code-block {
@@ -1440,17 +1059,6 @@ select:focus {
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--line);
   margin-bottom: 0.2rem;
-}
-.sp-code-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.sp-code {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--accent);
 }
 .sp-qr {
   grid-row: 1 / 3;
@@ -1465,10 +1073,6 @@ select:focus {
 .sp-qr svg {
   display: block;
   border-radius: 3px;
-}
-.sp-qr-hint {
-  grid-column: 1;
-  font-size: 0.75rem;
 }
 
 /* ---- QR enlarge modal ---- */
@@ -1511,22 +1115,6 @@ select:focus {
   margin-top: 0.5rem;
   padding-bottom: 0.15rem;
 }
-.book-hint {
-  flex: none;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  border-radius: 999px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  white-space: nowrap;
-  min-height: 40px;
-}
-.book-hint:first-child {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 
 /* ---- verses per screen (Display default + live NOW-card stepper) ---- */
 .vps-row {
@@ -1547,30 +1135,6 @@ select:focus {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
-}
-.vps-hint {
-  font-size: 0.8rem;
-  margin: 0.4rem 0 0;
-}
-.vps-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-top: 0.6rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--bg);
-}
-.vps-live-label {
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-}
-.vps-live-val {
-  min-width: 2.6rem;
-  text-align: center;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- visual polish pass ---------- */
@@ -1607,9 +1171,6 @@ select:focus {
   background: var(--accent-soft);
   border: 1px solid #cddcf0;
   border-radius: 12px;
-}
-.first-hint-body {
-  color: var(--ink);
 }
 
 /* Tidy the section labels used across tabs. */
@@ -1718,7 +1279,6 @@ select:focus {
 .settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;padding:1.1rem}
 .scard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1rem;box-shadow:var(--shadow-sm)}
 .scard .section-title:first-child{margin-top:0}
-.scard-wide{grid-column:1 / -1}
 .scard.share{grid-column:1 / -1;display:grid;grid-template-columns:auto 1fr;gap:1.1rem;align-items:center}
 .scard.share .sp-qr{padding:6px;background:#fff;border:1px solid var(--line);border-radius:10px;line-height:0}
 .share-code{font-weight:700;letter-spacing:.14em;color:var(--accent);font-size:1.6rem;margin-bottom:.15rem}
@@ -1738,10 +1298,6 @@ select:focus {
 
 /* ---- chapter / verse type-ahead ---- */
 .numpick{margin-top:.5rem}
-.numpick-label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:.3rem}
-.numpick-row{display:flex;gap:.35rem;padding-bottom:.15rem}
-.numchip{flex:none;min-width:40px;text-align:center;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:8px;padding:.4rem .2rem;font-weight:600;font-variant-numeric:tabular-nums}
-.numchip:hover{border-color:var(--accent);color:var(--accent)}
 
 /* ---- interaction feedback (hover/active) ---- */
 .btn { transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease; }
@@ -1789,7 +1345,6 @@ select:focus {
 
 /* ---- editable name row ---- */
 .name-row { display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin-bottom:.7rem; }
-.name-view, .name-edit { display:inline-flex; align-items:center; gap:.4rem; }
 .name-view strong { font-weight:700; }
 .name-edit input { width:9.5rem; font-size:.95rem; padding:.35rem .5rem; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); }
 .icon-btn.ghost { border:none; background:none; color:var(--ink-soft); padding:.25rem; min-width:auto; }
@@ -1903,7 +1458,6 @@ select:focus {
 /* ---- related verses: inline top-3 + more ---- */
 .related-head{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);font-weight:700;margin:.75rem 0 .4rem}
 .related-more{margin-top:.45rem;font-size:.85rem}
-.back-to-plan{margin-top:.6rem}
 
 /* ---- plan progress: upcoming prominent, already-shown dimmed ---- */
 .queue-row .qr-show{font-weight:600}
