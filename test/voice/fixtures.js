@@ -86,8 +86,16 @@ export const FIXTURES = [
   // --- validation: out-of-bounds must be discarded ---
   { text: 'Psalm 23 verse 9', expect: null }, // Psalm 23 has 6 verses
   { text: 'John 3 99', expect: null }, // John 3 has 36 verses
-  { text: 'Genesis 100', expect: null }, // Genesis has 50 chapters
-  { text: 'Revelation 23', expect: null }, // Revelation has 22 chapters
+  { text: 'Genesis 100', expect: null }, // Genesis has 50 chapters; no valid ch:verse split either
+  { text: 'Matthew 700', expect: null }, // no split of 700 is a real Matthew reference
+
+  // --- structure-aware recovery: a joined number that can't be a chapter is
+  // re-read as chapter:verse using the known structure ("Matthew 77" -> 7:7) ---
+  { text: 'Matthew 77', expect: { bookId: 'MAT', chapter: 7, verseStart: 7, verseEnd: null } },
+  { text: 'John 316', expect: { bookId: 'JHN', chapter: 3, verseStart: 16, verseEnd: null } },
+  { text: 'Romans 828', expect: { bookId: 'ROM', chapter: 8, verseStart: 28, verseEnd: null } },
+  { text: 'Psalm 234', expect: { bookId: 'PSA', chapter: 23, verseStart: 4, verseEnd: null } },
+  { text: 'Revelation 23', expect: { bookId: 'REV', chapter: 2, verseStart: 3, verseEnd: null } }, // 23 chapters don't exist -> 2:3
 
   // --- negatives: must not match ---
   { text: 'we walked three miles that day', expect: null },

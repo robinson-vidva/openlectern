@@ -287,6 +287,21 @@ export function buildBookIndex(structure, tamilNames) {
   return { byFirst, byId, structure: structure || {} }
 }
 
+// A number the recognizer joined -- "316" for "three sixteen", "77" for "seven
+// seven" -- that can't be a valid chapter. Re-read it as chapter:verse using the
+// known structure: scan split points (shortest chapter first, so "316" -> 3:16 not
+// 31:6) and return the first split where BOTH the chapter and the verse are real.
+function splitJoinedRef(num, struct) {
+  const s = String(num)
+  if (s.length < 2) return null
+  for (let i = 1; i < s.length; i++) {
+    const c = parseInt(s.slice(0, i), 10)
+    const v = parseInt(s.slice(i), 10)
+    if (c >= 1 && c <= struct.length && v >= 1 && v <= struct[c - 1]) return { chapter: c, verse: v }
+  }
+  return null
+}
+
 // Parse + validate one book match into a candidate, or return null.
 function buildCandidate(after, match, pos, bookIndex) {
   const book = bookIndex.byId[match.id] || BOOK_BY_ID[match.id]
@@ -307,6 +322,21 @@ function buildCandidate(after, match, pos, bookIndex) {
 
   const struct = bookIndex.structure[match.id]
   if (!struct || !struct.length) return null
+
+  // Structure-aware recovery: a number too large to be a chapter ("Matthew 77",
+  // "John 316") is re-read as chapter:verse when the split is real. Only when there
+  // is no verse and no cross-chapter range, so a legitimate whole-chapter reference
+  // is never rewritten.
+  if (chapter > struct.length && verseStart == null && (endChapter == null || endChapter === chapter)) {
+    const split = splitJoinedRef(chapter, struct)
+    if (split) {
+      chapter = split.chapter
+      verseStart = split.verse
+      verseEnd = null
+      endChapter = chapter
+    }
+  }
+
   if (chapter < 1 || chapter > struct.length) return null
   const vmax = struct[chapter - 1]
   if (verseStart != null && (verseStart < 1 || verseStart > vmax)) return null
