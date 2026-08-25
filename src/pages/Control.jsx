@@ -887,8 +887,44 @@ function Console({ row, creds }) {
 
   function toggleBlank() {
     clearAutoUndo()
-    patchState({ blank: !state.blank })
+    patchState({ blank: !stateRef.current.blank })
   }
+
+  // Keyboard + presentation-remote control. Clickers send PageUp/PageDown (and
+  // often arrows); map those plus Space to Next/Back and B/period to Blank. Ignored
+  // while typing in a field so the search box is unaffected.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target
+      if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'PageDown':
+        case ' ':
+        case 'Spacebar':
+          e.preventDefault()
+          goNext()
+          break
+        case 'ArrowLeft':
+        case 'PageUp':
+          e.preventDefault()
+          goBack()
+          break
+        case 'b':
+        case 'B':
+        case '.':
+          e.preventDefault()
+          toggleBlank()
+          break
+        default:
+          break
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ---- pinned verses (the running list on the right rail) ----
   // Pin a reference from anywhere (search, related verses, activity). Accepts an

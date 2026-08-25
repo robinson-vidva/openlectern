@@ -140,6 +140,48 @@ function Stage({ state, code }) {
     else rootRef.current?.requestFullscreen?.()
   }
 
+  // Keep the screen awake -- a projector or shared laptop must not sleep and blank
+  // the verse mid-service. The lock releases when the tab is hidden, so re-acquire
+  // when it becomes visible again.
+  useEffect(() => {
+    let lock = null
+    const acquire = async () => {
+      try {
+        if (navigator.wakeLock && document.visibilityState === 'visible') lock = await navigator.wakeLock.request('screen')
+      } catch {
+        /* wake lock is best-effort (denied, unsupported, or not focused) */
+      }
+    }
+    acquire()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') acquire()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      try {
+        lock?.release?.()
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [])
+
+  // 'F' toggles fullscreen (handy when the operator has the screen focused).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const el = e.target
+      if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        toggleFullscreen()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div className={`present theme-${theme}`} ref={rootRef}>
       <div className="present-body">
