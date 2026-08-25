@@ -67,3 +67,26 @@ describe('confidence tiers for AUTO mode', () => {
     expect(detectRefs('revelations 22 21', bookIndex)[0].confidence).toBe('medium')
   })
 })
+
+describe('ambiguity: offer both readings of a joined number', () => {
+  it('"Mark 11" -> both Mark 11 (primary) and Mark 1:1, flagged ambiguous, none auto', () => {
+    const res = detectRefs('Mark 11', bookIndex)
+    const refs = res.map((c) => c.ref)
+    expect(refs).toContain('Mark 11')
+    expect(refs).toContain('Mark 1:1')
+    // Whole-chapter reading stays primary (top-ranked).
+    expect(res[0].ref).toBe('Mark 11')
+    // Both are flagged ambiguous so auto-capture skips them.
+    expect(res.every((c) => c.ambiguous)).toBe(true)
+  })
+  it('an explicit "chapter" keyword is unambiguous (no split)', () => {
+    const res = detectRefs('Mark chapter 11', bookIndex)
+    expect(res).toHaveLength(1)
+    expect(res[0]).toMatchObject({ bookId: 'MRK', chapter: 11, verseStart: null, ambiguous: false })
+  })
+  it('an explicit verse is unambiguous', () => {
+    const res = detectRefs('Mark 11 verse 5', bookIndex)
+    expect(res).toHaveLength(1)
+    expect(res[0]).toMatchObject({ bookId: 'MRK', chapter: 11, verseStart: 5 })
+  })
+})

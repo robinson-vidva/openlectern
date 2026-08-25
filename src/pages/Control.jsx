@@ -1212,7 +1212,7 @@ function Console({ row, creds }) {
             {voice.chips.map((chip) => (
               <button key={chip.key} className={`feed-card${chip.shown ? ' shown' : ''}`} onClick={() => voice.tapChip(chip)}>
                 <span className="fc-row">
-                  {chip.quote && <span className="badge quote">quote</span>}
+                  {chip.ambiguous && <span className="badge ambiguous" title="One of two possible readings of what was heard">?</span>}
                   {chip.auto && <span className="badge auto">auto</span>}
                   <span className="fc-ref">{chip.ref}</span>
                   {chip.from && <span className="fc-from">{chip.from}</span>}
@@ -1240,11 +1240,8 @@ function Console({ row, creds }) {
             ))}
             {voice.chips.length === 0 && history.length === 0 && (
               <p className="feed-empty muted">
-                Detected references, quotes, and shown verses appear here. Tap any to put it on the screen.
+                Spoken references and shown verses appear here. Tap any to put it on the screen.
               </p>
-            )}
-            {voice.supported && (
-              <p className="feed-foot muted">Quote-catch matches the loaded translations wording (e.g. WEB); a verse remembered in another wording may not match.</p>
             )}
           </div>
         </aside>

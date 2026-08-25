@@ -302,8 +302,10 @@ function splitJoinedRef(num, struct) {
   return null
 }
 
-// Parse + validate one book match into a candidate, or return null.
-function buildCandidate(after, match, pos, bookIndex) {
+// Parse + validate one book match into candidate(s). Usually one; two when a
+// spoken number is genuinely ambiguous ("Mark 11" could be chapter 11 OR 1:1),
+// in which case both are returned (flagged ambiguous) for the operator to choose.
+function buildCandidates(after, match, pos, bookIndex) {
   const book = bookIndex.byId[match.id] || BOOK_BY_ID[match.id]
   let spec = parseNumberSpec(after)
   // "Jude verse 5": single-chapter books can name a verse with no chapter.
@@ -311,7 +313,7 @@ function buildCandidate(after, match, pos, bookIndex) {
     const v = readNumber(after, 1)
     spec = { chapter: 1, verseStart: v.value, verseEnd: null, hadChapterWord: true }
   }
-  if (!spec) return null
+  if (!spec) return []
 
   let { chapter, verseStart, verseEnd, endChapter } = spec
   // Single-chapter books: "Jude 5" means chapter 1, verse 5.
@@ -321,13 +323,14 @@ function buildCandidate(after, match, pos, bookIndex) {
   }
 
   const struct = bookIndex.structure[match.id]
-  if (!struct || !struct.length) return null
+  if (!struct || !struct.length) return []
+
+  const chapterOnly = verseStart == null && (endChapter == null || endChapter === chapter)
 
   // Structure-aware recovery: a number too large to be a chapter ("Matthew 77",
-  // "John 316") is re-read as chapter:verse when the split is real. Only when there
-  // is no verse and no cross-chapter range, so a legitimate whole-chapter reference
-  // is never rewritten.
-  if (chapter > struct.length && verseStart == null && (endChapter == null || endChapter === chapter)) {
+  // "John 316") is re-read as chapter:verse when the split is real. Unambiguous,
+  // because chapter N genuinely does not exist.
+  if (chapter > struct.length && chapterOnly) {
     const split = splitJoinedRef(chapter, struct)
     if (split) {
       chapter = split.chapter
@@ -337,38 +340,55 @@ function buildCandidate(after, match, pos, bookIndex) {
     }
   }
 
-  if (chapter < 1 || chapter > struct.length) return null
+  if (chapter < 1 || chapter > struct.length) return []
   const vmax = struct[chapter - 1]
-  if (verseStart != null && (verseStart < 1 || verseStart > vmax)) return null
+  if (verseStart != null && (verseStart < 1 || verseStart > vmax)) return []
 
   // Validate the end endpoint against structure data (both endpoints must be
   // real). A backwards or out-of-range end kills the whole candidate.
   const ec = endChapter ?? chapter
-  if (ec < chapter || ec > struct.length) return null
+  if (ec < chapter || ec > struct.length) return []
   if (ec === chapter) {
-    if (verseEnd != null && verseStart != null && (verseEnd < verseStart || verseEnd > vmax)) return null
+    if (verseEnd != null && verseStart != null && (verseEnd < verseStart || verseEnd > vmax)) return []
   } else if (verseEnd != null) {
     const evmax = struct[ec - 1]
-    if (verseEnd < 1 || verseEnd > evmax) return null
+    if (verseEnd < 1 || verseEnd > evmax) return []
   }
 
   const exact = match.tier === 'exact'
-  const hasVerse = verseStart != null
-  return {
+  const mk = (ch, vs, ecc, ve, ambiguous) => ({
     bookId: match.id,
     bookName: BOOK_BY_ID[match.id]?.name || match.id,
-    chapter,
-    verseStart,
-    endChapter: ec,
-    verseEnd,
-    ref: refLabel(match.id, chapter, verseStart, ec, verseEnd),
-    confidence: exact && hasVerse ? 'high' : 'medium',
+    chapter: ch,
+    verseStart: vs,
+    endChapter: ecc,
+    verseEnd: ve,
+    ref: refLabel(match.id, ch, vs, ecc, ve),
+    confidence: exact && vs != null ? 'high' : 'medium',
     // Whether the book name was an exact (non-homophone) match. Auto-capture uses
     // this to decide whether an announced chapter ("Psalm 23") is safe to show.
     exactBook: exact,
+    // Ambiguous candidates are tap-only (never auto-shown) so the operator picks.
+    ambiguous: !!ambiguous,
     pos,
-    key: `${match.id} ${chapter}:${verseStart ?? '-'}-${ec}:${verseEnd ?? '-'}`
+    key: `${match.id} ${ch}:${vs ?? '-'}-${ecc}:${ve ?? '-'}`
+  })
+
+  const primary = mk(chapter, verseStart, ec, verseEnd, false)
+
+  // Ambiguity: a spoken whole-chapter number the recognizer may have joined --
+  // "Mark 11" is chapter 11, but could equally be 1:1. Offer both so the operator
+  // sees what was heard and decides. Skipped when "chapter" was said explicitly.
+  if (verseStart == null && ec === chapter && !spec.hadChapterWord) {
+    const split = splitJoinedRef(chapter, struct)
+    if (split) {
+      primary.ambiguous = true
+      const alt = mk(split.chapter, split.verse, split.chapter, null, true)
+      alt.confidence = 'medium' // a secondary reading, so the chapter stays primary
+      return [primary, alt]
+    }
   }
+  return [primary]
 }
 
 // Detect references in a transcript. Returns ranked, validated candidates:
@@ -384,14 +404,17 @@ export function detectRefs(transcript, bookIndex) {
     // Skip past the matched book name so a shorter book inside a longer one
     // (e.g. "John" within "1st John") does not spawn a rival candidate.
     const advanceTo = p + match.length - 1
-    const cand = buildCandidate(tokens.slice(p + match.length), match, p, bookIndex)
-    if (cand && !seen.has(cand.key)) {
-      seen.add(cand.key)
-      out.push(cand)
+    for (const cand of buildCandidates(tokens.slice(p + match.length), match, p, bookIndex)) {
+      if (!seen.has(cand.key)) {
+        seen.add(cand.key)
+        out.push(cand)
+      }
     }
     p = advanceTo
   }
 
+  // Rank by confidence, then position. Keep an ambiguity pair adjacent by putting
+  // the whole-chapter reading just before its verse split (both are the same pos).
   const rank = { high: 0, medium: 1 }
   out.sort((a, b) => rank[a.confidence] - rank[b.confidence] || b.pos - a.pos)
   return out

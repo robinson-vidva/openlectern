@@ -2,15 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { detectRefs, buildBookIndex, continuationText, pickBestTranscript } from '../lib/voice/detectRefs.js'
 import { loadStructure, loadIndex } from '../lib/bibleData.js'
 import { resolvePreviewText } from '../lib/voiceData.js'
-import { matchAliases } from '../lib/aliases.js'
-import { parseReference, formatLabel } from '../lib/parseRef.js'
-import { BOOK_BY_ID } from '../lib/books.js'
-import { WINDOW_WORDS } from '../lib/quote/quoteIndex.js'
-import { normalizeTokens } from '../lib/quote/shingle.js'
 import { shouldAutoShow, nextAutoMode, normalizeAutoMode, AUTO_MODE_LABELS } from '../lib/voice/autocapture.js'
 import { loadPrefs, savePrefs } from '../lib/prefs.js'
-
-const BASE = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.BASE_URL || '/' : '/'
 
 const Rec = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null
 export const VOICE_SUPPORTED = !!Rec
@@ -60,9 +53,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   onShowRef.current = onShow
   const versionsRef = useRef(versions)
   versionsRef.current = versions
-  const quoteWorkerRef = useRef(null)
-  const quoteWindowRef = useRef([])
-  const quoteSeqRef = useRef(0)
   useEffect(() => {
     autoRef.current = autoMode
   }, [autoMode])
@@ -101,56 +91,8 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const versionsKey = versions.map((v) => v.id).join(',')
   useEffect(() => {
     indexRef.current = null
-    if (runningRef.current) {
-      ensureIndex()
-      loadQuoteIndex()
-    }
+    if (runningRef.current) ensureIndex()
   }, [versionsKey])
-
-  // ---- quotation detection (stage 1) ----
-  // A Web Worker holds the shingle index and scans a rolling window off the main
-  // thread. Detected quotes become chips that NEVER auto-show.
-  function ensureQuoteWorker() {
-    if (quoteWorkerRef.current || typeof Worker === 'undefined') return quoteWorkerRef.current
-    try {
-      const w = new Worker(new URL('../workers/quoteWorker.js', import.meta.url), { type: 'module' })
-      w.onmessage = (e) => {
-        const msg = e.data
-        if (msg?.type !== 'result' || !msg.hits?.length) return
-        const hit = msg.hits[0]
-        const name = BOOK_BY_ID[hit.bookId]?.name || hit.bookId
-        const cand = {
-          bookId: hit.bookId,
-          bookName: name,
-          chapter: hit.chapter,
-          verseStart: hit.verse,
-          endChapter: hit.chapter,
-          verseEnd: hit.verse,
-          ref: `${name} ${hit.chapter}:${hit.verse}`,
-          confidence: 'quote'
-        }
-        pushCandidate(cand, { allowAuto: false })
-        onDetectRef.current?.(cand)
-      }
-      quoteWorkerRef.current = w
-    } catch {
-      /* workers unavailable: quote detection is simply off */
-    }
-    return quoteWorkerRef.current
-  }
-  function loadQuoteIndex() {
-    const w = ensureQuoteWorker()
-    if (w) w.postMessage({ type: 'load', base: BASE, versionIds: versionsRef.current.map((v) => v.id) })
-  }
-  function feedQuoteWindow(text) {
-    const w = quoteWorkerRef.current
-    if (!w) return
-    const words = normalizeTokens(text)
-    if (!words.length) return
-    const win = quoteWindowRef.current.concat(words).slice(-WINDOW_WORDS)
-    quoteWindowRef.current = win
-    w.postMessage({ type: 'scan', seq: ++quoteSeqRef.current, tokens: win })
-  }
 
   async function requestWake() {
     try {
@@ -209,7 +151,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       text: cand.preview || '',
       shown: fired,
       auto: fired,
-      quote: cand.confidence === 'quote',
+      ambiguous: !!cand.ambiguous,
       from: opts.from || null
     }
     setChips((prev) => [chip, ...prev].slice(0, 5))
@@ -250,19 +192,11 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
         const cand = cres[0]
         if (pushCandidate(cand, { allowAuto: !!spokenText })) onDetectRef.current?.(cand)
         lastRefRef.current = { bookName: cand.bookName, chapter: cand.chapter }
-        return
       }
     }
-    // No citation: try a named-passage alias -- fuzzier than a citation, so
-    // chip-only, never auto-shown, and only on final text (spokenText present) to
-    // avoid noisy guesses from half-formed interim speech.
-    if (!spokenText) return
-    const hit = matchAliases(text)[0]
-    if (!hit) return
-    const parsed = parseReference(hit.refs[0])
-    if (!parsed) return
-    const cand = { ...parsed, ref: `${hit.name} -> ${formatLabel(parsed)}`, confidence: 'alias', alias: hit.name }
-    if (pushCandidate(cand, { allowAuto: false })) onDetectRef.current?.(cand)
+    // Named-passage aliases and quote-catch are intentionally NOT run on the mic:
+    // the listener only surfaces references someone actually states. Named passages
+    // still resolve when typed into the search box.
   }
 
   function handleResult(e) {
@@ -285,10 +219,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     // only for references within its own words. So chips appear as you speak, but
     // ordinary talking and half-heard guesses never switch the screen.
     if (interim.trim()) runDetect(interim, null)
-    if (finalText.trim()) {
-      feedQuoteWindow(finalText)
-      runDetect(finalText, finalText)
-    }
+    if (finalText.trim()) runDetect(finalText, finalText)
 
     const line = (interim || finalText || transcriptRef.current).trim().slice(-140)
     transcriptRef.current = line
@@ -352,7 +283,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     runningRef.current = true
     setActive(true)
     await ensureIndex()
-    loadQuoteIndex()
     await requestWake()
     // The user may have toggled off while the awaits above were in flight; if so,
     // stop() already ran and starting now would leave an orphaned live mic.
@@ -375,11 +305,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       }
     }
     releaseWake()
-    if (quoteWorkerRef.current) {
-      quoteWorkerRef.current.terminate()
-      quoteWorkerRef.current = null
-    }
-    quoteWindowRef.current = []
     recentRef.current.clear()
     autoFiredRef.current.clear()
     setMicState('off')

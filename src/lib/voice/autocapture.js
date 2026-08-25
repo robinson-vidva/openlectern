@@ -31,6 +31,9 @@ export function nextAutoMode(mode) {
 
 export function shouldAutoShow(cand, mode) {
   if (!cand || normalizeAutoMode(mode) === 'off') return false
+  // An ambiguous reading ("Mark 11" = ch 11 OR 1:1) is never auto-shown -- both
+  // options are offered as chips and the operator picks.
+  if (cand.ambiguous) return false
   // Exact book + valid verse: safe to show in either active mode.
   if (cand.confidence === 'high') return true
   // Announced whole chapter ("Psalm 23"): only in the eager "chapter" mode, and

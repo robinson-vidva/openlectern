@@ -42,13 +42,15 @@ behind the settings gear, ready to share.
   verses appear per screen.
 - **Two languages at once** — show a primary and optional secondary translation,
   switchable live mid‑service without losing your place.
-- **Voice assist (Chrome/Edge)** — let the room's mic listen; spoken references
-  become tap‑to‑show suggestions, and OpenLectern even catches scripture the
-  speaker **quotes without citing**. Optional hands‑free **auto‑capture** puts a
-  cited verse (or an announced chapter) straight on the screen, with a one‑tap
-  **Undo** if it mishears. English and Tamil are both recognized (switch the
-  recognition language live). A dedicated "listener mode" turns a spare phone
-  into a pulpit mic.
+- **Voice assist (Chrome/Edge)** — let the room's mic listen; a spoken reference
+  ("John three sixteen", "verse twenty eight") becomes a tap‑to‑show suggestion.
+  The known Bible structure disambiguates what's heard — "Matthew 77" resolves to
+  Matthew 7:7, and a genuinely ambiguous "Mark 11" offers both Mark 11 and Mark
+  1:1 for the operator to pick. Optional hands‑free **auto‑capture** puts a cited
+  verse (or an announced chapter) straight on the screen, with a one‑tap **Undo**
+  if it mishears. English and Tamil are both recognized (switch the recognition
+  language live). A dedicated "listener mode" turns a spare phone into a pulpit
+  mic. The mic only ever surfaces references someone actually states.
 - **Related verses** — one tap surfaces cross‑references for the current verse.
 - **Pinned list** — pin passages from search, related verses, or the activity
   feed into a running list you can reorder, step through live, and import/export
