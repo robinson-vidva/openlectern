@@ -287,19 +287,32 @@ export function buildBookIndex(structure, tamilNames) {
   return { byFirst, byId, structure: structure || {} }
 }
 
-// A number the recognizer joined -- "316" for "three sixteen", "77" for "seven
-// seven" -- that can't be a valid chapter. Re-read it as chapter:verse using the
-// known structure: scan split points (shortest chapter first, so "316" -> 3:16 not
-// 31:6) and return the first split where BOTH the chapter and the verse are real.
-function splitJoinedRef(num, struct) {
-  const s = String(num)
-  if (s.length < 2) return null
-  for (let i = 1; i < s.length; i++) {
-    const c = parseInt(s.slice(0, i), 10)
-    const v = parseInt(s.slice(i), 10)
-    if (c >= 1 && c <= struct.length && v >= 1 && v <= struct[c - 1]) return { chapter: c, verse: v }
+// Alternative chapter:verse readings of a number the recognizer may have merged,
+// because we can't hear the pause. Ordered by how the reference is most naturally
+// SPOKEN, so the best reading comes first:
+//   "twenty one"    -> 20:1  (tens + ones)
+//   "eleven"        -> 1:1   (teen)
+//   "three sixteen" -> 3:16  (digit-join; every split, shortest chapter first)
+// Only splits where BOTH the chapter and verse exist in `struct` are returned.
+function altReadings(num, struct) {
+  const out = []
+  const seen = new Set()
+  const push = (c, v) => {
+    if (c >= 1 && c <= struct.length && v >= 1 && v <= struct[c - 1]) {
+      const k = c + ':' + v
+      if (!seen.has(k)) {
+        seen.add(k)
+        out.push({ chapter: c, verse: v })
+      }
+    }
   }
-  return null
+  // Natural spoken decomposition of a two-digit number ("twenty one" -> 20:1).
+  if (num >= 21 && num <= 99 && num % 10 !== 0) push(Math.floor(num / 10) * 10, num % 10)
+  if (num >= 11 && num <= 19) push(1, num - 10)
+  // Digit-join ("316" -> 3:16, "77" -> 7:7): every split point, shortest chapter first.
+  const s = String(num)
+  for (let i = 1; i < s.length; i++) push(parseInt(s.slice(0, i), 10), parseInt(s.slice(i), 10))
+  return out
 }
 
 // Parse + validate one book match into candidate(s). Usually one; two when a
@@ -328,13 +341,13 @@ function buildCandidates(after, match, pos, bookIndex) {
   const chapterOnly = verseStart == null && (endChapter == null || endChapter === chapter)
 
   // Structure-aware recovery: a number too large to be a chapter ("Matthew 77",
-  // "John 316") is re-read as chapter:verse when the split is real. Unambiguous,
-  // because chapter N genuinely does not exist.
+  // "John 316", "Matthew 29") is re-read as chapter:verse using the most natural
+  // spoken split. Unambiguous, because chapter N genuinely does not exist.
   if (chapter > struct.length && chapterOnly) {
-    const split = splitJoinedRef(chapter, struct)
-    if (split) {
-      chapter = split.chapter
-      verseStart = split.verse
+    const alt = altReadings(chapter, struct)[0]
+    if (alt) {
+      chapter = alt.chapter
+      verseStart = alt.verse
       verseEnd = null
       endChapter = chapter
     }
@@ -376,16 +389,17 @@ function buildCandidates(after, match, pos, bookIndex) {
 
   const primary = mk(chapter, verseStart, ec, verseEnd, false)
 
-  // Ambiguity: a spoken whole-chapter number the recognizer may have joined --
-  // "Mark 11" is chapter 11, but could equally be 1:1. Offer both so the operator
-  // sees what was heard and decides. Skipped when "chapter" was said explicitly.
+  // Ambiguity: a spoken whole-chapter number could equally be a joined chapter:verse
+  // -- "Mark 11" is chapter 11 but also 1:1; "Matthew twenty one" is chapter 21 but
+  // also 20:1 (we can't hear the pause). Offer both, most-natural split as the
+  // alternative, for the operator to decide. Skipped when "chapter" is said.
   if (verseStart == null && ec === chapter && !spec.hadChapterWord) {
-    const split = splitJoinedRef(chapter, struct)
-    if (split) {
+    const alt = altReadings(chapter, struct)[0]
+    if (alt) {
       primary.ambiguous = true
-      const alt = mk(split.chapter, split.verse, split.chapter, null, true)
-      alt.confidence = 'medium' // a secondary reading, so the chapter stays primary
-      return [primary, alt]
+      const altCand = mk(alt.chapter, alt.verse, alt.chapter, null, true)
+      altCand.confidence = 'medium' // a secondary reading, so the chapter stays primary
+      return [primary, altCand]
     }
   }
   return [primary]

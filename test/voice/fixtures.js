@@ -95,7 +95,7 @@ export const FIXTURES = [
   { text: 'John 316', expect: { bookId: 'JHN', chapter: 3, verseStart: 16, verseEnd: null } },
   { text: 'Romans 828', expect: { bookId: 'ROM', chapter: 8, verseStart: 28, verseEnd: null } },
   { text: 'Psalm 234', expect: { bookId: 'PSA', chapter: 23, verseStart: 4, verseEnd: null } },
-  { text: 'Revelation 23', expect: { bookId: 'REV', chapter: 2, verseStart: 3, verseEnd: null } }, // 23 chapters don't exist -> 2:3
+  { text: 'Revelation 23', expect: { bookId: 'REV', chapter: 20, verseStart: 3, verseEnd: null } }, // no ch 23 -> "twenty three" as 20:3
 
   // --- negatives: must not match ---
   { text: 'we walked three miles that day', expect: null },

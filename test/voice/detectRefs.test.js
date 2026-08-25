@@ -89,4 +89,15 @@ describe('ambiguity: offer both readings of a joined number', () => {
     expect(res).toHaveLength(1)
     expect(res[0]).toMatchObject({ bookId: 'MRK', chapter: 11, verseStart: 5 })
   })
+  it('a spoken tens+ones number offers the natural split ("twenty one" -> 20:1)', () => {
+    for (const text of ['Matthew 21', 'Matthew twenty one']) {
+      const refs = detectRefs(text, bookIndex).map((c) => c.ref)
+      expect(refs, text).toContain('Matthew 21') // primary (whole chapter)
+      expect(refs, text).toContain('Matthew 20:1') // 20:1, not the digit split 2:1
+      expect(refs, text).not.toContain('Matthew 2:1')
+    }
+  })
+  it('an invalid chapter recovers via the natural split ("Matthew 29" -> 20:9)', () => {
+    expect(detectRefs('Matthew 29', bookIndex)[0]).toMatchObject({ bookId: 'MAT', chapter: 20, verseStart: 9 })
+  })
 })
