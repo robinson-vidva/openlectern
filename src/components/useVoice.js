@@ -26,7 +26,12 @@ const DEDUPE_MS = 10000
 // (in a persistent slot) can share one always-alive recognition session. Behavior
 // is identical to the previous VoiceMode component.
 export function useVoice({ versions, defaultLang, onShow, onDetect }) {
-  const [lang, setLang] = useState(defaultLang || 'en-US')
+  // Recognition language, remembered per device so a bilingual operator's choice
+  // sticks across sessions; falls back to the loaded translation's language.
+  const [lang, setLang] = useState(() => {
+    const saved = loadPrefs().voiceLang
+    return VOICE_LANGS.some((l) => l.id === saved) ? saved : defaultLang || 'en-US'
+  })
   // Auto-capture mode: 'off' | 'verse' | 'chapter' (remembered per device).
   const [autoMode, setAutoMode] = useState(() => normalizeAutoMode(loadPrefs().autoMode))
   const [active, setActive] = useState(false)
@@ -352,6 +357,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   function changeLang(next) {
     setLang(next)
     langRef.current = next
+    savePrefs({ voiceLang: next }) // remember for the next session
     if (runningRef.current) {
       const rec = recRef.current
       recRef.current = null
