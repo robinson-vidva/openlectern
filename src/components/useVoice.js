@@ -8,7 +8,6 @@ import { BOOK_BY_ID } from '../lib/books.js'
 import { WINDOW_WORDS } from '../lib/quote/quoteIndex.js'
 import { normalizeTokens } from '../lib/quote/shingle.js'
 import { shouldAutoShow, nextAutoMode, normalizeAutoMode, AUTO_MODE_LABELS } from '../lib/voice/autocapture.js'
-import { startOnDeviceEngine, whisperLang, onDeviceSupported, WHISPER_MODEL } from '../lib/voice/ondevice.js'
 import { loadPrefs, savePrefs } from '../lib/prefs.js'
 
 const BASE = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.BASE_URL || '/' : '/'
@@ -36,21 +35,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const [autoMode, setAutoMode] = useState(() => normalizeAutoMode(loadPrefs().autoMode))
   const [active, setActive] = useState(false)
   const [micState, setMicState] = useState('off') // off | listening | error
-  // Speech engine: 'browser' (Web Speech API) or 'ondevice' (Whisper via WebGPU).
-  const engineSupported = onDeviceSupported()
-  const [engine, setEngineState] = useState(() => {
-    const saved = loadPrefs().voiceEngine
-    if (saved === 'ondevice' || saved === 'browser') return saved
-    // No saved choice: default to on-device only where the browser has no Web
-    // Speech but does have WebGPU (e.g. Firefox); otherwise the browser engine.
-    return !VOICE_SUPPORTED && engineSupported ? 'ondevice' : 'browser'
-  })
-  const engineRef = useRef(engine)
-  useEffect(() => {
-    engineRef.current = engine
-  }, [engine])
-  const onDeviceRef = useRef(null)
-  const [modelStatus, setModelStatus] = useState(null) // { progress } while a model downloads, else null
   const [error, setError] = useState('')
   const [transcript, setTranscript] = useState('')
   const [chips, setChips] = useState([])
@@ -295,9 +279,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const rec = new Rec()
     rec.continuous = true
     rec.interimResults = true
-    // Web Speech needs a concrete language; 'auto' (mixed, on-device only) falls
-    // back to the loaded translation's language here.
-    rec.lang = langRef.current === 'auto' ? defaultLang || 'en-US' : langRef.current
+    rec.lang = langRef.current
     rec.onstart = () => {
       setMicState('listening')
       setError('')
@@ -341,7 +323,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   }
 
   async function start() {
-    if (engineRef.current !== 'ondevice' && !VOICE_SUPPORTED) return
+    if (!VOICE_SUPPORTED) return
     setError('')
     runningRef.current = true
     setActive(true)
@@ -351,58 +333,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     // The user may have toggled off while the awaits above were in flight; if so,
     // stop() already ran and starting now would leave an orphaned live mic.
     if (!runningRef.current) return
-    if (engineRef.current === 'ondevice') startOnDevice()
-    else makeRecognition()
-  }
-
-  // ---- on-device (Whisper) engine ----
-  function startOnDevice() {
-    setMicState('listening')
-    setModelStatus({ progress: 0 })
-    onDeviceRef.current = startOnDeviceEngine({
-      model: WHISPER_MODEL,
-      // Read live so changing language never reloads the model.
-      getLanguage: () => whisperLang(langRef.current),
-      onProgress: (p) => {
-        if (p?.status === 'progress') setModelStatus({ progress: Math.round(p.progress || 0) })
-      },
-      onReady: (device) => {
-        setModelStatus(null)
-        if (device === 'wasm') {
-          setError('On-device voice is running on the CPU (no WebGPU) — transcription will be slow.')
-        }
-      },
-      onText: onEngineText,
-      onError: onDeviceFailed
-    })
-  }
-  // Each Whisper window is a stable, finalized transcript: detect on it exactly
-  // like a final Web-Speech segment (auto-show gated to this text).
-  function onEngineText(text) {
-    feedQuoteWindow(text)
-    runDetect(text, text)
-    const line = text.trim().slice(-140)
-    transcriptRef.current = line
-    setTranscript(line)
-  }
-  function onDeviceFailed(e) {
-    try {
-      onDeviceRef.current?.stop()
-    } catch {
-      /* ignore */
-    }
-    onDeviceRef.current = null
-    setModelStatus(null)
-    setEngineState('browser')
-    engineRef.current = 'browser'
-    savePrefs({ voiceEngine: 'browser' })
-    setError(`On-device voice couldn't start (${(e && e.message) || 'unavailable'}). Switched to the browser engine.`)
-    if (runningRef.current && VOICE_SUPPORTED) makeRecognition()
-    else {
-      runningRef.current = false
-      setActive(false)
-      setMicState('error')
-    }
+    makeRecognition()
   }
 
   function stop() {
@@ -420,14 +351,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       }
     }
     releaseWake()
-    if (onDeviceRef.current) {
-      try {
-        onDeviceRef.current.stop()
-      } catch {
-        /* ignore */
-      }
-      onDeviceRef.current = null
-    }
     if (quoteWorkerRef.current) {
       quoteWorkerRef.current.terminate()
       quoteWorkerRef.current = null
@@ -435,7 +358,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     quoteWindowRef.current = []
     recentRef.current.clear()
     autoFiredRef.current.clear()
-    setModelStatus(null)
     setMicState('off')
     setTranscript('')
     transcriptRef.current = ''
@@ -446,44 +368,11 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     else start()
   }
 
-  // Switch speech engines (remembered per device). If listening, restart on the
-  // new engine so the change takes effect immediately.
-  function changeEngine(next) {
-    const eng = next === 'ondevice' ? 'ondevice' : 'browser'
-    savePrefs({ voiceEngine: eng })
-    engineRef.current = eng
-    setEngineState(eng)
-    // 'auto' (mixed) only exists on-device; going back to the browser engine, pin
-    // the language to a concrete one so the picker and recognition stay valid.
-    if (eng === 'browser' && langRef.current === 'auto') {
-      const fallback = defaultLang || 'en-US'
-      langRef.current = fallback
-      setLang(fallback)
-      savePrefs({ voiceLang: fallback })
-    }
-    // Turning on the on-device engine, default to auto-detect so mixed-language
-    // (e.g. English + Tamil) works immediately -- the whole point of this engine.
-    if (eng === 'ondevice') {
-      langRef.current = 'auto'
-      setLang('auto')
-      savePrefs({ voiceLang: 'auto' })
-    }
-    if (runningRef.current) {
-      stop()
-      setTimeout(() => start(), 120)
-    }
-  }
-
   function changeLang(next) {
     setLang(next)
     langRef.current = next
     savePrefs({ voiceLang: next }) // remember for the next session
     if (runningRef.current) {
-      if (engineRef.current === 'ondevice') {
-        // The on-device engine reads the language per window (getLanguage), so the
-        // change takes effect on the next window -- no model reload, no restart.
-        return
-      }
       const rec = recRef.current
       recRef.current = null
       clearTimeout(restartRef.current)
@@ -521,19 +410,13 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   useEffect(() => () => stop(), [])
 
   return {
-    supported: VOICE_SUPPORTED || engineSupported,
-    browserSupported: VOICE_SUPPORTED,
+    supported: VOICE_SUPPORTED,
     langs: VOICE_LANGS,
     lang,
     changeLang,
     autoMode,
     autoModeLabel: AUTO_MODE_LABELS[autoMode],
     cycleAutoMode,
-    // Speech engine
-    engine,
-    engineSupported,
-    changeEngine,
-    modelStatus,
     active,
     micState,
     error,
