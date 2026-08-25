@@ -202,26 +202,27 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     pushCandidate(cand, { from, allowAuto: false })
   }
 
-  function runDetect(text, isFinal) {
+  // Detect references across `windowText` (the rolling window, for recall) and
+  // create chips. Auto-show is allowed ONLY for references that also appear in
+  // `spokenText` -- the words just finalized in this segment. So a reference left
+  // lingering in the window, or one still forming mid-word, can never switch the
+  // screen on its own: it stays a tap-only chip. A single utterance can name
+  // several passages ("John 3:16 and Romans 8:28"), so every distinct one is
+  // surfaced, not just the top-ranked.
+  function runDetect(windowText, spokenText) {
     const idx = indexRef.current
-    if (!idx || !text) return
-    const res = detectRefs(text, idx)
-    // A single utterance can name several passages ("John 3:16 and Romans 8:28"),
-    // so surface every distinct one, not just the top-ranked. From interim (not-yet
-    // final) text, emit only high-confidence citations -- a chapter-only match is
-    // usually just a verse still mid-sentence, so waiting for the final avoids a
-    // spurious "Psalm 90" flash while "Psalm 91" is being said.
-    const emit = isFinal ? res : res.filter((c) => c.confidence === 'high')
-    if (emit.length) {
-      for (const cand of emit.slice(0, 4)) {
-        if (pushCandidate(cand)) onDetectRef.current?.(cand)
+    if (!idx || !windowText) return
+    const res = detectRefs(windowText, idx)
+    if (res.length) {
+      const autoKeys = new Set(detectRefs(spokenText || '', idx).map((c) => c.key))
+      for (const cand of res.slice(0, 4)) {
+        if (pushCandidate(cand, { allowAuto: autoKeys.has(cand.key) })) onDetectRef.current?.(cand)
       }
       return
     }
-    // No citation. On final segments only, try named-passage aliases -- fuzzier
-    // than a citation, so chip-only and never auto-shown.
-    if (!isFinal) return
-    const hit = matchAliases(text)[0]
+    // No citation in the window: try a named-passage alias -- fuzzier than a
+    // citation, so chip-only and never auto-shown.
+    const hit = matchAliases(windowText)[0]
     if (!hit) return
     const parsed = parseReference(hit.refs[0])
     if (!parsed) return
@@ -237,16 +238,18 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       if (r.isFinal) finalText += r[0].transcript + ' '
       else interim += r[0].transcript
     }
-    // Finalized words extend the rolling window; detect across the whole window so
-    // a reference split across segments is reassembled. Interim words are detected
-    // against the window too but not committed to it (they may still change).
+    // Detection runs ONLY on finalized speech, never on interim (half-heard) text,
+    // so ordinary talking and mid-word guesses can't switch the screen. Finalized
+    // words extend the rolling window (to reassemble a reference split across
+    // segments); auto-show is gated to references within this segment's own words.
     if (finalText.trim()) {
       contextRef.current = growContext(contextRef.current, finalText)
       feedQuoteWindow(finalText)
-      runDetect(contextRef.current, true)
+      runDetect(contextRef.current, finalText)
     }
-    if (interim.trim()) runDetect(growContext(contextRef.current, interim), false)
 
+    // Interim words only update the live transcript line, so the operator still
+    // sees the mic is hearing them.
     const line = (interim || finalText || transcriptRef.current).trim().slice(-140)
     transcriptRef.current = line
     setTranscript(line)
