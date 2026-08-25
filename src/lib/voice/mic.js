@@ -32,7 +32,9 @@ export function appendCapped(a, b, maxLen) {
 }
 
 // Start capturing. Returns { stop() } or null on failure (onError is called).
-export async function startMicWindows({ windowSec = 6, hopSec = 3, minSec = 1.2, onWindow, onError }) {
+// Small overlap (windowSec - hopSec) bridges references at a window boundary
+// without re-transcribing whole phrases (which produced noisy duplicate results).
+export async function startMicWindows({ windowSec = 5, hopSec = 4, minSec = 1.2, onWindow, onError }) {
   let stream
   try {
     stream = await navigator.mediaDevices.getUserMedia({

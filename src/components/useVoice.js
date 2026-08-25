@@ -8,7 +8,6 @@ import { BOOK_BY_ID } from '../lib/books.js'
 import { WINDOW_WORDS } from '../lib/quote/quoteIndex.js'
 import { normalizeTokens } from '../lib/quote/shingle.js'
 import { shouldAutoShow, nextAutoMode, normalizeAutoMode, AUTO_MODE_LABELS } from '../lib/voice/autocapture.js'
-import { growContext } from '../lib/voice/context.js'
 import { startOnDeviceEngine, whisperLang, onDeviceSupported, WHISPER_MODEL } from '../lib/voice/ondevice.js'
 import { loadPrefs, savePrefs } from '../lib/prefs.js'
 
@@ -62,10 +61,8 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const backoffRef = useRef(300)
   const wakeRef = useRef(null)
   const indexRef = useRef(null)
-  const recentRef = useRef(new Map())
-  // Rolling window of recently finalized words, so a reference split across
-  // recognition segments is still detected as a whole.
-  const contextRef = useRef('')
+  const recentRef = useRef(new Map()) // ref -> last time a CHIP was created (de-dupe)
+  const autoFiredRef = useRef(new Map()) // ref -> last time it AUTO-SHOWED (separate de-dupe)
   const autoRef = useRef(autoMode)
   const langRef = useRef(lang)
   const transcriptRef = useRef('')
@@ -192,18 +189,34 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   // recent duplicate -- so callers only broadcast genuinely new detections.
   function pushCandidate(cand, opts = {}) {
     const now = Date.now()
-    const last = recentRef.current.get(cand.ref)
-    if (last && now - last < DEDUPE_MS) return false // cross-device dedupe
-    // Evict entries past the dedupe window so an all-day session doesn't grow this
-    // map without bound (one entry per distinct detected reference otherwise).
-    for (const [ref, ts] of recentRef.current) {
-      if (now - ts >= DEDUPE_MS) recentRef.current.delete(ref)
+    const prune = (map) => {
+      for (const [ref, ts] of map) if (now - ts >= DEDUPE_MS) map.delete(ref)
+    }
+    prune(recentRef.current)
+    prune(autoFiredRef.current)
+
+    // Auto-show is decided independently of chip de-dupe, so a reference the
+    // operator saw as an interim chip can still auto-show once it's finalized.
+    // It fires at most once per reference per window.
+    let fired = false
+    if (opts.allowAuto !== false && shouldAutoShow(cand, autoRef.current)) {
+      const lastAuto = autoFiredRef.current.get(cand.ref)
+      if (!lastAuto || now - lastAuto >= DEDUPE_MS) {
+        autoFiredRef.current.set(cand.ref, now)
+        fired = true
+      }
+    }
+    if (fired) onShowRef.current(cand, 'auto')
+
+    // Chip de-dupe: don't stack the same reference from repeated interim frames.
+    const lastChip = recentRef.current.get(cand.ref)
+    if (lastChip && now - lastChip < DEDUPE_MS) {
+      // Already have a chip for this ref; if we just auto-showed it, mark it shown.
+      if (fired) setChips((prev) => prev.map((c) => (c.ref === cand.ref ? { ...c, shown: true, auto: true } : c)))
+      return false
     }
     recentRef.current.set(cand.ref, now)
 
-    // Quote/alias chips pass allowAuto:false and never auto-show. Citations go
-    // through the auto-capture policy for the current mode.
-    const fired = opts.allowAuto !== false && shouldAutoShow(cand, autoRef.current)
     const chip = {
       key: `${cand.ref}-${now}`,
       ref: cand.ref,
@@ -218,7 +231,6 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     resolvePreviewText(versionsRef.current, cand)
       .then((t) => setChips((prev) => prev.map((c) => (c.key === chip.key ? { ...c, text: t } : c))))
       .catch(() => {})
-    if (fired) onShowRef.current(cand, 'auto')
     return true
   }
 
@@ -227,17 +239,14 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     pushCandidate(cand, { from, allowAuto: false })
   }
 
-  // Detect references across `windowText` (the rolling window, for recall) and
-  // create chips. Auto-show is allowed ONLY for references that also appear in
-  // `spokenText` -- the words just finalized in this segment. So a reference left
-  // lingering in the window, or one still forming mid-word, can never switch the
-  // screen on its own: it stays a tap-only chip. A single utterance can name
-  // several passages ("John 3:16 and Romans 8:28"), so every distinct one is
-  // surfaced, not just the top-ranked.
-  function runDetect(windowText, spokenText) {
+  // Detect references in `text` and create chips. Auto-show is allowed ONLY for
+  // references that also appear in `spokenText` (pass null to force chip-only, e.g.
+  // from interim text). A single utterance can name several passages ("John 3:16
+  // and Romans 8:28"), so every distinct one is surfaced, not just the top-ranked.
+  function runDetect(text, spokenText) {
     const idx = indexRef.current
-    if (!idx || !windowText) return
-    const res = detectRefs(windowText, idx)
+    if (!idx || !text) return
+    const res = detectRefs(text, idx)
     if (res.length) {
       const autoKeys = new Set(detectRefs(spokenText || '', idx).map((c) => c.key))
       for (const cand of res.slice(0, 4)) {
@@ -245,9 +254,11 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       }
       return
     }
-    // No citation in the window: try a named-passage alias -- fuzzier than a
-    // citation, so chip-only and never auto-shown.
-    const hit = matchAliases(windowText)[0]
+    // No citation: try a named-passage alias -- fuzzier than a citation, so
+    // chip-only, never auto-shown, and only on final text (spokenText present) to
+    // avoid noisy guesses from half-formed interim speech.
+    if (!spokenText) return
+    const hit = matchAliases(text)[0]
     if (!hit) return
     const parsed = parseReference(hit.refs[0])
     if (!parsed) return
@@ -263,18 +274,17 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       if (r.isFinal) finalText += r[0].transcript + ' '
       else interim += r[0].transcript
     }
-    // Detection runs ONLY on finalized speech, never on interim (half-heard) text,
-    // so ordinary talking and mid-word guesses can't switch the screen. Finalized
-    // words extend the rolling window (to reassemble a reference split across
-    // segments); auto-show is gated to references within this segment's own words.
+    // Detect on each segment as it comes in -- no accumulated context (that made
+    // stale references linger and re-surface). Interim (still-forming) text shows
+    // tap-only chips for responsiveness; only finalized speech may AUTO-show, and
+    // only for references within its own words. So chips appear as you speak, but
+    // ordinary talking and half-heard guesses never switch the screen.
+    if (interim.trim()) runDetect(interim, null)
     if (finalText.trim()) {
-      contextRef.current = growContext(contextRef.current, finalText)
       feedQuoteWindow(finalText)
-      runDetect(contextRef.current, finalText)
+      runDetect(finalText, finalText)
     }
 
-    // Interim words only update the live transcript line, so the operator still
-    // sees the mic is hearing them.
     const line = (interim || finalText || transcriptRef.current).trim().slice(-140)
     transcriptRef.current = line
     setTranscript(line)
@@ -366,12 +376,11 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       onError: onDeviceFailed
     })
   }
-  // Each Whisper window is a stable, finalized transcript: grow the context and
-  // detect exactly like a final Web-Speech segment (auto-show gated to this text).
+  // Each Whisper window is a stable, finalized transcript: detect on it exactly
+  // like a final Web-Speech segment (auto-show gated to this text).
   function onEngineText(text) {
-    contextRef.current = growContext(contextRef.current, text)
     feedQuoteWindow(text)
-    runDetect(contextRef.current, text)
+    runDetect(text, text)
     const line = text.trim().slice(-140)
     transcriptRef.current = line
     setTranscript(line)
@@ -424,7 +433,8 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       quoteWorkerRef.current = null
     }
     quoteWindowRef.current = []
-    contextRef.current = ''
+    recentRef.current.clear()
+    autoFiredRef.current.clear()
     setModelStatus(null)
     setMicState('off')
     setTranscript('')
