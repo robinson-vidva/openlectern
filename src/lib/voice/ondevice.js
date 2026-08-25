@@ -20,9 +20,11 @@ export function onDeviceSupported() {
 }
 
 // Orchestrate the engine: spin up the model worker, stream mic windows to it, and
-// call onText(text) for each transcript. Returns { stop() }. All failures route to
-// onError so the caller can fall back to the browser engine.
-export function startOnDeviceEngine({ model = WHISPER_MODEL, language, onText, onProgress, onReady, onError }) {
+// call onText(text) for each transcript. `getLanguage()` is read per window so the
+// operator can change language live WITHOUT reloading the model. Only a genuine
+// load failure routes to onError (so the caller falls back to the browser engine);
+// a single window that fails to transcribe is skipped and listening continues.
+export function startOnDeviceEngine({ model = WHISPER_MODEL, getLanguage, onText, onProgress, onReady, onError }) {
   let stopped = false
   let mic = null
   let ready = false
@@ -40,9 +42,11 @@ export function startOnDeviceEngine({ model = WHISPER_MODEL, language, onText, o
     if (m.type === 'progress') onProgress?.(m.data)
     else if (m.type === 'ready') {
       ready = true
-      onReady?.()
+      onReady?.(m.device)
     } else if (m.type === 'text') {
       if (m.text) onText?.(m.text)
+    } else if (m.type === 'skip') {
+      /* one window failed to transcribe -- ignore, keep listening */
     } else if (m.type === 'error') onError?.(new Error(m.error))
   }
   worker.onerror = (e) => onError?.(new Error(e.message || 'on-device worker error'))
@@ -51,6 +55,7 @@ export function startOnDeviceEngine({ model = WHISPER_MODEL, language, onText, o
   startMicWindows({
     onWindow: (audio) => {
       if (stopped || !ready) return
+      const language = getLanguage ? getLanguage() : null
       worker.postMessage({ type: 'audio', audio, language, seq: ++seq }, [audio.buffer])
     },
     onError

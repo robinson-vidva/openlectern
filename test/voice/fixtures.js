@@ -106,5 +106,11 @@ export const TAMIL_FIXTURES = [
   { text: 'மத்தேயு 5 9', expect: { bookId: 'MAT', chapter: 5, verseStart: 9, verseEnd: null } },
   { text: 'ரோமர் 8 28', expect: { bookId: 'ROM', chapter: 8, verseStart: 28, verseEnd: null } },
   { text: 'யோவான் ௩ ௧௬', expect: { bookId: 'JHN', chapter: 3, verseStart: 16, verseEnd: null } }, // Tamil digits
+  // Common spoken variants not in the bundled index's canonical names:
+  { text: 'சங்கீதம் 91 4', expect: { bookId: 'PSA', chapter: 91, verseStart: 4, verseEnd: null } }, // singular "Psalm"
+  { text: 'சங்கீதம் 91 4 மற்றும் 5', expect: { bookId: 'PSA', chapter: 91, verseStart: 4, verseEnd: 5 } }, // Tamil "and"
+  { text: 'சங்கீதம் 91 4 வரை 6', expect: { bookId: 'PSA', chapter: 91, verseStart: 4, verseEnd: 6 } }, // Tamil "to"
+  { text: 'வெளிப்பாடு 22 21', expect: { bookId: 'REV', chapter: 22, verseStart: 21, verseEnd: null } },
+  { text: 'அப்போஸ்தலர் 2 38', expect: { bookId: 'ACT', chapter: 2, verseStart: 38, verseEnd: null } },
   { text: 'நாங்கள் நடந்தோம்', expect: null } // no reference
 ]

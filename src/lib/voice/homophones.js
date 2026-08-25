@@ -25,3 +25,15 @@ export const HOMOPHONES = {
   DEU: ['duteronomy'],
   LEV: ['leviticas']
 }
+
+// Common spoken Tamil book-name variants that differ from the bundled index's
+// canonical names -- most importantly the singular "Psalm" (சங்கீதம்) vs the
+// index's plural (சங்கீதங்கள்). Matched as exact Tamil names, so a Tamil citation
+// is high-confidence just like an English one.
+export const TAMIL_ALIASES = {
+  PSA: ['சங்கீதம்'],
+  REV: ['வெளிப்படுத்தல்', 'வெளிப்பாடு', 'வெளிப்படுத்துதல்'],
+  ACT: ['அப்போஸ்தலர்', 'அப்போஸ்தலர் நடபடிகள்'],
+  MAT: ['மத்தேயு நற்செய்தி'],
+  SNG: ['உன்னதப்பாட்டு']
+}

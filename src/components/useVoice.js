@@ -101,12 +101,16 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     // bundled WEB structure -- best available, never the wrong version silently.
     let structure = primary ? await loadStructure(primary.id) : null
     if (!structure || !Object.keys(structure).length) structure = (await loadStructure('eng-web')) || {}
+    // Always include Tamil book names in the index so a reference spoken in Tamil
+    // (or transcribed as Tamil script by the on-device engine) is recognized even
+    // when no Tamil translation is loaded. Prefer a loaded Tamil version's names;
+    // otherwise fall back to the bundled Tamil (tam_irv). English names are always
+    // present, so mixed English + Tamil both match.
     let tamilNames
     const tamil = vers.find((v) => v.language === 'ta')
-    if (tamil) {
-      const idx = await loadIndex(tamil.id)
-      if (idx) tamilNames = Object.fromEntries(idx.map((b) => [b.id, b.name]))
-    }
+    const tamilId = tamil?.id || 'tam_irv'
+    const idx = await loadIndex(tamilId).catch(() => null)
+    if (idx) tamilNames = Object.fromEntries(idx.map((b) => [b.id, b.name]))
     indexRef.current = buildBookIndex(structure, tamilNames)
     return indexRef.current
   }
@@ -347,11 +351,17 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     setModelStatus({ progress: 0 })
     onDeviceRef.current = startOnDeviceEngine({
       model: WHISPER_MODEL,
-      language: whisperLang(langRef.current),
+      // Read live so changing language never reloads the model.
+      getLanguage: () => whisperLang(langRef.current),
       onProgress: (p) => {
         if (p?.status === 'progress') setModelStatus({ progress: Math.round(p.progress || 0) })
       },
-      onReady: () => setModelStatus(null),
+      onReady: (device) => {
+        setModelStatus(null)
+        if (device === 'wasm') {
+          setError('On-device voice is running on the CPU (no WebGPU) — transcription will be slow.')
+        }
+      },
       onText: onEngineText,
       onError: onDeviceFailed
     })
@@ -441,6 +451,13 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       setLang(fallback)
       savePrefs({ voiceLang: fallback })
     }
+    // Turning on the on-device engine, default to auto-detect so mixed-language
+    // (e.g. English + Tamil) works immediately -- the whole point of this engine.
+    if (eng === 'ondevice') {
+      langRef.current = 'auto'
+      setLang('auto')
+      savePrefs({ voiceLang: 'auto' })
+    }
     if (runningRef.current) {
       stop()
       setTimeout(() => start(), 120)
@@ -453,14 +470,8 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     savePrefs({ voiceLang: next }) // remember for the next session
     if (runningRef.current) {
       if (engineRef.current === 'ondevice') {
-        // Reconfigure the on-device engine's language by restarting it.
-        try {
-          onDeviceRef.current?.stop()
-        } catch {
-          /* ignore */
-        }
-        onDeviceRef.current = null
-        startOnDevice()
+        // The on-device engine reads the language per window (getLanguage), so the
+        // change takes effect on the next window -- no model reload, no restart.
         return
       }
       const rec = recRef.current

@@ -7,7 +7,7 @@
 //   structure: { [id]: [verseCountCh1, verseCountCh2, ...] } (validation)
 
 import { BOOKS, BOOK_BY_ID } from '../books.js'
-import { HOMOPHONES } from './homophones.js'
+import { HOMOPHONES, TAMIL_ALIASES } from './homophones.js'
 
 const ONES = { zero: 0, oh: 0, o: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 }
 // Speech-recognition homophones of small numbers. Recognizers routinely emit
@@ -21,7 +21,9 @@ const TEENS = { ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fif
 const TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 }
 const ORDINAL_WORD = { 1: 'first', 2: 'second', 3: 'third' }
 const ORDINAL_ABBR = { 1: '1st', 2: '2nd', 3: '3rd' }
-const RANGE_WORDS = new Set(['to', 'through', 'thru', 'until'])
+const RANGE_WORDS = new Set(['to', 'through', 'thru', 'until', 'வரை', 'முதல்'])
+// Words meaning "and" that join a verse list ("4 and 5"), incl. Tamil.
+const AND_WORDS = new Set(['and', 'மற்றும்', 'மற்றும'])
 
 function normalize(s) {
   return (s || '')
@@ -165,7 +167,7 @@ function parseNumberSpec(tokens) {
       const confirmed =
         verseKeyword ||
         RANGE_WORDS.has(after) ||
-        (after === 'and' && (isNumberStart(tokens, i + 2) || homoNum(tokens[i + 2]) != null))
+        (AND_WORDS.has(after) && (isNumberStart(tokens, i + 2) || homoNum(tokens[i + 2]) != null))
       if (confirmed) {
         verseStart = h
         i++
@@ -174,7 +176,7 @@ function parseNumberSpec(tokens) {
   }
 
   const sep = tokens[i]
-  if (RANGE_WORDS.has(sep) || sep === 'and') {
+  if (RANGE_WORDS.has(sep) || AND_WORDS.has(sep)) {
     const save = i
     i++
     if (tokens[i] === 'chapter' || tokens[i] === 'chapters') {
@@ -264,6 +266,10 @@ export function buildBookIndex(structure, tamilNames) {
   }
   for (const [id, list] of Object.entries(HOMOPHONES)) {
     for (const h of list) add(h, id, 'fuzzy')
+  }
+  // Common spoken Tamil name variants (exact -- real names, not mishearings).
+  for (const [id, list] of Object.entries(TAMIL_ALIASES)) {
+    if (BOOK_BY_ID[id]) for (const a of list) add(a, id, 'exact')
   }
   if (tamilNames) {
     for (const [id, name] of Object.entries(tamilNames)) {
