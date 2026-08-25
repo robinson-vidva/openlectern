@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { detectRefs, buildBookIndex } from '../lib/voice/detectRefs.js'
+import { detectRefs, buildBookIndex, continuationText, pickBestTranscript } from '../lib/voice/detectRefs.js'
 import { loadStructure, loadIndex } from '../lib/bibleData.js'
 import { resolvePreviewText } from '../lib/voiceData.js'
 import { matchAliases } from '../lib/aliases.js'
@@ -47,6 +47,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const indexRef = useRef(null)
   const recentRef = useRef(new Map()) // ref -> last time a CHIP was created (de-dupe)
   const autoFiredRef = useRef(new Map()) // ref -> last time it AUTO-SHOWED (separate de-dupe)
+  const lastRefRef = useRef(null) // { bookName, chapter } of the most recent citation, for "verse N" continuation
   const autoRef = useRef(autoMode)
   const langRef = useRef(lang)
   const transcriptRef = useRef('')
@@ -236,7 +237,21 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
       for (const cand of res.slice(0, 4)) {
         if (pushCandidate(cand, { allowAuto: autoKeys.has(cand.key) })) onDetectRef.current?.(cand)
       }
+      // Remember the top citation so a following bookless "verse N" can continue it.
+      lastRefRef.current = { bookName: res[0].bookName, chapter: res[0].chapter }
       return
+    }
+    // Continuation: a bookless "verse N" / "chapter N verse M" carried from the
+    // last citation ("open to Romans 8" ... "verse 28" ... "verse 31").
+    const cont = continuationText(text, lastRefRef.current)
+    if (cont) {
+      const cres = detectRefs(cont, idx)
+      if (cres.length) {
+        const cand = cres[0]
+        if (pushCandidate(cand, { allowAuto: !!spokenText })) onDetectRef.current?.(cand)
+        lastRefRef.current = { bookName: cand.bookName, chapter: cand.chapter }
+        return
+      }
     }
     // No citation: try a named-passage alias -- fuzzier than a citation, so
     // chip-only, never auto-shown, and only on final text (spokenText present) to
@@ -255,8 +270,14 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     let finalText = ''
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i]
-      if (r.isFinal) finalText += r[0].transcript + ' '
-      else interim += r[0].transcript
+      if (r.isFinal) {
+        // Among Chrome's alternative transcripts, prefer the one that parses.
+        const alts = []
+        for (let a = 0; a < r.length; a++) alts.push(r[a].transcript)
+        finalText += pickBestTranscript(alts, indexRef.current) + ' '
+      } else {
+        interim += r[0].transcript
+      }
     }
     // Detect on each segment as it comes in -- no accumulated context (that made
     // stale references linger and re-surface). Interim (still-forming) text shows
@@ -279,6 +300,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const rec = new Rec()
     rec.continuous = true
     rec.interimResults = true
+    // Ask for several guesses per phrase; the top one often mangles an unusual book
+    // name while a lower-ranked one gets it right (see pickBestTranscript).
+    rec.maxAlternatives = 5
     rec.lang = langRef.current
     rec.onstart = () => {
       setMicState('listening')

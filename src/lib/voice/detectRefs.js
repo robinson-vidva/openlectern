@@ -148,6 +148,9 @@ function parseNumberSpec(tokens) {
   let verseEnd = null
   let endChapter = null
 
+  // Fillers before the verse: "John 3 from verse 4", "John 3 and verse 16".
+  if (tokens[i] === 'from') i++
+  if (AND_WORDS.has(tokens[i]) && (tokens[i + 1] === 'verse' || tokens[i + 1] === 'verses')) i++
   let verseKeyword = false
   if (tokens[i] === 'verse' || tokens[i] === 'verses') {
     i++
@@ -179,6 +182,7 @@ function parseNumberSpec(tokens) {
   if (RANGE_WORDS.has(sep) || AND_WORDS.has(sep)) {
     const save = i
     i++
+    if (tokens[i] === 'verse' || tokens[i] === 'verses') i++ // "verse 4 to verse 8"
     if (tokens[i] === 'chapter' || tokens[i] === 'chapters') {
       // "... through chapter two verse three" -> explicit cross-chapter end.
       i++
@@ -361,4 +365,35 @@ export function detectRefs(transcript, bookIndex) {
   const rank = { high: 0, medium: 1 }
   out.sort((a, b) => rank[a.confidence] - rank[b.confidence] || b.pos - a.pos)
   return out
+}
+
+// Continuation: a preacher announces a book once ("open to Romans 8"), then walks
+// the passage as "verse 28", "verse 31", "chapter 9 verse 1" -- no book named.
+// Given the most recent citation (last = { bookName, chapter }), rebuild a full
+// reference string so the normal parser resolves it. Only triggers on an explicit
+// "verse"/"chapter" keyword, so stray numbers in ordinary speech don't carry over.
+// Returns the full string, or null if it isn't a continuation.
+export function continuationText(text, last) {
+  if (!last || !last.bookName || !text) return null
+  const toks = tokenize(text)
+  if (!toks.length) return null
+  const hasChapter = toks.includes('chapter') || toks.includes('chapters')
+  const hasVerse = toks.includes('verse') || toks.includes('verses')
+  if (hasChapter) return `${last.bookName} ${text}`
+  if (hasVerse && last.chapter != null) return `${last.bookName} ${last.chapter} ${text}`
+  return null
+}
+
+// Choose the recognition alternative that yields a citation. Chrome returns
+// several transcript guesses per result (maxAlternatives); its top guess often
+// mangles an unusual book name while a lower-ranked one gets it right. Returns the
+// first alternative that detects a reference, else the top (index 0).
+export function pickBestTranscript(alternatives, bookIndex) {
+  const alts = (alternatives || []).filter(Boolean)
+  if (bookIndex) {
+    for (const alt of alts) {
+      if (detectRefs(alt, bookIndex).length) return alt
+    }
+  }
+  return alts[0] || ''
 }
