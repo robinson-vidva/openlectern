@@ -1112,7 +1112,13 @@ function Console({ row, creds }) {
     return <ListenerView v={voice} name={displayName} code={code} onExit={() => toggleListener(false)} />
   }
 
-  const micLabel = voice.micState === 'listening' ? 'Listening' : voice.micState === 'error' ? 'Mic error' : 'Voice off'
+  const micLabel = voice.modelStatus
+    ? `Loading AI model ${voice.modelStatus.progress || 0}%`
+    : voice.micState === 'listening'
+      ? 'Listening'
+      : voice.micState === 'error'
+        ? 'Mic error'
+        : 'Voice off'
 
   return (
     <div className="console">
@@ -1144,10 +1150,21 @@ function Console({ row, creds }) {
                 {voice.autoModeLabel}
               </button>
               <select className="vb-lang" value={voice.lang} onChange={(e) => voice.changeLang(e.target.value)} aria-label="Recognition language">
+                {voice.engine === 'ondevice' && <option value="auto">Auto (mix languages)</option>}
                 {voice.langs.map((l) => (
                   <option key={l.id} value={l.id}>{l.label}</option>
                 ))}
               </select>
+              {voice.engineSupported && (
+                <button
+                  className={`btn small vb-engine-btn${voice.engine === 'ondevice' ? ' on' : ''}`}
+                  onClick={() => voice.changeEngine(voice.engine === 'ondevice' ? 'browser' : 'ondevice')}
+                  title="On-device AI transcribes mixed languages (e.g. English + Tamil) privately in your browser. First use downloads a model. Off = the browser's speech engine."
+                  aria-pressed={voice.engine === 'ondevice'}
+                >
+                  {voice.engine === 'ondevice' ? 'AI voice: on' : 'AI voice: off'}
+                </button>
+              )}
             </>
           ) : (
             <span className="muted vb-unsupported">Voice needs Chrome or Edge</span>
