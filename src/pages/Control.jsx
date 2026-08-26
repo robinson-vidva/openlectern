@@ -321,14 +321,27 @@ function Console({ row, creds }) {
   const theme = display.theme || 'light'
   const fontScale = display.fontScale || 100
   const perPage = display.versesPerScreen || 0 // 0 = auto (by weight)
+  const transitionMode = display.transition || 'fade'
   // Read the freshest display from stateRef so rapid theme/font taps never
   // clobber each other with stale closure values.
   function displayBase() {
     const d = stateRef.current.display || {}
-    return { theme: d.theme || 'light', fontScale: d.fontScale || 100, versesPerScreen: d.versesPerScreen || 0, show: d.show || 'both' }
+    return {
+      theme: d.theme || 'light',
+      fontScale: d.fontScale || 100,
+      versesPerScreen: d.versesPerScreen || 0,
+      show: d.show || 'both',
+      transition: d.transition || 'fade'
+    }
   }
   function setTheme(t) {
     const next = { ...displayBase(), theme: t }
+    savePrefs({ display: next })
+    patchState({ display: next })
+  }
+  // Presenter change animation: 'fade' | 'none'.
+  function setTransition(mode) {
+    const next = { ...displayBase(), transition: mode }
     savePrefs({ display: next })
     patchState({ display: next })
   }
@@ -1617,6 +1630,25 @@ function Console({ row, creds }) {
                 <button className="icon-btn" aria-label="Smaller" onClick={() => nudgeFont(-10)} disabled={fontScale <= 80}>A-</button>
                 <span className="fs-val">{fontScale}%</span>
                 <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
+              </div>
+            </div>
+            <div className="screen-row">
+              <span className="mini-label">Transition</span>
+              <div className="show-switch" role="group" aria-label="Presenter change animation">
+                {[
+                  ['fade', 'Fade', 'Fade the screen when the verse changes'],
+                  ['none', 'None', 'Change instantly, no animation']
+                ].map(([mode, label, tip]) => (
+                  <button
+                    key={mode}
+                    className={`ss-opt${transitionMode === mode ? ' on' : ''}`}
+                    aria-pressed={transitionMode === mode}
+                    title={tip}
+                    onClick={() => setTransition(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="screen-row">

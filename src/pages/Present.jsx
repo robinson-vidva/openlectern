@@ -97,6 +97,7 @@ function Stage({ state, code }) {
   const blankTitle = state?.blankTitle
   const display = state?.display || {}
   const theme = display.theme || 'light'
+  const transition = display.transition || 'fade'
   const scale = (display.fontScale || 100) / 100
 
   // Whole passages paginate; render only the current page's verses. A manual
@@ -187,7 +188,11 @@ function Stage({ state, code }) {
     <div className={`present theme-${theme}`} ref={rootRef}>
       <div className="present-body">
         {!blank && current ? (
-          <div className="present-block" ref={blockRef}>
+          <div
+            className={`present-block${transition === 'fade' ? ' present-fade' : ''}`}
+            key={fitKey}
+            ref={blockRef}
+          >
             <div className="present-ref">{current.reference}</div>
             {showPrimary && <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} />}
             {showSecondary && <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} />}

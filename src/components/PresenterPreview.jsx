@@ -64,6 +64,7 @@ export default function PresenterPreview({ state, onOpen }) {
   const blank = state?.blank
   const display = state?.display || {}
   const theme = display.theme || 'light'
+  const transition = display.transition || 'fade'
   const perPage = display.versesPerScreen || 0
   const scale = (display.fontScale || 100) / 100
 
@@ -103,7 +104,11 @@ export default function PresenterPreview({ state, onOpen }) {
         {blank ? (
           <div className="pv-blank">{state?.blankTitle || 'Screen is blank'}</div>
         ) : current ? (
-          <div className="pv-body" ref={bodyRef}>
+          <div
+            className={`pv-body${transition === 'fade' ? ' present-fade' : ''}`}
+            key={fitKey}
+            ref={bodyRef}
+          >
             <div className="pv-ref">{current.reference}</div>
             {showPrimary && <PvVerses block={primary} hideNumber={current.step} />}
             {showSecondary && <PvVerses block={secondary} hideNumber={current.step} />}
