@@ -3,8 +3,8 @@
 // pure and side-effect-free so the decision is testable in isolation; useVoice
 // applies it, and the same recentRef dedupe still prevents an immediate re-fire.
 //
-// Named-passage aliases and quote matches are fuzzier and are handled separately
-// (always tap-only), so they never reach this function's auto path.
+// Named-passage aliases are fuzzier and are handled separately in the search box
+// (never on the mic), so they never reach this function's auto path.
 //
 // Modes (cycled by the Auto button on the voice bar):
 //   off     — nothing auto-shows; every detection is a tap-only chip.

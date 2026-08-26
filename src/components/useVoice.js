@@ -194,9 +194,9 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
         lastRefRef.current = { bookName: cand.bookName, chapter: cand.chapter }
       }
     }
-    // Named-passage aliases and quote-catch are intentionally NOT run on the mic:
-    // the listener only surfaces references someone actually states. Named passages
-    // still resolve when typed into the search box.
+    // Named-passage aliases are intentionally NOT matched on the mic: the listener
+    // only surfaces references someone actually states. Named passages still
+    // resolve when typed into the search box.
   }
 
   function handleResult(e) {

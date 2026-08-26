@@ -1387,7 +1387,7 @@ function Console({ row, creds }) {
       {status && <p className="error console-status">{status}</p>}
 
       <div className="console-body">
-        {/* LEFT RAIL: one live activity feed (voice, shared, quote, related, history, listeners) */}
+        {/* LEFT RAIL: one live activity feed (voice, shared, related, history, listeners) */}
         <aside className="activity">
           <div className="activity-head">
             <h2>Activity</h2>

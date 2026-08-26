@@ -123,8 +123,6 @@ Only public‑domain translations can be bundled or served; copyrighted texts
 (NIV, ESV, …) are not distributable and are intentionally omitted.
 
 Output lands in `public/bibles/<versionId>/` with a shared `manifest.json`.
-The voice quote‑detection index is generated per bundled translation with
-`npm run build:quoteidx`.
 
 ## Related verses & named passages
 

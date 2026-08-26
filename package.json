@@ -31,8 +31,7 @@
     "convert:usfx": "node scripts/convert-usfx.mjs",
     "fetch:helloao": "node scripts/fetch-helloao.mjs",
     "fetch:scrollmapper": "node scripts/fetch-scrollmapper.mjs",
-    "build:xrefs": "node scripts/build-xrefs.mjs",
-    "build:quoteidx": "node scripts/build-quote-index.mjs"
+    "build:xrefs": "node scripts/build-xrefs.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
