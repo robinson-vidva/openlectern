@@ -709,11 +709,31 @@ select:focus {
   bottom: 0;
   z-index: 8;
   display: flex;
-  gap: 0.5rem;
-  padding: 0.55rem 0.6rem;
-  padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   background: var(--panel);
   border-top: 1px solid var(--line);
+}
+.transport-main {
+  display: flex;
+  gap: 0.5rem;
+}
+.transport-sub {
+  display: flex;
+  gap: 0.4rem;
+}
+.transport-sub-btn {
+  flex: 1;
+  min-height: 34px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.25rem 0.4rem;
+  color: var(--ink-soft);
+}
+.transport-sub-btn:disabled {
+  opacity: 0.45;
 }
 
 .transport-btn {
@@ -1248,7 +1268,7 @@ select:focus {
    Dashboard console (redesigned controller)
    ========================================================= */
 :root{
-  --live:#1e9e57; --panel-2:#f4f6f9; --gold:#2b5aa0;
+  --live:#1e9e57; --panel-2:#f4f6f9; --gold:#2b5aa0; --warn:#b26a00;
   --accent-soft:#e9eff8; --line-soft:#edf0f4;
 }
 .console{height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink)}
@@ -1261,6 +1281,10 @@ select:focus {
 .tb-live{display:inline-flex;align-items:center;gap:.3rem;color:var(--ink-soft);font-size:.82rem}
 .tb-live .live-dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--ink-soft)}
 .tb-live.on .live-dot{background:var(--live)}
+.tb-live.reconnecting{color:var(--warn,#b26a00)}
+.tb-live.reconnecting .live-dot{background:var(--warn,#b26a00);animation:reconnectPulse 1s ease-in-out infinite}
+@keyframes reconnectPulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media (prefers-reduced-motion: reduce){.tb-live.reconnecting .live-dot{animation:none}}
 
 .voicebar{display:flex;align-items:center;gap:.6rem;margin-left:auto;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:.26rem .32rem .26rem .85rem;min-height:40px}
 .voicebar.listening{border-color:var(--accent);background:linear-gradient(0deg,var(--accent-soft),var(--accent-soft)),var(--panel)}

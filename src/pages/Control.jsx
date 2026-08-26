@@ -41,6 +41,10 @@ function Console({ row, creds }) {
   const [presence, setPresence] = useState([])
   const [status, setStatus] = useState('')
   const [connected, setConnected] = useState(false)
+  // Distinguish the first connect ("connecting") from a drop after we were live
+  // ("reconnecting"), so the operator sees when the realtime link is recovering.
+  const everConnectedRef = useRef(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [copied, setCopied] = useState('')
   // Optional message shown on the blank screen (e.g. "Welcome"). Synced to all;
@@ -183,9 +187,15 @@ function Console({ row, creds }) {
     })
     channelRef.current = channel
     channel.subscribe(async (st) => {
-      setConnected(st === 'SUBSCRIBED')
-      if (st === 'SUBSCRIBED') {
+      const ok = st === 'SUBSCRIBED'
+      setConnected(ok)
+      if (ok) {
+        everConnectedRef.current = true
+        setReconnecting(false)
         await channel.track({ name: displayName, at: Date.now(), listening: false })
+      } else if (everConnectedRef.current && (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT')) {
+        // Realtime auto-reconnects; surface the recovering state until it resubscribes.
+        setReconnecting(true)
       }
     })
     return () => channel.unsubscribe()
@@ -939,6 +949,46 @@ function Console({ row, creds }) {
     return flash('start')
   }
 
+  // ---- pinned-queue stepping (separate from literal Back/Next) ----
+  // Walk the pinned list itself, independent of literal verse navigation. From
+  // nowhere on the list, "next" enters the first pin and "prev" the last.
+  function pinIndex(st) {
+    const q = st.queue || []
+    const cur = st.cursor || null
+    return cur && cur.queueId != null ? q.findIndex((x) => x.id === cur.queueId) : -1
+  }
+  function goPinNext() {
+    clearAutoUndo()
+    const st = stateRef.current
+    const q = st.queue || []
+    if (!q.length) return flash('no-pins')
+    const next = pinIndex(st) + 1 // -1 -> 0 (first pin)
+    if (next >= q.length) return flash('end')
+    return enterItemStart(q[next])
+  }
+  function goPinPrev() {
+    clearAutoUndo()
+    const st = stateRef.current
+    const q = st.queue || []
+    if (!q.length) return flash('no-pins')
+    const i = pinIndex(st)
+    const prev = i === -1 ? q.length - 1 : i - 1 // nowhere -> last pin
+    if (prev < 0) return flash('start')
+    return enterItemStart(q[prev])
+  }
+
+  // ---- jump back to the previous reference (not the previous literal verse) ----
+  // Re-shows the most recent history entry whose reference differs from what is
+  // on screen, so it returns to the last passage shown before this one.
+  function goPrevReference() {
+    const st = stateRef.current
+    const curRef = st.current?.reference
+    const entry = (st.history || []).find((e) => e && e.ref && e.ref !== curRef)
+    if (!entry) return flash('no-prev')
+    clearAutoUndo()
+    return reShow(entry)
+  }
+
   function toggleBlank() {
     clearAutoUndo()
     patchState({ blank: !stateRef.current.blank })
@@ -970,6 +1020,14 @@ function Console({ row, creds }) {
         case '.':
           e.preventDefault()
           toggleBlank()
+          break
+        case ']':
+          e.preventDefault()
+          goPinNext()
+          break
+        case '[':
+          e.preventDefault()
+          goPinPrev()
           break
         case 'Escape':
           // Panic hide: blank the screen immediately (Blank/Next restores it).
@@ -1238,9 +1296,13 @@ function Console({ row, creds }) {
         <div className="tb-brand">
           <b>OpenLectern</b>
           <span className="tb-code">{code}</span>
-          <span className={`tb-live${connected ? ' on' : ''}`}>
+          <span
+            className={`tb-live${connected ? ' on' : reconnecting ? ' reconnecting' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
             <span className="live-dot" />
-            {connected ? 'live' : 'connecting'}
+            {connected ? 'live' : reconnecting ? 'reconnecting…' : 'connecting'}
           </span>
         </div>
 
@@ -1525,15 +1587,43 @@ function Console({ row, creds }) {
         )}
 
         <nav className="transport">
-          <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
-          <button
-            className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
-            onClick={toggleBlank}
-            aria-pressed={state.blank}
-          >
-            {state.blank ? 'Unblank' : 'Blank'}
-          </button>
-          <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
+          <div className="transport-sub">
+            <button
+              className="btn transport-sub-btn"
+              onClick={goPrevReference}
+              disabled={!history.some((e) => e && e.ref && e.ref !== current?.reference)}
+              title="Return to the reference shown before this one"
+            >
+              ↩ Prev ref
+            </button>
+            <button
+              className="btn transport-sub-btn"
+              onClick={goPinPrev}
+              disabled={!queue.length}
+              title="Previous pinned verse"
+            >
+              ◁ Prev pin
+            </button>
+            <button
+              className="btn transport-sub-btn"
+              onClick={goPinNext}
+              disabled={!queue.length}
+              title="Next pinned verse"
+            >
+              Next pin ▷
+            </button>
+          </div>
+          <div className="transport-main">
+            <button className="btn transport-btn" onClick={goBack} aria-label="Previous verse">Back</button>
+            <button
+              className={`btn transport-btn blank${state.blank ? ' on' : ''}`}
+              onClick={toggleBlank}
+              aria-pressed={state.blank}
+            >
+              {state.blank ? 'Unblank' : 'Blank'}
+            </button>
+            <button className="btn transport-btn primary next" onClick={goNext} aria-label="Next verse">Next</button>
+          </div>
         </nav>
 
         <section className="panel-card">
@@ -1753,13 +1843,17 @@ function Console({ row, creds }) {
                   ? 'Start of book'
                   : hint === 'chapter-end'
                     ? 'End of chapter'
-                    : hint === 'pinned-ok'
-                      ? 'Pinned'
-                      : hint === 'pinned-dup'
-                        ? 'Already pinned'
-                        : hint === 'copied'
-                          ? 'Copied'
-                          : 'Start of chapter'}
+                    : hint === 'no-pins'
+                      ? 'No pinned verses'
+                      : hint === 'no-prev'
+                        ? 'No earlier reference'
+                        : hint === 'pinned-ok'
+                          ? 'Pinned'
+                          : hint === 'pinned-dup'
+                            ? 'Already pinned'
+                            : hint === 'copied'
+                              ? 'Copied'
+                              : 'Start of chapter'}
         </div>
       )}
 
