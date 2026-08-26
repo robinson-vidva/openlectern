@@ -14,6 +14,7 @@ import { resolveItem, resolveCurrent, wholeCurrent, stepCurrent, verseCount, pas
 import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
+import { nextVerse, prevVerse } from '../lib/verseNav.js'
 import { makeInviteCode, isInviteValid, hmacKey, signMsg, verifyMsg } from '../lib/crypto.js'
 import { buildInviteResponse } from '../lib/invite.js'
 import { activeListeners, listenerDrops } from '../lib/listener.js'
@@ -771,16 +772,19 @@ function Console({ row, creds }) {
     return showAdhoc(ref, source)
   }
 
-  // Step to a single verse within an ad-hoc chapter, keeping the saved plan.
-  async function showAdhocVerse(adhoc, verse) {
-    const ref = { bookId: adhoc.bookId, chapter: adhoc.chapter, verseStart: verse, verseEnd: verse }
+  // Step to a single verse within an ad-hoc passage, keeping the saved plan. A
+  // target chapter may differ from the current one when Back/Next crosses a
+  // chapter boundary while walking literal verses through the book.
+  async function showAdhocVerse(adhoc, verse, chapter = adhoc.chapter) {
+    const ref = { bookId: adhoc.bookId, chapter, verseStart: verse, verseEnd: verse }
     try {
       const results = await resolveItem(versions, ref)
       const c = stepCurrent(results, ref, 0)
+      const count = chapterCount(adhoc.bookId, chapter) || verseCount(results)
       const cursorNext = {
         queueId: null,
         verseIndex: null,
-        adhoc: { ...adhoc, first: verse, last: verse },
+        adhoc: { ...adhoc, chapter, first: verse, last: verse, count, span: { first: verse, last: verse } },
         savedPlan: stateRef.current.cursor?.savedPlan || null
       }
       await commitShow(c, cursorNext, 'manual')
@@ -875,12 +879,15 @@ function Console({ row, creds }) {
         return patchState({ current: { ...c, page: (c.page || 0) + 1 } })
       }
     }
-    // Ad-hoc stepping: continue through the chapter.
+    // Ad-hoc stepping: walk one literal verse forward, crossing into the next
+    // chapter at a chapter's end, and stopping only at the end of the book.
     if (cur && cur.adhoc) {
       const a = cur.adhoc
       const cnt = chapterCount(a.bookId, a.chapter) || a.count
       if (a.last + 1 <= cnt) return showAdhocVerse({ ...a, count: cnt }, a.last + 1)
-      return flash('chapter-end')
+      const nx = nextVerse(structOf(a.bookId), a.chapter, a.last)
+      if (nx) return showAdhocVerse(a, nx.verse, nx.chapter)
+      return flash('book-end')
     }
     if (!st.current) {
       if (q.length) return enterItemStart(q[0])
@@ -917,7 +924,9 @@ function Console({ row, creds }) {
     if (cur && cur.adhoc) {
       const a = cur.adhoc
       if (a.first - 1 >= 1) return showAdhocVerse(a, a.first - 1)
-      return flash('chapter-start')
+      const pv = prevVerse(structOf(a.bookId), a.chapter, a.first)
+      if (pv) return showAdhocVerse(a, pv.verse, pv.chapter)
+      return flash('book-start')
     }
     if (!st.current || !cur || cur.queueId == null) return flash('start')
     const i = q.findIndex((x) => x.id === cur.queueId)
@@ -1738,15 +1747,19 @@ function Console({ row, creds }) {
             ? 'End of list'
             : hint === 'start'
               ? 'Start of list'
-              : hint === 'chapter-end'
-                ? 'End of chapter'
-                : hint === 'pinned-ok'
-                  ? 'Pinned'
-                  : hint === 'pinned-dup'
-                    ? 'Already pinned'
-                    : hint === 'copied'
-                      ? 'Copied'
-                      : 'Start of chapter'}
+              : hint === 'book-end'
+                ? 'End of book'
+                : hint === 'book-start'
+                  ? 'Start of book'
+                  : hint === 'chapter-end'
+                    ? 'End of chapter'
+                    : hint === 'pinned-ok'
+                      ? 'Pinned'
+                      : hint === 'pinned-dup'
+                        ? 'Already pinned'
+                        : hint === 'copied'
+                          ? 'Copied'
+                          : 'Start of chapter'}
         </div>
       )}
 
