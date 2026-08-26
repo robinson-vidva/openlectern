@@ -42,6 +42,15 @@ function Console({ row, creds }) {
   const [connected, setConnected] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [copied, setCopied] = useState('')
+  // Optional message shown on the blank screen (e.g. "Welcome"). Synced to all;
+  // typed locally and pushed on a short debounce so it isn't a write per keystroke.
+  const [blankTitle, setBlankTitleLocal] = useState(row.state?.blankTitle || '')
+  const blankTitleTimer = useRef(null)
+  function onBlankTitle(v) {
+    setBlankTitleLocal(v)
+    clearTimeout(blankTitleTimer.current)
+    blankTitleTimer.current = setTimeout(() => patchState({ blankTitle: v }), 350)
+  }
   const [pinReveal, setPinReveal] = useState(false)
   const [invite, setInvite] = useState(null)
   const [inviteSecs, setInviteSecs] = useState(0)
@@ -1337,7 +1346,7 @@ function Console({ row, creds }) {
 
           <section className="now-card" aria-live="polite">
           {state.blank ? (
-            <div className="now-blank">Screen is blank</div>
+            <div className="now-blank">{state.blankTitle ? `Blank — "${state.blankTitle}"` : 'Screen is blank'}</div>
           ) : current ? (
             <>
               <div className="now-top">
@@ -1609,6 +1618,18 @@ function Console({ row, creds }) {
                 <span className="fs-val">{fontScale}%</span>
                 <button className="icon-btn" aria-label="Larger" onClick={() => nudgeFont(10)} disabled={fontScale >= 140}>A+</button>
               </div>
+            </div>
+            <div className="screen-row">
+              <span className="mini-label">Blank text</span>
+              <input
+                className="blank-title-input"
+                type="text"
+                maxLength={60}
+                value={blankTitle}
+                placeholder="Shown on the blank screen (e.g. Welcome)"
+                aria-label="Message shown on the blank screen"
+                onChange={(e) => onBlankTitle(e.target.value)}
+              />
             </div>
             {versions.length > 1 && (
               <div className="screen-row">

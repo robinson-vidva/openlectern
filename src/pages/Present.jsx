@@ -94,6 +94,7 @@ function Stage({ state, code }) {
   const blockRef = useRef(null)
   const current = state?.current
   const blank = state?.blank
+  const blankTitle = state?.blankTitle
   const display = state?.display || {}
   const theme = display.theme || 'light'
   const scale = (display.fontScale || 100) / 100
@@ -192,7 +193,9 @@ function Stage({ state, code }) {
             {showSecondary && <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} />}
           </div>
         ) : blank ? (
-          <div className="present-block" ref={blockRef} />
+          <div className="present-block" ref={blockRef}>
+            {blankTitle ? <div className="present-blank-title">{blankTitle}</div> : null}
+          </div>
         ) : (
           <div className="present-block" ref={blockRef}>
             <div className="present-hint">Waiting for the first verse...</div>

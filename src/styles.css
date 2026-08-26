@@ -255,6 +255,26 @@ select:focus {
   margin-bottom: 2.5vmin;
 }
 
+/* Optional message on the blank screen (e.g. "Welcome"). */
+.present-blank-title {
+  font-family: var(--serif-latin);
+  color: var(--ink);
+  opacity: 0.9;
+  font-size: 8vmin;
+  text-align: center;
+  line-height: 1.2;
+}
+.blank-title-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  background: var(--panel);
+  color: var(--ink);
+}
+
 .present-block {
   width: 100%;
   max-width: 90vw;

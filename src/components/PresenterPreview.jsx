@@ -101,7 +101,7 @@ export default function PresenterPreview({ state, onOpen }) {
       </div>
       <div className={`pv-screen theme-${theme}`} ref={screenRef}>
         {blank ? (
-          <div className="pv-blank">Screen is blank</div>
+          <div className="pv-blank">{state?.blankTitle || 'Screen is blank'}</div>
         ) : current ? (
           <div className="pv-body" ref={bodyRef}>
             <div className="pv-ref">{current.reference}</div>
