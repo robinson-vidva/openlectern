@@ -660,7 +660,11 @@ function Console({ row, creds }) {
   }
 
   // ---- showing helpers ----
-  // Every show goes through here so it lands on the presenter and is logged.
+  // Every show goes through here so it lands on the presenter. Intentional shows
+  // (voice, auto, manual, queue) are logged to the "Shown earlier" history;
+  // literal verse navigation (source 'step' -- Back/Next and verse-chip taps
+  // within the passage already on screen) moves the screen without logging a row,
+  // so the history stays a list of distinct passages actually presented.
   async function commitShow(currentObj, cursorObj, source) {
     // Snapshot the screen before we change it, so an auto-capture can be undone.
     const prev = {
@@ -668,13 +672,16 @@ function Console({ row, creds }) {
       cursor: stateRef.current.cursor || null,
       blank: !!stateRef.current.blank
     }
-    const history = appendHistory(stateRef.current.history || [], {
-      ref: currentObj.reference,
-      sref: currentObj.ref || null, // structured ref so re-show works in any language
-      at: Date.now(),
-      source
-    })
-    await patchState({ current: currentObj, cursor: cursorObj, blank: false, history })
+    const patch = { current: currentObj, cursor: cursorObj, blank: false }
+    if (source !== 'step') {
+      patch.history = appendHistory(stateRef.current.history || [], {
+        ref: currentObj.reference,
+        sref: currentObj.ref || null, // structured ref so re-show works in any language
+        at: Date.now(),
+        source
+      })
+    }
+    await patchState(patch)
     if (source === 'auto') armAutoUndo(prev, currentObj.reference)
     else clearAutoUndo()
   }
@@ -797,7 +804,9 @@ function Console({ row, creds }) {
 
   // Step to a single verse within an ad-hoc passage, keeping the saved plan. A
   // target chapter may differ from the current one when Back/Next crosses a
-  // chapter boundary while walking literal verses through the book.
+  // chapter boundary while walking literal verses through the book. This is
+  // within-passage navigation, so it commits as 'step' and is not logged to the
+  // "Shown earlier" history (which tracks distinct passages, not every verse).
   async function showAdhocVerse(adhoc, verse, chapter = adhoc.chapter) {
     const ref = { bookId: adhoc.bookId, chapter, verseStart: verse, verseEnd: verse }
     try {
@@ -810,7 +819,7 @@ function Console({ row, creds }) {
         adhoc: { ...adhoc, chapter, first: verse, last: verse, count, span: { first: verse, last: verse } },
         savedPlan: stateRef.current.cursor?.savedPlan || null
       }
-      await commitShow(c, cursorNext, 'manual')
+      await commitShow(c, cursorNext, 'step')
     } catch (e) {
       setStatus(e.message)
     }
