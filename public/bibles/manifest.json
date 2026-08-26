@@ -14,6 +14,20 @@
       "languageName": "Tamil",
       "source": "bundled",
       "helloaoId": "tam_irv"
+    },
+    {
+      "id": "kjv",
+      "name": "King James Version",
+      "language": "en",
+      "languageName": "English",
+      "source": "bundled"
+    },
+    {
+      "id": "asv",
+      "name": "American Standard Version",
+      "language": "en",
+      "languageName": "English",
+      "source": "bundled"
     }
   ]
 }

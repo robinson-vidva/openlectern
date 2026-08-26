@@ -30,6 +30,7 @@
     "test": "vitest run",
     "convert:usfx": "node scripts/convert-usfx.mjs",
     "fetch:helloao": "node scripts/fetch-helloao.mjs",
+    "fetch:scrollmapper": "node scripts/fetch-scrollmapper.mjs",
     "build:xrefs": "node scripts/build-xrefs.mjs",
     "build:quoteidx": "node scripts/build-quote-index.mjs"
   },

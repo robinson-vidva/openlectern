@@ -107,13 +107,20 @@ Run the test suite with `npm test`.
 
 ## Bible data
 
-The World English Bible (English, public domain) is bundled by default. Add more:
+Three English public‑domain translations are bundled by default — the World
+English Bible (WEB), King James Version (KJV), and American Standard Version
+(ASV) — plus the Tamil IRV. Add more:
 
 ```bash
-npm run convert:usfx           # bundle the WEB (English)
-npm run fetch:helloao list ta  # browse HelloAO translations for a language
-npm run fetch:helloao tam_irv  # bundle a translation (e.g. Tamil IRV)
+npm run convert:usfx                      # bundle the WEB (English)
+npm run fetch:scrollmapper KJV kjv "King James Version"       # bundle the KJV
+npm run fetch:scrollmapper ASV asv "American Standard Version" # bundle the ASV
+npm run fetch:helloao list ta             # browse HelloAO translations
+npm run fetch:helloao tam_irv             # bundle a translation (e.g. Tamil IRV)
 ```
+
+Only public‑domain translations can be bundled or served; copyrighted texts
+(NIV, ESV, …) are not distributable and are intentionally omitted.
 
 Output lands in `public/bibles/<versionId>/` with a shared `manifest.json`.
 The voice quote‑detection index is generated per bundled translation with
@@ -166,6 +173,9 @@ Please run `npm test` and `npm run build` before opening a PR.
 ## License
 
 MIT for the code and alias curation — see [LICENSE](LICENSE). Bundled scripture
-is public domain (World English Bible); other translations load from the HelloAO
-API under their own terms. Cross‑references are CC BY (openbible.info) and require
-the attribution shown in the app's footer.
+is public domain (World English Bible, King James Version, American Standard
+Version; the KJV/ASV text is from the public‑domain
+[scrollmapper/bible_databases](https://github.com/scrollmapper/bible_databases)
+project). Other translations load from the HelloAO API under their own terms.
+Cross‑references are CC BY (openbible.info) and require the attribution shown in
+the app's footer.
