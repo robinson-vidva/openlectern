@@ -31,6 +31,19 @@ function useDebounced(value, ms) {
   return v
 }
 
+// Brief boundary/status hints shown to the operator only (never the screen).
+const HINT_LABELS = {
+  end: 'End of list',
+  start: 'Start of list',
+  'book-end': 'End of book',
+  'book-start': 'Start of book',
+  'no-pins': 'No pinned verses',
+  'no-prev': 'No earlier reference',
+  'pinned-ok': 'Pinned',
+  'pinned-dup': 'Already pinned',
+  copied: 'Copied'
+}
+
 function Console({ row, creds }) {
   const code = row.code
   const [config, setConfig] = useState(row.config || {})
@@ -1831,31 +1844,7 @@ function Console({ row, creds }) {
         </div>
       )}
 
-      {hint && (
-        <div className="plan-hint">
-          {hint === 'end'
-            ? 'End of list'
-            : hint === 'start'
-              ? 'Start of list'
-              : hint === 'book-end'
-                ? 'End of book'
-                : hint === 'book-start'
-                  ? 'Start of book'
-                  : hint === 'chapter-end'
-                    ? 'End of chapter'
-                    : hint === 'no-pins'
-                      ? 'No pinned verses'
-                      : hint === 'no-prev'
-                        ? 'No earlier reference'
-                        : hint === 'pinned-ok'
-                          ? 'Pinned'
-                          : hint === 'pinned-dup'
-                            ? 'Already pinned'
-                            : hint === 'copied'
-                              ? 'Copied'
-                              : 'Start of chapter'}
-        </div>
-      )}
+      {hint && <div className="plan-hint">{HINT_LABELS[hint] || ''}</div>}
 
       {panelOpen && (
         <div className="settings-scrim" role="dialog" aria-label="Screen settings" onClick={() => setPanelOpen(false)}>
