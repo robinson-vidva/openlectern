@@ -412,6 +412,26 @@ function Console({ row, creds }) {
   const [comboActive, setComboActive] = useState(0)
   const comboBlurRef = useRef(null)
 
+  // Validate a parsed reference against the real Bible structure so the combobox
+  // never offers a chapter/verse that doesn't exist (e.g. "Mark 21" -- Mark has 16
+  // chapters). Unknown structure (not yet loaded) is permissive, not suppressive.
+  function refInStructure(p) {
+    if (!p || !p.bookId) return true
+    const nCh = chaptersOf(p.bookId)
+    if (!nCh) return true
+    const ec = p.endChapter ?? p.chapter
+    if (p.chapter < 1 || p.chapter > nCh || ec > nCh) return false
+    if (p.verseStart != null) {
+      const nv = versesOf(p.bookId, p.chapter)
+      if (nv && (p.verseStart < 1 || p.verseStart > nv)) return false
+    }
+    if (p.verseEnd != null && ec === p.chapter) {
+      const nv = versesOf(p.bookId, p.chapter)
+      if (nv && p.verseEnd > nv) return false
+    }
+    return true
+  }
+
   function computeOptions(text) {
     const t = text.trim()
     if (!t) return []
@@ -425,7 +445,8 @@ function Console({ row, creds }) {
       }
     }
     const parsed = parseReference(text)
-    if (parsed) push({ kind: 'show', label: `Show ${formatLabel(parsed)}`, hint: 'Enter', value: text, action: 'show' })
+    if (parsed && refInStructure(parsed))
+      push({ kind: 'show', label: `Show ${formatLabel(parsed)}`, hint: 'Enter', value: text, action: 'show' })
     for (const h of matchAliases(text).slice(0, 4)) {
       for (const ref of h.refs) push({ kind: 'alias', label: h.name, hint: ref, value: ref, action: 'fill' })
     }
@@ -442,8 +463,10 @@ function Console({ row, creds }) {
       for (let c = 1; c <= chaptersOf(bk.id); c++) push({ kind: 'chapter', label: `${bk.name} ${c}`, hint: `chapter ${c}`, value: `${bk.name} ${c}:`, action: 'continue' })
     } else {
       const bk = partial.book
+      const nCh = chaptersOf(bk.id)
       const typed = partial.verse != null ? String(partial.verse) : ''
-      if (!typed) push({ kind: 'wholechapter', label: `${bk.name} ${partial.chapter}`, hint: 'whole chapter', value: `${bk.name} ${partial.chapter}`, action: 'fill' })
+      if (!typed && (!nCh || partial.chapter <= nCh))
+        push({ kind: 'wholechapter', label: `${bk.name} ${partial.chapter}`, hint: 'whole chapter', value: `${bk.name} ${partial.chapter}`, action: 'fill' })
       for (let v = 1; v <= versesOf(bk.id, partial.chapter); v++) {
         if (typed && !String(v).startsWith(typed)) continue
         push({ kind: 'verse', label: `${bk.name} ${partial.chapter}:${v}`, hint: `verse ${v}`, value: `${bk.name} ${partial.chapter}:${v}`, action: 'fill' })
@@ -917,6 +940,12 @@ function Console({ row, creds }) {
           e.preventDefault()
           toggleBlank()
           break
+        case 'Escape':
+          // Panic hide: blank the screen immediately (Blank/Next restores it).
+          e.preventDefault()
+          clearAutoUndo()
+          patchState({ blank: true })
+          break
         default:
           break
       }
@@ -943,6 +972,27 @@ function Console({ row, creds }) {
   // Pin from a structured ref (display string may be localized).
   function pinRef(ref, fallback) {
     return pin((ref && ref.bookId ? labelFromRef(ref) : '') || fallback || '')
+  }
+
+  // Copy (or, on a phone, share) the reference and its text.
+  async function copyCurrent() {
+    const c = stateRef.current.current
+    if (!c) return
+    const lines = [c.primary?.verses, c.secondary?.verses]
+      .filter(Boolean)
+      .map((vs) => vs.map((v) => v.text).join(' '))
+      .filter(Boolean)
+    const payload = `${c.reference}\n${lines.join('\n')}`.trim()
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: c.reference, text: payload })
+      } else {
+        await navigator.clipboard.writeText(payload)
+        flash('copied')
+      }
+    } catch {
+      /* user cancelled the share sheet, or clipboard was denied */
+    }
   }
 
   function addToQueue() {
@@ -1301,6 +1351,14 @@ function Console({ row, creds }) {
                     <span className="now-pos">{current.ref.verseStart - adhocSpan.first + 1} / {adhocSpan.last - adhocSpan.first + 1}</span>
                   ) : null}
                   {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
+                  <button
+                    className="iconbtn sm copy-now"
+                    title="Copy or share this verse"
+                    aria-label="Copy or share this verse"
+                    onClick={copyCurrent}
+                  >
+                    <Icon name="copy" />
+                  </button>
                   {!inQueue && (
                     <button
                       className="iconbtn sm pin-now"
@@ -1633,7 +1691,9 @@ function Console({ row, creds }) {
                   ? 'Pinned'
                   : hint === 'pinned-dup'
                     ? 'Already pinned'
-                    : 'Start of chapter'}
+                    : hint === 'copied'
+                      ? 'Copied'
+                      : 'Start of chapter'}
         </div>
       )}
 
