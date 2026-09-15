@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js'
+import { sessionChannel } from './session.js'
 import {
   hmacKey,
   signMsg,
@@ -42,7 +42,7 @@ export async function requestPinViaInvite(code, inviteCode, name, timeoutMs = 15
   const pair = await generateEcdhKeyPair()
   const pub = await exportPublicKey(pair.publicKey)
   const mac = await signMsg(await hmacKey(invite), macMessage(nonce, pub))
-  const channel = supabase.channel(`session:${c}`, { config: { broadcast: { self: false } } })
+  const channel = sessionChannel(c, { config: { broadcast: { self: false } } })
   return new Promise((resolve, reject) => {
     let done = false
     const timer = setTimeout(

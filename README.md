@@ -62,31 +62,38 @@ behind the settings gear, ready to share.
 
 ## Quick start (self‑hosting)
 
-OpenLectern is a static site plus one Supabase project. You can run the whole
-thing on free tiers.
+OpenLectern is a static site plus a small realtime backend. It runs entirely on
+free tiers, and the backend is pluggable:
 
-**Prerequisites:** Node.js 20+, and a free [Supabase](https://supabase.com)
-project.
+- **Cloudflare (recommended)** — a Worker + one Durable Object per session. It
+  never pauses on inactivity, so a session code works whether it's been minutes or
+  months since the last service. Setup: [`cloudflare/README.md`](cloudflare/README.md).
+- **Supabase (alternative)** — a single Postgres table + PIN‑guarded functions.
+  Note the free tier pauses a project after ~a week of inactivity. Setup:
+  [`supabase/schema.sql`](supabase/schema.sql) + [`supabase/migrations/`](supabase/migrations).
 
-1. **Set up the database.** In the Supabase SQL editor, run
-   [`supabase/schema.sql`](supabase/schema.sql), then each file in
-   [`supabase/migrations/`](supabase/migrations) in order. This creates the
-   single `sessions` table and the PIN‑guarded functions; clients can never write
-   to the table directly.
+**Prerequisites:** Node.js 20+, and a free [Cloudflare](https://cloudflare.com)
+account (or a Supabase project).
+
+1. **Deploy the backend.** Follow [`cloudflare/README.md`](cloudflare/README.md)
+   to `wrangler deploy` the Worker; note its URL. (Or run the Supabase SQL.)
 
 2. **Configure and run.**
 
    ```bash
    npm install
-   cp .env.example .env     # add your Supabase URL and anon (publishable) key
+   cp .env.example .env     # set VITE_API_BASE to your Worker URL
    npm run dev
    ```
 
-3. **Build and deploy.** `npm run build` produces a static `dist/`. Any static
-   host works. This repo ships a GitHub Pages workflow
-   ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)); set the Pages
-   source to "GitHub Actions" and add `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
-   as repository secrets. If you host under a subpath, update `base` in
+   The app picks the backend from env: `VITE_API_BASE` (Cloudflare) takes
+   precedence; otherwise it uses `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+
+3. **Build and deploy the frontend.** `npm run build` produces a static `dist/`.
+   Any static host works — [Cloudflare Pages](https://pages.cloudflare.com) (set
+   `VITE_API_BASE` in the build env) or the bundled GitHub Pages workflow
+   ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), with the env
+   var as a repository secret). If you host under a subpath, update `base` in
    [`vite.config.js`](vite.config.js) to match.
 
 Run the test suite with `npm test`.

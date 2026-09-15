@@ -28,6 +28,8 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
+          # Cloudflare backend (preferred when set); Supabase is the fallback.
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v5

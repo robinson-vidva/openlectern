@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { useVoice } from '../components/useVoice.js'
-import { updateSession, joinSession } from '../lib/session.js'
-import { supabase, friendlyError } from '../lib/supabase.js'
+import { updateSession, joinSession, sessionChannel } from '../lib/session.js'
+import { friendlyError } from '../lib/supabase.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
@@ -141,7 +141,7 @@ function Console({ row, creds }) {
 
   // Realtime + presence.
   useEffect(() => {
-    const channel = supabase.channel(`session:${code}`, {
+    const channel = sessionChannel(code, {
       config: { presence: { key: crypto.randomUUID() }, broadcast: { self: false } }
     })
     // Invite responder: a new device that knows a live invite code gets the PIN

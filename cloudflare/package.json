@@ -1,0 +1,13 @@
+{
+  "name": "openlectern-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "OpenLectern session API + realtime on Cloudflare Workers + Durable Objects",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

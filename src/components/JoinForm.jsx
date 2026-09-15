@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { joinSession, joinView } from '../lib/session.js'
 import { requestPinViaInvite } from '../lib/invite.js'
-import { friendlyError, supabaseConfigured } from '../lib/supabase.js'
+import { friendlyError, backendConfigured } from '../lib/supabase.js'
 
 // Controllers join with code + PIN (and an optional name) and can write.
 // Presenters/viewers join with the code only (read-only, no PIN).
@@ -44,12 +44,12 @@ export default function JoinForm({ role, initialCode = '', initialInvite = false
     }
   }
 
-  if (!supabaseConfigured) {
+  if (!backendConfigured) {
     return (
       <div className="card">
         <h1>OpenLectern</h1>
         <p className="error">
-          Not configured yet. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.
+          Not configured yet. Set VITE_API_BASE (Cloudflare) or the VITE_SUPABASE_* keys in .env.
         </p>
       </div>
     )

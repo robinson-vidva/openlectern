@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadManifest } from '../lib/bibleData.js'
 import { createSession, joinSession } from '../lib/session.js'
-import { friendlyError, supabaseConfigured } from '../lib/supabase.js'
+import { friendlyError, backendConfigured } from '../lib/supabase.js'
 import { generatePin } from '../lib/newpin.js'
 import { loadPrefs } from '../lib/prefs.js'
 import { setHandoff, saveCreds } from '../lib/handoff.js'
@@ -77,13 +77,14 @@ export default function Start() {
     }
   }
 
-  if (!supabaseConfigured) {
+  if (!backendConfigured) {
     return (
       <div className="center-wrap">
         <div className="card">
           <h1>OpenLectern</h1>
           <p className="error">
-            Not configured yet. Copy .env.example to .env and set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.
+            Not configured yet. Set VITE_API_BASE to your Cloudflare Worker URL (or VITE_SUPABASE_URL and
+            VITE_SUPABASE_ANON_KEY) in .env.
           </p>
         </div>
       </div>

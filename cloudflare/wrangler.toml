@@ -1,0 +1,20 @@
+name = "openlectern-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# The session Durable Object. SQLite-backed classes are available on the free
+# Workers plan and never pause on inactivity -- they go dormant and are recreated
+# on demand with their storage intact.
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "SessionDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SessionDO"]
+
+# Optional: lock CORS to your site's origin instead of "*". Set with
+#   wrangler deploy --var ALLOWED_ORIGIN:https://your-site.pages.dev
+# or add it under [vars] below.
+# [vars]
+# ALLOWED_ORIGIN = "https://openlectern.pages.dev"
