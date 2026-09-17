@@ -1,10 +1,16 @@
 # OpenLectern on Cloudflare
 
-The session backend as a Cloudflare **Worker** plus one **Durable Object** per
-session code. This replaces the Supabase table, its PIN‑guarded RPCs, and its
-realtime channel — and, unlike the Supabase free tier, **nothing pauses on
-inactivity**. A Durable Object simply goes dormant when idle and is recreated on
-the next request with its storage intact.
+One Cloudflare **Worker** serves the built React app **and** the session API on a
+single origin, with one **Durable Object** per session code for realtime. This
+replaces the Supabase table, its PIN‑guarded RPCs, and its realtime channel —
+and, unlike the Supabase free tier, **nothing pauses on inactivity**. A Durable
+Object simply goes dormant when idle and is recreated on the next request with
+its storage intact.
+
+The app is built with `VITE_API_BASE=same-origin`, so it talks to `/api` on
+whatever host serves it — the `workers.dev` URL and any custom domain, with no
+rebuild. `/api/*` (including the WebSocket) runs the Worker; everything else is
+served from the built `dist/` with SPA fallback.
 
 ## What's here
 
@@ -17,36 +23,32 @@ the next request with its storage intact.
 
 ## Deploy
 
+**Recommended — GitHub Actions** (`.github/workflows/deploy-worker.yml`): it builds
+the app and runs `wrangler deploy` on every push to `main`. Add two repo secrets
+(`CLOUDFLARE_API_TOKEN` from the "Edit Cloudflare Workers" template, and
+`CLOUDFLARE_ACCOUNT_ID`) and push.
+
+**Or locally:**
+
 ```bash
+# from the repo root -- build the app first (the Worker serves dist/)
+VITE_API_BASE=same-origin npm ci && VITE_API_BASE=same-origin npm run build
 cd cloudflare
 npm install
 npx wrangler login          # once, opens a browser
-npx wrangler deploy         # prints your Worker URL
+npx wrangler deploy         # uploads the Worker + Durable Object + ../dist
 ```
 
-The deploy prints a URL like `https://openlectern-api.<your-subdomain>.workers.dev`.
-That is your `VITE_API_BASE`.
+The deploy prints a URL like `https://openlectern.<your-subdomain>.workers.dev`
+serving the whole app.
 
-Then point the frontend at it and rebuild:
+## Custom domain
 
-```bash
-# from the repo root
-echo "VITE_API_BASE=https://openlectern-api.<your-subdomain>.workers.dev" > .env
-npm run build
-```
-
-Deploy `dist/` to any static host. For an all‑Cloudflare setup, connect the repo
-to **Cloudflare Pages** (build command `npm run build`, output `dist`) and set
-`VITE_API_BASE` in the Pages build environment.
-
-## Locking down CORS (optional)
-
-By default the Worker allows any origin (the endpoints are public and PIN‑gated
-for writes). To restrict it to your site, set `ALLOWED_ORIGIN`:
-
-```bash
-npx wrangler deploy --var ALLOWED_ORIGIN:https://your-site.pages.dev
-```
+Because the app is same-origin, just map a hostname to the Worker — no rebuild:
+in the dashboard, **Workers & Pages → openlectern → Settings → Domains & Routes →
+Add → Custom Domain**, enter e.g. `openlectern.askdevotions.com`. Cloudflare
+creates the DNS record and HTTPS certificate automatically (the domain must be a
+zone on the same account).
 
 ## API
 

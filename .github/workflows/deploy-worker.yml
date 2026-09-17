@@ -1,15 +1,13 @@
 name: Deploy Worker
 
-# Deploys the Cloudflare Worker + Durable Object in cloudflare/. Runs on pushes
-# that touch the backend. Requires two repository secrets:
+# Builds the React app and deploys it together with the API Worker + Durable
+# Object in cloudflare/ (the Worker serves the app and /api on one origin).
+# Requires two repository secrets:
 #   CLOUDFLARE_API_TOKEN  - an "Edit Cloudflare Workers" token (covers Durable Objects)
 #   CLOUDFLARE_ACCOUNT_ID - your Cloudflare account ID
 on:
   push:
     branches: [main]
-    paths:
-      - 'cloudflare/**'
-      - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
 jobs:
@@ -20,6 +18,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build the app (same-origin backend)
+        run: npm run build
+        env:
+          VITE_API_BASE: same-origin
       - name: Deploy to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
