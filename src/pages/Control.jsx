@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { useVoice } from '../components/useVoice.js'
 import { updateSession, joinSession, sessionChannel } from '../lib/session.js'
-import { friendlyError } from '../lib/supabase.js'
+import { friendlyError } from '../lib/backendConfig.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
 import Qr from '../components/Qr.jsx'
@@ -69,12 +69,19 @@ function Console({ row, creds }) {
     clearTimeout(blankTitleTimer.current)
     blankTitleTimer.current = setTimeout(() => patchState({ blankTitle: v }), 350)
   }
-  // One-tap common messages for the blank slide (applied immediately).
+  // One-tap common messages for the blank slide. Tapping a preset blanks the
+  // screen and shows the message right away (the whole point -- a transition
+  // slide); Clear removes the text and returns to the verse.
   const BLANK_PRESETS = ['Welcome', 'Starting soon', 'Please stand', 'Closing prayer']
   function setBlankPreset(v) {
     setBlankTitleLocal(v)
     clearTimeout(blankTitleTimer.current)
-    patchState({ blankTitle: v })
+    if (v) {
+      clearAutoUndo()
+      patchState({ blankTitle: v, blank: true })
+    } else {
+      patchState({ blankTitle: '', blank: false })
+    }
   }
   const [pinReveal, setPinReveal] = useState(false)
   const [invite, setInvite] = useState(null)

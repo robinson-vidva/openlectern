@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { subscribeSession, joinView } from '../lib/session.js'
-import { friendlyError } from '../lib/supabase.js'
+import { friendlyError } from '../lib/backendConfig.js'
 import { passagePages } from '../lib/resolve.js'
 import { MIN_FONT_VMIN } from '../lib/paginate.js'
 

@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// The Cloudflare Worker serves the app at the domain root, so build with
-// BASE_PATH=/ there. GitHub Pages serves under the repo subpath, so it defaults
-// to /openlectern/ when BASE_PATH is unset.
+// Served at the domain root by the Cloudflare Worker, so base defaults to '/'.
+// Set BASE_PATH to a subpath (e.g. '/openlectern/') only if hosting under one.
 export default defineConfig({
-  base: process.env.BASE_PATH || '/openlectern/',
+  base: process.env.BASE_PATH || '/',
   plugins: [react()]
 })

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { joinSession, joinView } from '../lib/session.js'
 import { requestPinViaInvite } from '../lib/invite.js'
-import { friendlyError, backendConfigured } from '../lib/supabase.js'
+import { friendlyError, backendConfigured } from '../lib/backendConfig.js'
 
 // Controllers join with code + PIN (and an optional name) and can write.
 // Presenters/viewers join with the code only (read-only, no PIN).

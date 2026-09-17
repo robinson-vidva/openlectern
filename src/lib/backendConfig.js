@@ -13,3 +13,19 @@ export const useCloudflare = sameOrigin || Boolean(API_BASE)
 export const WS_BASE = sameOrigin
   ? (typeof location !== 'undefined' ? location.origin.replace(/^http/, 'ws') : '')
   : API_BASE.replace(/^http/, 'ws')
+
+// True when a backend is configured. The app is served by its own Cloudflare
+// Worker (same-origin), so this is effectively always true in production; the
+// check keeps a clear message if someone runs the frontend with no VITE_API_BASE.
+export const backendConfigured = useCloudflare
+
+// Map a backend error to a friendly message for the UI.
+export function friendlyError(error) {
+  if (!error) return 'Something went wrong.'
+  const msg = (error.message || '').toLowerCase()
+  if (msg.includes('not found')) return 'No session with that code.'
+  if (msg.includes('expired')) return 'That session has expired.'
+  if (msg.includes('pin')) return 'Incorrect PIN.'
+  if (msg.includes('too many')) return 'Too many attempts. Please wait a moment.'
+  return error.message || 'Something went wrong.'
+}

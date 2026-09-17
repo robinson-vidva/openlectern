@@ -6,10 +6,10 @@ OpenLectern is a free, open-source bilingual Bible‑verse presenter for churche
 and online prayer meetings. A fullscreen presenter displays scripture in up to
 two languages while anyone in the room controls it live from a phone or laptop.
 
-No accounts. No installs. No personal data. Sessions are ephemeral and expire
-after 24 hours.
+No accounts. No personal data. Sessions are anonymous and expire 24 hours after
+they go idle. Runs on Cloudflare's free tier and never pauses on inactivity.
 
-**Live demo:** https://robinsonvidva.com/openlectern/
+**Live demo:** https://openlectern.askdevotions.com
 
 ---
 
@@ -17,15 +17,17 @@ after 24 hours.
 
 Three roles share one live session, identified by a short code (like `K7PM4Q`):
 
-| Role | How you join | What it does |
-| --- | --- | --- |
-| **Start / Control** | One tap on the landing page, or join with the code + a 4‑digit PIN | The operator's console — search, queue, and drive the screen. |
-| **Watch (Presenter)** | Open the shared link, or scan the QR — code only, no PIN | The big screen: large auto‑fitting serif type, fullscreen, no controls. |
-| **Invite** | A second controller joins with a one‑time invite code | Add another operator without sharing the PIN in the clear. |
+The landing page offers three paths, all keyed to a short session code (like
+`K7PM4Q`):
 
-Starting a session is a single tap: OpenLectern generates a PIN, creates the
-session, and drops you straight into the console. Your code, QR, and PIN live
-behind the settings gear, ready to share.
+| Path | How you join | What it does |
+| --- | --- | --- |
+| **New session** | One tap — generates a PIN, creates the session, drops you into the console | The operator's console — search, queue, and drive the screen. Your code, QR, and PIN live behind the settings gear. |
+| **Control a screen** | Enter the code + the 4‑digit PIN | Join an existing session as another operator. |
+| **Watch a screen** | Enter the code only (or scan the QR) — no PIN | The big screen: large auto‑fitting serif type, fullscreen, no controls. |
+
+A second controller can also join with a **one‑time invite code**, which hands off
+the PIN under a fresh key agreement instead of sharing it in the clear.
 
 ## Features
 
@@ -59,58 +61,62 @@ behind the settings gear, ready to share.
   synced live to the screen.
 - **Live and multi‑operator** — every device stays in sync in real time and sees
   who else is connected. Remembered settings return on your next session.
+- **Installable** — add the console to your phone's home screen and it launches
+  fullscreen like a native app; the screen stays awake during a service.
 
 ## Quick start (self‑hosting)
 
-OpenLectern is a static site plus a small realtime backend. It runs entirely on
-free tiers, and the backend is pluggable:
+OpenLectern runs on Cloudflare's free tier: **one Worker serves the built app
+and the session API on a single origin**, with **one Durable Object per session**
+for realtime. Nothing pauses on inactivity — a session code works whether it's
+been minutes or months since the last service.
 
-- **Cloudflare (recommended)** — a Worker + one Durable Object per session. It
-  never pauses on inactivity, so a session code works whether it's been minutes or
-  months since the last service. Setup: [`cloudflare/README.md`](cloudflare/README.md).
-- **Supabase (alternative)** — a single Postgres table + PIN‑guarded functions.
-  Note the free tier pauses a project after ~a week of inactivity. Setup:
-  [`supabase/schema.sql`](supabase/schema.sql) + [`supabase/migrations/`](supabase/migrations).
+**Prerequisites:** Node.js 20+ and a free [Cloudflare](https://cloudflare.com)
+account.
 
-**Prerequisites:** Node.js 20+, and a free [Cloudflare](https://cloudflare.com)
-account (or a Supabase project).
+1. **Deploy the backend + app.** Follow [`cloudflare/README.md`](cloudflare/README.md).
+   The quickest path is the included **GitHub Actions** workflow
+   ([`.github/workflows/deploy-worker.yml`](.github/workflows/deploy-worker.yml)):
+   add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as repo secrets and push
+   — it builds the app and `wrangler deploy`s the Worker. To deploy from your
+   machine instead:
 
-1. **Deploy the backend.** Follow [`cloudflare/README.md`](cloudflare/README.md)
-   to `wrangler deploy` the Worker; note its URL. (Or run the Supabase SQL.)
+   ```bash
+   VITE_API_BASE=same-origin npm ci && VITE_API_BASE=same-origin npm run build
+   cd cloudflare && npm install && npx wrangler login && npx wrangler deploy
+   ```
 
-2. **Configure and run.**
+2. **Add a custom domain (optional).** In the dashboard: Workers & Pages → your
+   Worker → Settings → Domains & Routes → Add → Custom Domain. Cloudflare handles
+   DNS + HTTPS. The app is same‑origin, so it works on any hostname with no rebuild.
+
+3. **Run locally.**
 
    ```bash
    npm install
-   cp .env.example .env     # set VITE_API_BASE to your Worker URL
-   npm run dev
+   cp .env.example .env     # VITE_API_BASE=same-origin (or a deployed Worker URL)
+   npm run dev              # UI only; run `npx wrangler dev` in cloudflare/ for the API
    ```
-
-   The app picks the backend from env: `VITE_API_BASE` (Cloudflare) takes
-   precedence; otherwise it uses `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
-
-3. **Build and deploy the frontend.** `npm run build` produces a static `dist/`.
-   Any static host works — [Cloudflare Pages](https://pages.cloudflare.com) (set
-   `VITE_API_BASE` in the build env) or the bundled GitHub Pages workflow
-   ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), with the env
-   var as a repository secret). If you host under a subpath, update `base` in
-   [`vite.config.js`](vite.config.js) to match.
 
 Run the test suite with `npm test`.
 
 ## Architecture
 
 - **Frontend** — Vite + React 18, plain CSS, hash routing (`#/`, `#/present`,
-  `#/control`). Fully static; there is no application server.
-- **Backend** — one Supabase project. A single `sessions` table holds each
-  session's config and live state. The shipped anon key is public, so the table
-  allows **no** direct writes: all changes go through `SECURITY DEFINER` SQL
-  functions that verify the 4‑digit PIN server‑side with `pgcrypto`. Every device
-  subscribes to its session row over Supabase Realtime, so updates fan out
-  instantly; presence (who's online) rides the same channel and is never stored.
+  `#/control`). A static bundle, served by the Worker.
+- **Backend** — a Cloudflare **Worker** ([`cloudflare/`](cloudflare/)) serves the
+  app and routes `/api/*` (and the realtime WebSocket) to a **Durable Object** per
+  session code. Each Durable Object holds that session's config and live state,
+  verifies the 4‑digit PIN server‑side (PBKDF2 via Web Crypto), and fans state +
+  presence + peer broadcasts out over one WebSocket — so updates reach every device
+  instantly. A 24‑hour alarm expires the session (sliding: it extends while the
+  session is in use), and creation is rate‑limited per IP. There is no database to
+  provision and nothing pauses.
 - **Verse text** — bundled as public‑domain JSON per book under
   `public/bibles/<versionId>/`, with the [HelloAO](https://bible.helloao.org) API
   as a runtime fallback for translations you haven't bundled.
+- **Installable** — a web manifest + icons make the console installable to a phone
+  home screen and launch fullscreen (standalone).
 
 ## Bible data
 
@@ -151,8 +157,9 @@ Output lands in `public/bibles/<versionId>/` with a shared `manifest.json`.
 
 - **No personal data.** No accounts, no emails. Sessions are anonymous and expire
   after 24 hours.
-- **PINs never leave the server in plaintext.** Only a bcrypt hash is stored; the
-  4‑digit PIN is intentionally low‑security for short‑lived, in‑room sessions.
+- **PINs never leave the server in plaintext.** Only a salted PBKDF2 hash is
+  stored and verified server‑side; the 4‑digit PIN is intentionally low‑security
+  for short‑lived, in‑room sessions, and wrong‑PIN attempts are rate‑limited.
 - **Second‑controller invites are end‑to‑end encrypted.** A one‑time invite code
   authenticates the joining device, and the PIN is handed off under a fresh
   per‑exchange key agreement (ECDH P‑256) — so a view‑only device watching the
@@ -166,8 +173,7 @@ Output lands in `public/bibles/<versionId>/` with a shared `manifest.json`.
 
 ## Tech stack
 
-React 18 · Vite · plain CSS · Supabase (Postgres + Realtime) · Vitest ·
-GitHub Pages.
+React 18 · Vite · plain CSS · Cloudflare Workers + Durable Objects · Vitest.
 
 ## Contributing
 

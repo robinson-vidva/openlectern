@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadManifest } from '../lib/bibleData.js'
 import { createSession, joinSession } from '../lib/session.js'
-import { friendlyError, backendConfigured } from '../lib/supabase.js'
+import { friendlyError, backendConfigured } from '../lib/backendConfig.js'
 import { generatePin } from '../lib/newpin.js'
 import { loadPrefs } from '../lib/prefs.js'
 import { setHandoff, saveCreds } from '../lib/handoff.js'
@@ -14,10 +14,9 @@ export default function Start() {
   const [defaultConfig, setDefaultConfig] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [mode, setMode] = useState('home') // 'home' | 'join'
-  const [code, setCode] = useState('')
-  const [havePin, setHavePin] = useState(false)
+  const [code, setCode] = useState('') // control card
   const [pin, setPin] = useState('')
+  const [viewCode, setViewCode] = useState('') // watch card
   const controlBusy = useRef(false)
 
   // Only needed when there is no remembered config: pick the bundled default.
@@ -51,16 +50,11 @@ export default function Start() {
     }
   }
 
-  function watch() {
-    const c = code.trim().toUpperCase()
-    if (c.length < 4) return setError('Enter the code from the screen.')
-    goto('present', c)
-  }
-
-  async function control() {
+  async function control(e) {
+    e.preventDefault()
     setError('')
     const c = code.trim().toUpperCase()
-    if (c.length < 4) return setError('Enter the code from the screen.')
+    if (c.length < 4) return setError('Enter the screen code.')
     if (!/^\d{4}$/.test(pin)) return setError('The PIN is 4 digits.')
     if (controlBusy.current) return
     controlBusy.current = true
@@ -78,15 +72,20 @@ export default function Start() {
     }
   }
 
+  function watch(e) {
+    e.preventDefault()
+    setError('')
+    const c = viewCode.trim().toUpperCase()
+    if (c.length < 4) return setError('Enter the screen code.')
+    goto('present', c)
+  }
+
   if (!backendConfigured) {
     return (
       <div className="center-wrap">
         <div className="card">
           <h1>OpenLectern</h1>
-          <p className="error">
-            Not configured yet. Set VITE_API_BASE to your Cloudflare Worker URL (or VITE_SUPABASE_URL and
-            VITE_SUPABASE_ANON_KEY) in .env.
-          </p>
+          <p className="error">Not configured yet. Set VITE_API_BASE in .env (see the README).</p>
         </div>
       </div>
     )
@@ -94,69 +93,35 @@ export default function Start() {
 
   return (
     <div className="center-wrap">
-      <div className="landing-shell">
-      <div className="card landing">
-        <div className="landing-hero">
-          <img className="landing-icon" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width="56" height="56" />
-          <div>
-            <h1>OpenLectern</h1>
-            <p className="tagline">Show scripture on a screen. Control it from any phone.</p>
-          </div>
-        </div>
+      <div className="landing">
+        <header className="landing-head">
+          <img className="landing-icon" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width="64" height="64" />
+          <h1>OpenLectern</h1>
+          <p className="tagline">Show scripture on a screen. Control it from any phone.</p>
+          <p className="landing-lead">
+            Bible verses on a fullscreen display, driven from your phone — search or <em>speak</em> a reference,
+            in one or two languages at once. No installs, no account: share a code and you’re live.
+          </p>
+        </header>
 
-        <p className="landing-desc">
-          OpenLectern puts Bible verses on a fullscreen display for your congregation while you drive it
-          from your phone. Search or <em>speak</em> a reference and it appears — in one or two languages
-          at once. Nothing to install and no account: share a code and you’re live.
-        </p>
-
-        <ul className="landing-features">
-          <li>Fullscreen screen + phone remote</li>
-          <li>Two languages side by side</li>
-          <li>Speak a reference — it appears</li>
-          <li>Free &amp; open · any device</li>
-        </ul>
-
-        {mode === 'home' ? (
-          <div className="landing-actions">
-            <button className="btn primary wide start-btn" onClick={start} disabled={busy}>
-              {busy ? 'Starting…' : 'Start a session'}
-            </button>
-            <button
-              className="btn wide"
-              onClick={() => {
-                setError('')
-                setMode('join')
-              }}
-              disabled={busy}
-            >
-              Join or view a screen
-            </button>
-            <p className="muted start-sub">
-              <strong>Start</strong> creates a screen and takes you to the remote — your code and PIN are inside.
-              <strong> Join</strong> if someone already shared a code.
-            </p>
-          </div>
-        ) : (
-          <div className="join-panel">
-            <div className="join-panel-head">
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => {
-                  setError('')
-                  setMode('home')
-                }}
-              >
-                ← Back
+        <div className="landing-cards">
+          <section className="lcard">
+            <h2>New session</h2>
+            <p className="lcard-desc">Create a screen and become the controller. You get a code, QR, and PIN to share.</p>
+            <div className="lcard-foot">
+              <button className="btn primary wide" onClick={start} disabled={busy}>
+                {busy ? 'Starting…' : 'Start a session'}
               </button>
-              <span className="join-panel-title">Join a screen</span>
             </div>
+          </section>
 
+          <form className="lcard" onSubmit={control}>
+            <h2>Control a screen</h2>
+            <p className="lcard-desc">Have a code and PIN? Drive an existing screen from your phone.</p>
             <div className="field">
-              <label htmlFor="code">Screen code</label>
+              <label htmlFor="c-code">Screen code</label>
               <input
-                id="code"
+                id="c-code"
                 type="text"
                 autoCapitalize="characters"
                 autoComplete="off"
@@ -165,39 +130,49 @@ export default function Start() {
                 placeholder="e.g. K7PM4Q"
               />
             </div>
+            <div className="field">
+              <label htmlFor="c-pin">PIN</label>
+              <input
+                id="c-pin"
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={4}
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="4 digits"
+              />
+            </div>
+            <div className="lcard-foot">
+              <button className="btn primary wide" type="submit" disabled={busy}>Control</button>
+              <a className="link-btn lcard-alt" href={`#/control?s=${code.trim().toUpperCase()}&invite=1`}>
+                Join with an invite code instead
+              </a>
+            </div>
+          </form>
 
-            <button className="btn wide" onClick={watch} disabled={busy}>Open the screen (view only)</button>
+          <form className="lcard" onSubmit={watch}>
+            <h2>Watch a screen</h2>
+            <p className="lcard-desc">Just viewing? Open the screen with a code — no PIN needed.</p>
+            <div className="field">
+              <label htmlFor="w-code">Screen code</label>
+              <input
+                id="w-code"
+                type="text"
+                autoCapitalize="characters"
+                autoComplete="off"
+                value={viewCode}
+                onChange={(e) => setViewCode(e.target.value.toUpperCase())}
+                placeholder="e.g. K7PM4Q"
+              />
+            </div>
+            <div className="lcard-foot">
+              <button className="btn wide" type="submit" disabled={busy}>Open the screen</button>
+            </div>
+          </form>
+        </div>
 
-            {!havePin ? (
-              <p className="have-pin">
-                Controlling from your phone?{' '}
-                <button type="button" className="link-btn" onClick={() => setHavePin(true)}>I have a PIN</button>
-              </p>
-            ) : (
-              <div className="pin-block">
-                <div className="field">
-                  <label htmlFor="pin">PIN</label>
-                  <input
-                    id="pin"
-                    type="password"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    maxLength={4}
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="4 digits"
-                  />
-                </div>
-                <button className="btn primary wide" onClick={control} disabled={busy}>Control the screen</button>
-                <p className="muted invite-line">
-                  <a className="link-btn" href={`#/control?s=${code.trim().toUpperCase()}&invite=1`}>Join with an invite code instead</a>
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error landing-error">{error}</p>}
 
         <p className="muted credits">
           Scripture: World English Bible, King James Version, American Standard Version (public domain) and
@@ -205,22 +180,6 @@ export default function Start() {
           <a className="link-btn" href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noreferrer">openbible.info</a>{' '}
           (CC BY).
         </p>
-      </div>
-
-      <aside className="landing-preview" aria-hidden="true">
-        <div className="lp-screen theme-light">
-          <div className="lp-ref">John 3:16</div>
-          <div className="lp-verse" lang="en">
-            For God so loved the world, that he gave his one and only Son, that whoever believes in him should
-            not perish, but have eternal life.
-          </div>
-          <div className="lp-verse lp-ta" lang="ta">
-            தேவன், தம்முடைய ஒரேபேறான குமாரனை விசுவாசிக்கிறவன் எவனோ அவன் கெட்டுப்போகாமல் நித்தியஜீவனை
-            பெறும்படிக்கு, அவரைக் கொடுத்து, இவ்வளவாய் உலகத்தில் அன்பு செலுத்தினார்.
-          </div>
-        </div>
-        <p className="lp-caption">A live look at what your congregation sees.</p>
-      </aside>
       </div>
     </div>
   )

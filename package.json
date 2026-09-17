@@ -4,7 +4,7 @@
   "description": "Open-source bilingual Bible verse presenter for churches and online prayer meetings. Show scripture on a screen and control it live from any phone.",
   "license": "MIT",
   "type": "module",
-  "homepage": "https://robinsonvidva.com/openlectern/",
+  "homepage": "https://openlectern.askdevotions.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/robinson-vidva/openlectern.git"
@@ -21,7 +21,7 @@
     "projector",
     "bilingual",
     "react",
-    "supabase"
+    "cloudflare"
   ],
   "scripts": {
     "dev": "vite",
@@ -34,7 +34,6 @@
     "build:xrefs": "node scripts/build-xrefs.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
     "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

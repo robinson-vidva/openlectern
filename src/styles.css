@@ -1080,182 +1080,91 @@ select:focus {
 }
 
 /* ---- Landing (redesigned start/join) ---- */
-/* Landing uses the full width on desktop: content card + a presenter preview
-   side by side. Collapses to the single card on smaller screens. */
-.landing-shell {
+/* Landing: a centered hero + three action cards (New session / Control / Watch).
+   Three across on desktop, stacked on mobile -- fills the width without a giant
+   empty page. */
+.landing {
   width: 100%;
-  max-width: 64rem;
-  display: grid;
-  grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
-  gap: 2.5rem;
-  align-items: center;
+  max-width: 60rem;
 }
-.landing-shell .card.landing {
-  max-width: none;
-  margin: 0;
-}
-.card.landing {
-  max-width: 30rem;
-}
-
-/* Presenter preview (desktop only) -- mirrors the real screen's look. */
-.landing-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-.lp-screen {
-  aspect-ratio: 16 / 9;
-  width: 100%;
-  background: var(--bg);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: var(--shadow-md);
-  padding: 7% 8%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.landing-head {
   text-align: center;
-  overflow: hidden;
-}
-.lp-ref {
-  font-family: var(--serif-latin);
-  font-style: italic;
-  color: var(--accent);
-  font-size: clamp(0.9rem, 1.5vw, 1.15rem);
-  margin-bottom: 0.6rem;
-}
-.lp-verse {
-  font-family: var(--serif-latin);
-  line-height: 1.32;
-  font-size: clamp(1rem, 1.9vw, 1.5rem);
-}
-.lp-verse + .lp-verse {
-  margin-top: 0.7rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid var(--line);
-}
-.lp-ta {
-  font-family: var(--serif-tamil);
-  font-size: clamp(0.85rem, 1.6vw, 1.25rem);
-  color: var(--ink-soft);
-}
-.lp-caption {
-  text-align: center;
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-  margin: 0;
-}
-@media (max-width: 900px) {
-  .landing-shell {
-    grid-template-columns: 1fr;
-    max-width: 30rem;
-  }
-  .landing-preview {
-    display: none;
-  }
-}
-.landing-hero {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  margin-bottom: 0.3rem;
+  margin-bottom: 1.6rem;
 }
 .landing-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
   box-shadow: var(--shadow-sm);
 }
-.landing-hero h1 {
+.landing-head h1 {
+  margin: 0.6rem 0 0.1rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+.landing-head .tagline {
   margin: 0;
+  color: var(--ink-soft);
 }
-.landing-hero .tagline {
-  margin: 0.15rem 0 0;
-  font-size: 0.92rem;
-}
-.landing-desc {
-  color: var(--ink);
+.landing-lead {
+  max-width: 42rem;
+  margin: 0.8rem auto 0;
   line-height: 1.5;
-  font-size: 0.95rem;
-  margin: 0.9rem 0 1rem;
+  color: var(--ink);
 }
-.landing-desc em {
+.landing-lead em {
   font-style: normal;
   color: var(--accent);
   font-weight: 600;
 }
-.landing-features {
-  list-style: none;
-  margin: 0 0 1.3rem;
-  padding: 0;
+.landing-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem 0.9rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  align-items: stretch;
 }
-.landing-features li {
-  position: relative;
-  padding-left: 1.3rem;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-.landing-features li::before {
-  content: '✓';
-  position: absolute;
-  left: 0;
-  top: -0.05rem;
-  color: var(--accent);
-  font-weight: 700;
-}
-.landing-actions {
+.lcard {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.2rem;
+  box-shadow: var(--shadow-sm);
 }
-.landing .start-btn {
-  font-size: 1.25rem;
-  padding: 0.9rem 1rem;
+.lcard h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
 }
-.landing .start-sub {
-  text-align: center;
-  margin: 0.6rem 0 0.4rem;
-  font-size: 0.82rem;
+.lcard-desc {
+  margin: 0 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
   line-height: 1.45;
 }
-.join-panel {
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
-}
-.join-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.lcard .field {
   margin-bottom: 0.7rem;
 }
-.join-panel-title {
-  font-weight: 700;
+/* Keep the action button pinned to the card bottom so all three align. */
+.lcard-foot {
+  margin-top: auto;
 }
-.have-pin {
+.lcard-alt {
+  display: block;
   text-align: center;
-  margin: 0.8rem 0 0;
-  font-size: 0.88rem;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
 }
-@media (max-width: 560px) {
-  .landing-features {
+.landing-error {
+  text-align: center;
+  margin-top: 1rem;
+}
+@media (max-width: 780px) {
+  .landing-cards {
     grid-template-columns: 1fr;
   }
 }
-.pin-block {
-  margin-top: 0.8rem;
-}
-.pin-block .invite-line {
-  text-align: center;
-  margin: 0.7rem 0 0;
-  font-size: 0.85rem;
-}
-
 /* ---- First-run hint on the controller ---- */
 .first-hint {
   display: flex;
@@ -1371,10 +1280,6 @@ select:focus {
 .card h1 {
   letter-spacing: -0.01em;
 }
-.landing .start-btn {
-  box-shadow: 0 8px 20px rgba(43, 90, 160, 0.20);
-}
-
 /* Softer, friendlier first-run hint (was a heavy full-accent border). */
 .first-hint {
   background: var(--accent-soft);
