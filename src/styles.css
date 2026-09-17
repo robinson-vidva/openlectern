@@ -1524,6 +1524,11 @@ body{overscroll-behavior-y:contain}
 .show-switch{display:inline-flex;gap:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:2px}
 .ss-opt{border:none;background:none;color:var(--ink-soft);border-radius:999px;padding:.28rem .6rem;font-size:.78rem;font-weight:600}
 .ss-opt.on{background:var(--accent);color:var(--accent-ink)}
+/* Blank-slide quick presets: standalone chips (not in a pill group). */
+.blank-presets{align-items:flex-start}
+.preset-row{display:flex;flex-wrap:wrap;gap:.35rem;justify-content:flex-end}
+.preset-row .ss-opt{border:1px solid var(--line);background:var(--panel)}
+.preset-row .ss-opt.on{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
 
 /* ---- plan: compact one-line rows (tap the row to show) ---- */
 .plan-card .queue{display:flex;flex-direction:column;gap:.4rem}

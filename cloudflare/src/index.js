@@ -147,6 +147,10 @@ export default {
     const url = new URL(request.url)
     const parts = url.pathname.split('/').filter(Boolean)
 
+    // Lightweight health check for uptime monitors (e.g. UptimeRobot).
+    if (parts[0] === 'api' && parts[1] === 'health') {
+      return json({ ok: true, service: 'openlectern', time: new Date().toISOString() }, 200, env)
+    }
     if (parts[0] === 'api' && parts[1] === 'session') {
       return handleApi(request, env, parts)
     }

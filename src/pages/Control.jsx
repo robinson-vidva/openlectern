@@ -69,6 +69,13 @@ function Console({ row, creds }) {
     clearTimeout(blankTitleTimer.current)
     blankTitleTimer.current = setTimeout(() => patchState({ blankTitle: v }), 350)
   }
+  // One-tap common messages for the blank slide (applied immediately).
+  const BLANK_PRESETS = ['Welcome', 'Starting soon', 'Please stand', 'Closing prayer']
+  function setBlankPreset(v) {
+    setBlankTitleLocal(v)
+    clearTimeout(blankTitleTimer.current)
+    patchState({ blankTitle: v })
+  }
   const [pinReveal, setPinReveal] = useState(false)
   const [invite, setInvite] = useState(null)
   const [inviteSecs, setInviteSecs] = useState(0)
@@ -1783,6 +1790,25 @@ function Console({ row, creds }) {
                 aria-label="Message shown on the blank screen"
                 onChange={(e) => onBlankTitle(e.target.value)}
               />
+            </div>
+            <div className="screen-row blank-presets">
+              <span className="mini-label">Quick</span>
+              <div className="preset-row">
+                {BLANK_PRESETS.map((p) => (
+                  <button
+                    key={p}
+                    className={`ss-opt${blankTitle === p ? ' on' : ''}`}
+                    onClick={() => setBlankPreset(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {blankTitle && (
+                  <button className="ss-opt" onClick={() => setBlankPreset('')}>
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             {versions.length > 1 && (
               <div className="screen-row">
