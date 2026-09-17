@@ -9,7 +9,9 @@ compatibility_date = "2026-09-05"
 directory = "../dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+# Run the Worker first for every route so it can add security headers to the app
+# responses too (not just /api). The Worker serves assets via env.ASSETS.
+run_worker_first = true
 
 # The session Durable Object. SQLite-backed classes are available on the free
 # Workers plan and never pause on inactivity -- they go dormant and are recreated
@@ -18,9 +20,18 @@ run_worker_first = ["/api/*"]
 name = "SESSIONS"
 class_name = "SessionDO"
 
+# Per-IP fixed-window limiter for session creation (anti-abuse).
+[[durable_objects.bindings]]
+name = "RATELIMIT"
+class_name = "RateLimiterDO"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SessionDO"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["RateLimiterDO"]
 
 # The custom domain is attached in the Cloudflare dashboard (Workers -> this
 # Worker -> Domains & Routes), which provisions DNS + HTTPS automatically because

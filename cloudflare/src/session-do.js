@@ -170,6 +170,16 @@ export class SessionDO {
     const { pin, patch } = await request.json()
     if (!(await verifyPin(pin || '', m.pinHash))) return json({ error: 'incorrect pin' }, 401)
 
+    // Sliding expiry: an active session must not die mid-service. When less than
+    // half the TTL remains, push the expiry (and the cleanup alarm) out. Cheap
+    // only because Durable Objects never pause on inactivity.
+    const now = Date.now()
+    if (Date.parse(m.expiresAt) - now < TTL_MS / 2) {
+      m.expiresAt = new Date(now + TTL_MS).toISOString()
+      await this.state.storage.put('meta', m)
+      await this.state.storage.setAlarm(now + TTL_MS)
+    }
+
     // Shallow-merge state (matching the old `state || patch.state`); replace
     // config / admins outright.
     if (patch && 'state' in patch) {
@@ -299,6 +309,32 @@ export class SessionDO {
     this.presence.clear()
     await this.state.storage.deleteAll()
     await this.state.storage.deleteAlarm()
+  }
+}
+
+// A tiny fixed-window rate limiter, one instance per key (e.g. per client IP).
+// Used to cap how fast one IP can create sessions. Self-cleans via an alarm so
+// idle limiter objects don't linger.
+export class RateLimiterDO {
+  constructor(state) {
+    this.state = state
+  }
+  async fetch(request) {
+    const { limit = 20, windowMs = 60000 } = await request.json().catch(() => ({}))
+    const now = Date.now()
+    let w = await this.state.storage.get('w')
+    if (!w || now >= w.resetAt) w = { resetAt: now + windowMs, count: 0 }
+    w.count += 1
+    await this.state.storage.put('w', w)
+    await this.state.storage.setAlarm(w.resetAt + windowMs) // tidy up after the window
+    const allowed = w.count <= limit
+    return new Response(JSON.stringify({ allowed, resetAt: w.resetAt }), {
+      status: allowed ? 200 : 429,
+      headers: { 'content-type': 'application/json' }
+    })
+  }
+  async alarm() {
+    await this.state.storage.deleteAll()
   }
 }
 
