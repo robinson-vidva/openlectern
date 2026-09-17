@@ -94,6 +94,7 @@ export default function Start() {
 
   return (
     <div className="center-wrap">
+      <div className="landing-shell">
       <div className="card landing">
         <div className="landing-hero">
           <img className="landing-icon" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width="56" height="56" />
@@ -204,6 +205,22 @@ export default function Start() {
           <a className="link-btn" href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noreferrer">openbible.info</a>{' '}
           (CC BY).
         </p>
+      </div>
+
+      <aside className="landing-preview" aria-hidden="true">
+        <div className="lp-screen theme-light">
+          <div className="lp-ref">John 3:16</div>
+          <div className="lp-verse" lang="en">
+            For God so loved the world, that he gave his one and only Son, that whoever believes in him should
+            not perish, but have eternal life.
+          </div>
+          <div className="lp-verse lp-ta" lang="ta">
+            தேவன், தம்முடைய ஒரேபேறான குமாரனை விசுவாசிக்கிறவன் எவனோ அவன் கெட்டுப்போகாமல் நித்தியஜீவனை
+            பெறும்படிக்கு, அவரைக் கொடுத்து, இவ்வளவாய் உலகத்தில் அன்பு செலுத்தினார்.
+          </div>
+        </div>
+        <p className="lp-caption">A live look at what your congregation sees.</p>
+      </aside>
       </div>
     </div>
   )
