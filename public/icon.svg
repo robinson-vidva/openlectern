@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="OpenLectern">
+  <rect width="512" height="512" fill="#2b5aa0"/>
+  <g fill="none" stroke="#ffffff" stroke-width="20" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M256 156 V390"/>
+    <path d="M256 156 C 214 128, 156 128, 122 146 V 372 C 156 356, 214 356, 256 384 Z"/>
+    <path d="M256 156 C 298 128, 356 128, 390 146 V 372 C 356 356, 298 356, 256 384 Z"/>
+    <g stroke-width="12">
+      <path d="M158 198 H 224"/>
+      <path d="M158 236 H 224"/>
+      <path d="M288 198 H 354"/>
+      <path d="M288 236 H 354"/>
+    </g>
+  </g>
+</svg>

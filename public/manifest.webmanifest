@@ -1,0 +1,16 @@
+{
+  "name": "OpenLectern",
+  "short_name": "OpenLectern",
+  "description": "Bilingual Bible verse presenter for churches and prayer meetings.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1722",
+  "theme_color": "#2b5aa0",
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+  ]
+}
