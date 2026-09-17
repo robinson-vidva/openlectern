@@ -1080,24 +1080,99 @@ select:focus {
 }
 
 /* ---- Landing (redesigned start/join) ---- */
+.card.landing {
+  max-width: 30rem;
+}
+.landing-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.3rem;
+}
+.landing-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  flex: none;
+  box-shadow: var(--shadow-sm);
+}
+.landing-hero h1 {
+  margin: 0;
+}
+.landing-hero .tagline {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+}
+.landing-desc {
+  color: var(--ink);
+  line-height: 1.5;
+  font-size: 0.95rem;
+  margin: 0.9rem 0 1rem;
+}
+.landing-desc em {
+  font-style: normal;
+  color: var(--accent);
+  font-weight: 600;
+}
+.landing-features {
+  list-style: none;
+  margin: 0 0 1.3rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.9rem;
+}
+.landing-features li {
+  position: relative;
+  padding-left: 1.3rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.landing-features li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: -0.05rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+.landing-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
 .landing .start-btn {
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   padding: 0.9rem 1rem;
-  margin-top: 0.4rem;
 }
 .landing .start-sub {
   text-align: center;
-  margin: 0.5rem 0 1.2rem;
-  font-size: 0.85rem;
+  margin: 0.6rem 0 0.4rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
-.join-block {
+.join-panel {
   border-top: 1px solid var(--line);
   padding-top: 1rem;
-  margin-top: 0.4rem;
 }
-.join-block .have-pin {
+.join-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+.join-panel-title {
+  font-weight: 700;
+}
+.have-pin {
   text-align: center;
-  margin: 0.7rem 0 0;
+  margin: 0.8rem 0 0;
+  font-size: 0.88rem;
+}
+@media (max-width: 560px) {
+  .landing-features {
+    grid-template-columns: 1fr;
+  }
 }
 .pin-block {
   margin-top: 0.8rem;
@@ -1222,16 +1297,6 @@ select:focus {
 /* A short gold rule under the wordmark for a touch of identity. */
 .card h1 {
   letter-spacing: -0.01em;
-}
-.landing h1::after {
-  content: '';
-  display: block;
-  width: 2.2rem;
-  height: 3px;
-  margin-top: 0.5rem;
-  border-radius: 3px;
-  background: var(--accent);
-  opacity: 0.85;
 }
 .landing .start-btn {
   box-shadow: 0 8px 20px rgba(43, 90, 160, 0.20);
