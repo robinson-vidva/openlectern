@@ -1282,6 +1282,183 @@ select:focus {
   border-style: dashed;
 }
 
+/* ---- Phone layout for the console ---- */
+/* Desktop keeps the three columns. Below 780px the sections become tabs, the
+   transport is fixed to the bottom (thumb zone), the header collapses to one
+   row with the voice bar behind a mic button, and the Now card starts compact. */
+.m-hidden {
+  display: none !important;
+}
+.mtabs {
+  display: none;
+}
+.now-mobile-tools {
+  display: none;
+}
+.now-empty-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+@media (max-width: 780px) {
+  .topbar {
+    gap: 0.5rem;
+    padding: 0.45rem 0.7rem;
+  }
+  /* One header row: the session code and the live dot are what matter on a
+     phone; the app name and the live label go. (Selectors carry .console so
+     they outrank the desktop rules later in the file.) */
+  .console .tb-brand b {
+    display: none;
+  }
+  .console .tb-code {
+    font-size: 1.05rem;
+  }
+  .console .tb-live {
+    font-size: 0;
+    gap: 0;
+  }
+  .console .tb-live .live-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+  .console .topbar {
+    flex-wrap: wrap;
+  }
+  .tb-tools {
+    margin-left: auto;
+    gap: 0.4rem;
+  }
+  .tb-admins {
+    max-width: 7rem;
+    padding: 0.25rem 0.55rem;
+  }
+  .mic-btn.live {
+    color: var(--live);
+    border-color: var(--live);
+  }
+  .mic-btn.open {
+    background: var(--panel-2);
+  }
+  .voicebar {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    row-gap: 0.45rem;
+    border-radius: 12px;
+  }
+  .vb-listener {
+    margin-left: auto;
+  }
+  .mtabs {
+    display: flex;
+    gap: 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 0 0.5rem;
+  }
+  .mtab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--ink-soft);
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 0.6rem 0.2rem;
+    min-height: 44px;
+  }
+  .mtab.on {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .mtab-n {
+    font-size: 0.68rem;
+    background: var(--accent);
+    color: var(--accent-ink, #fff);
+    border-radius: 999px;
+    padding: 0 0.4rem;
+    line-height: 1.3;
+  }
+  /* Tabs: one section at a time. The transport stays (it is fixed). */
+  .console.m-tab-now .activity,
+  .console.m-tab-now .console-right,
+  .console.m-tab-pinned .activity,
+  .console.m-tab-pinned .console-right > :not(.plan-card),
+  .console.m-tab-activity .console-right,
+  .console.m-tab-screen .activity,
+  .console.m-tab-screen .console-right > .plan-card {
+    display: none;
+  }
+  .console.m-tab-pinned .console-main > :not(.transport),
+  .console.m-tab-activity .console-main > :not(.transport),
+  .console.m-tab-screen .console-main > :not(.transport) {
+    display: none;
+  }
+  .console.m-tab-pinned .console-main,
+  .console.m-tab-activity .console-main,
+  .console.m-tab-screen .console-main {
+    padding: 0;
+  }
+  .console.m-tab-activity .activity {
+    max-height: none;
+    border-bottom: none;
+  }
+  .console-main {
+    padding: 0.7rem 0.7rem calc(124px + env(safe-area-inset-bottom));
+  }
+  .console-right,
+  .activity {
+    padding-bottom: calc(124px + env(safe-area-inset-bottom));
+  }
+  /* The transport lives at the bottom of the screen, always. (Specificity beats
+     the desktop rule that makes it an inline strip.) */
+  .console .console-main > .transport {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    border: none;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    box-shadow: 0 -8px 24px rgba(17, 24, 34, 0.08);
+    padding: 0.45rem 0.6rem;
+    padding-bottom: max(0.45rem, env(safe-area-inset-bottom));
+    margin: 0;
+    max-width: none;
+  }
+  .transport-btn {
+    min-height: 52px;
+  }
+  /* Compact Now card: two lines of text, the rest behind "More options". */
+  .now-card.compact .now-full-block {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .now-mobile-tools {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+  }
+  .console.m-more-closed .related,
+  .console.m-more-closed .reading-row,
+  .console.m-more-closed .role-chips,
+  .console.m-more-closed .vps-bar {
+    display: none;
+  }
+}
+
 /* ---- Liturgy (creeds, prayers, responses) ---- */
 /* Lines of a prayer or creed break one per line, unlike flowing verses. */
 .present-lines > span,

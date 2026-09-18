@@ -47,8 +47,39 @@ const HINT_LABELS = {
   'not-driving': 'Another admin is driving the screen. Tap "Take control" first.'
 }
 
+// True while the viewport matches a media query (re-evaluated on resize).
+function useMediaQuery(query) {
+  const get = () => typeof window !== 'undefined' && window.matchMedia(query).matches
+  const [matches, setMatches] = useState(get)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const on = () => setMatches(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [query])
+  return matches
+}
+
+// What the Now card's mode pill says ("ad-hoc" is developer language).
+const MODE_TEXT = { queue: 'pinned', voice: 'voice', auto: 'auto', 'ad-hoc': 'manual' }
+
+// Phone layout (see the mobile block in styles.css): sections become tabs, the
+// transport is fixed to the bottom, and the Now card starts compact.
+const MOBILE_QUERY = '(max-width: 780px)'
+const MOBILE_TABS = [
+  ['now', 'Now'],
+  ['pinned', 'Pinned'],
+  ['activity', 'Activity'],
+  ['screen', 'Screen']
+]
+
 function Console({ row, creds }) {
   const code = row.code
+  const isMobile = useMediaQuery(MOBILE_QUERY)
+  const [mobileTab, setMobileTab] = useState('now')
+  const [nowExpanded, setNowExpanded] = useState(false) // compact Now card: show the full text
+  const [moreOpen, setMoreOpen] = useState(false) // compact Now card: related / per-screen / reading
+  const [voiceOpen, setVoiceOpen] = useState(false) // phone: voice bar shown when open or active
   // This tab's identity for the "who is driving the screen" model (see driver
   // below). Per tab (two tabs of the same person are two controllers) and kept
   // across a reload, so a refreshed controller is still recognised as the
@@ -1551,8 +1582,8 @@ function Console({ row, creds }) {
   const micLabel = voice.micState === 'listening' ? 'Listening' : voice.micState === 'error' ? 'Mic error' : 'Voice off'
 
   return (
-    <div className="console">
-      {/* TOP BAR: identity + voice (always visible) + tools */}
+    <div className={`console${isMobile ? ` m-tab-${mobileTab}${moreOpen ? '' : ' m-more-closed'}` : ''}`}>
+      {/* TOP BAR: identity + voice (always visible on desktop; on a phone, behind the mic button) + tools */}
       <header className="topbar">
         <div className="tb-brand">
           <b>OpenLectern</b>
@@ -1567,7 +1598,7 @@ function Console({ row, creds }) {
           </span>
         </div>
 
-        <div className={`voicebar mic-${voice.micState}${voice.active ? ' listening' : ''}`}>
+        <div className={`voicebar mic-${voice.micState}${voice.active ? ' listening' : ''}${isMobile && !voiceOpen && !voice.active ? ' m-hidden' : ''}`}>
           <span className="vb-status"><span className="vb-ring" aria-hidden="true"><i /></span>{micLabel}</span>
           {voice.supported ? (
             <>
@@ -1591,6 +1622,11 @@ function Console({ row, creds }) {
             </>
           ) : (
             <span className="muted vb-unsupported">Voice needs Chrome or Edge</span>
+          )}
+          {isMobile && (
+            <button className="btn small ghost vb-listener" onClick={() => toggleListener(true)} title="This phone only listens and shares what it hears">
+              Listener mode
+            </button>
           )}
         </div>
 
@@ -1624,7 +1660,25 @@ function Console({ row, creds }) {
               {adminCount > 1 && <span className="tb-plus">+{adminCount - 1}</span>}
             </button>
           )}
-          <button className="btn small ghost" onClick={() => toggleListener(true)}>Listener mode</button>
+          {!isMobile && (
+            <button className="btn small ghost" onClick={() => toggleListener(true)} title="This device only listens and shares what it hears">
+              Listener mode
+            </button>
+          )}
+          {isMobile && (
+            <button
+              className={`iconbtn mic-btn${voice.active ? ' live' : ''}${voiceOpen ? ' open' : ''}`}
+              title="Voice controls"
+              aria-label="Voice controls"
+              aria-expanded={voiceOpen || voice.active}
+              onClick={() => setVoiceOpen((v) => !v)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
+              </svg>
+            </button>
+          )}
           <button className="iconbtn" title="Settings and sharing" aria-label="Settings and sharing" onClick={() => setPanelOpen(true)}>
             <span aria-hidden="true">⚙</span>
           </button>
@@ -1633,6 +1687,18 @@ function Console({ row, creds }) {
 
       {voice.error && <p className="voice-err">{voice.error}</p>}
       {status && <p className="error console-status">{status}</p>}
+
+      {isMobile && (
+        <nav className="mtabs" aria-label="Sections">
+          {MOBILE_TABS.map(([id, label]) => (
+            <button key={id} className={`mtab${mobileTab === id ? ' on' : ''}`} aria-pressed={mobileTab === id} onClick={() => setMobileTab(id)}>
+              {label}
+              {id === 'pinned' && queue.length > 0 && <span className="mtab-n">{queue.length}</span>}
+              {id === 'activity' && voice.chips.length > 0 && <span className="mtab-n">{voice.chips.length}</span>}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <div className="console-body">
         {/* LEFT RAIL: one live activity feed (voice, shared, related, history, listeners) */}
@@ -1689,7 +1755,7 @@ function Console({ row, creds }) {
         {/* MAIN: Now + Find + Plan */}
         <main className="console-main">
 
-          <section className="now-card" aria-live="polite">
+          <section className={`now-card${isMobile && !nowExpanded ? ' compact' : ''}`} aria-live="polite">
           {state.blank ? (
             <div className="now-blank">{state.blankTitle ? `Blank — "${state.blankTitle}"` : 'Screen is blank'}</div>
           ) : current ? (
@@ -1712,7 +1778,7 @@ function Console({ row, creds }) {
                     <span className="now-pos">{current.ref.verseStart - adhocSpan.first + 1} / {adhocSpan.last - adhocSpan.first + 1}</span>
                   ) : null}
                   {nowStepRole && <span className={`role-pill role-${nowStepRole}`}>{ROLE_LABELS[nowStepRole]}</span>}
-                  {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
+                  {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{MODE_TEXT[modeLabel] || modeLabel}</span>}
                   <button
                     className="iconbtn sm copy-now"
                     title="Copy or share this verse"
@@ -1755,6 +1821,18 @@ function Console({ row, creds }) {
                   </p>
                 )}
               </div>
+              {isMobile && (
+                <div className="now-mobile-tools">
+                  <button className="link-btn" onClick={() => setNowExpanded((v) => !v)}>
+                    {nowExpanded ? 'Less text' : 'Full text'}
+                  </button>
+                  {!current.liturgy && (
+                    <button className="link-btn" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}>
+                      {moreOpen ? 'Fewer options' : 'More options'}
+                    </button>
+                  )}
+                </div>
+              )}
               {!nowSingleVerse && !current.liturgy && (
                 <div className="now-modeswitch" role="group" aria-label="How to show this passage">
                   <button className={`nm-opt${!current.step ? ' on' : ''}`} onClick={() => current.step && toggleNowMode()} aria-pressed={!current.step}>
@@ -1870,7 +1948,10 @@ function Console({ row, creds }) {
               )}
             </>
           ) : (
-            <div className="now-empty">Nothing on screen yet</div>
+            <div className="now-empty">
+              Nothing on screen yet
+              <span className="now-empty-hint">Type a reference in Find a passage and tap Show now, or start the mic and say one.</span>
+            </div>
           )}
         </section>
 
