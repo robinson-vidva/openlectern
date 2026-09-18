@@ -26,7 +26,6 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build:headers && vite build && node scripts/postbuild.mjs",
-    "preview": "vite preview",
     "test": "vitest run",
     "convert:usfx": "node scripts/convert-usfx.mjs",
     "fetch:helloao": "node scripts/fetch-helloao.mjs",
