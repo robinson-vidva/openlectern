@@ -12,6 +12,7 @@
 //   everything else                                         -> the static app (SPA)
 
 import { SessionDO, RateLimiterDO, CODE_ALPHABET } from './session-do.js'
+import { securityHeaders, TURNSTILE } from './headers.js'
 
 export { SessionDO, RateLimiterDO }
 
@@ -20,39 +21,7 @@ export { SessionDO, RateLimiterDO }
 // (and bill) a fresh DO for every garbage code a scanner throws at /api.
 const CODE_RE = new RegExp(`^[${CODE_ALPHABET}]{6}$`)
 
-// Allow Cloudflare Web Analytics' beacon (enabled in the dashboard) without
-// loosening anything else.
-const ANALYTICS = 'https://static.cloudflareinsights.com'
-// Cloudflare Turnstile: the widget script + its challenge iframe.
-const TURNSTILE = 'https://challenges.cloudflare.com'
 const TURNSTILE_VERIFY = `${TURNSTILE}/turnstile/v0/siteverify`
-
-function securityHeaders() {
-  const csp = [
-    "default-src 'self'",
-    `script-src 'self' ${ANALYTICS} ${TURNSTILE}`,
-    `frame-src ${TURNSTILE}`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data:",
-    // 'self' covers same-origin API + WebSocket; HelloAO is the online-translation
-    // fallback; ANALYTICS is the Cloudflare beacon.
-    `connect-src 'self' ${ANALYTICS} https://bible.helloao.org`,
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-    'upgrade-insecure-requests'
-  ].join('; ')
-  return {
-    'Content-Security-Policy': csp,
-    'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'microphone=(self), fullscreen=(self), camera=(), geolocation=()'
-  }
-}
 
 // CORS is opt-in: the app is same-origin, so no header is needed. Set an
 // ALLOWED_ORIGIN var only if you serve the app from a different origin.
