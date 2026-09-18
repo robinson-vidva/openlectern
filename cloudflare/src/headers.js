@@ -4,8 +4,9 @@
 // serves without invoking the Worker (index.html at /, icons, manifest, JS/CSS).
 // Test headersFile.test.js fails if public/_headers drifts from this module.
 
-// Cloudflare Web Analytics' beacon (enabled in the dashboard).
+// Cloudflare Web Analytics: the beacon script host, and the host it reports to.
 export const ANALYTICS = 'https://static.cloudflareinsights.com'
+export const ANALYTICS_RUM = 'https://cloudflareinsights.com'
 // Cloudflare Turnstile: the widget script + its challenge iframe.
 export const TURNSTILE = 'https://challenges.cloudflare.com'
 
@@ -19,7 +20,7 @@ export function securityHeaders() {
     "img-src 'self' data:",
     // 'self' covers same-origin API + WebSocket; HelloAO is the online-translation
     // fallback; ANALYTICS is the Cloudflare beacon.
-    `connect-src 'self' ${ANALYTICS} https://bible.helloao.org`,
+    `connect-src 'self' ${ANALYTICS} ${ANALYTICS_RUM} https://bible.helloao.org`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
