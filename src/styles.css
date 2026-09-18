@@ -1150,6 +1150,30 @@ select:focus {
 .lcard-foot {
   margin-top: auto;
 }
+/* ---- Two admins: who is driving the screen ---- */
+.driver-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--warn, #b26a00);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warn, #b26a00) 10%, var(--panel));
+  font-size: 0.88rem;
+}
+.driver-bar .db-btn {
+  white-space: nowrap;
+}
+.now-by {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
 /* Turnstile (bot check) renders here only when a challenge needs interaction. */
 .turnstile-slot:not(:empty) {
   margin-bottom: 0.6rem;

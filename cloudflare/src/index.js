@@ -48,6 +48,21 @@ function json(body, status, env) {
   return decorate(new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }), env)
 }
 
+// Read a JSON body with a size cap. Oversized -> 413 (a runaway history or a
+// hostile payload must not fill Durable Object storage); unparseable -> {}.
+const MAX_STATE_BYTES = 256 * 1024
+const MAX_SMALL_BYTES = 16 * 1024
+async function readJson(request, maxBytes) {
+  const text = await request.text().catch(() => '')
+  if (text.length > maxBytes) return { __tooLarge: true }
+  try {
+    return JSON.parse(text || '{}') || {}
+  } catch {
+    return {}
+  }
+}
+const tooLarge = (env) => json({ error: 'request too large' }, 413, env)
+
 function randomCode() {
   let s = ''
   const bytes = crypto.getRandomValues(new Uint8Array(6))
@@ -149,7 +164,9 @@ async function handleApi(request, env, parts) {
     if (!(await allowCreate(env, ip))) {
       return json({ error: 'too many sessions created, try again shortly' }, 429, env)
     }
-    const { turnstile, ...body } = await request.json().catch(() => ({}))
+    const parsed = await readJson(request, MAX_SMALL_BYTES)
+    if (parsed.__tooLarge) return tooLarge(env)
+    const { turnstile, ...body } = parsed
     const human = await verifyTurnstile(env, turnstile, ip, TURNSTILE_ACTIONS.create)
     if (human) return json({ error: human.error }, human.status, env)
     for (let attempt = 0; attempt < 6; attempt++) {
@@ -164,28 +181,33 @@ async function handleApi(request, env, parts) {
   const code = (parts[2] || '').toUpperCase()
   const action = parts[3] || ''
   if (!CODE_RE.test(code)) return json({ error: 'not found' }, 404, env)
+  // The DO keys its lockout bypass by client IP; set here, never from the body.
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
 
   // GET /api/session/:code/ws -> WebSocket upgrade (forward original request).
   if (action === 'ws' && request.method === 'GET') {
     return sessionStub(env, code).fetch(request) // 101 response: never decorate
   }
   if (action === 'join' && request.method === 'POST') {
-    const { turnstile, ...body } = await request.json().catch(() => ({}))
-    const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+    const parsed = await readJson(request, MAX_SMALL_BYTES)
+    if (parsed.__tooLarge) return tooLarge(env)
+    const { turnstile, ...body } = parsed
     const human = await verifyTurnstile(env, turnstile, ip, TURNSTILE_ACTIONS.join)
     if (human) return json({ error: human.error }, human.status, env)
-    return decorate(await callDO(env, code, 'join', body), env)
+    return decorate(await callDO(env, code, 'join', { ...body, ip }), env)
   }
   if (action === 'view' && request.method === 'GET') {
     return decorate(await callDO(env, code, 'view', null), env)
   }
   if (action === 'broadcast' && request.method === 'POST') {
-    const body = await request.json().catch(() => ({}))
-    return decorate(await callDO(env, code, 'broadcast', body), env)
+    const body = await readJson(request, MAX_SMALL_BYTES)
+    if (body.__tooLarge) return tooLarge(env)
+    return decorate(await callDO(env, code, 'broadcast', { ...body, ip }), env)
   }
   if (!action && request.method === 'PATCH') {
-    const body = await request.json().catch(() => ({}))
-    return decorate(await callDO(env, code, 'update', body), env)
+    const body = await readJson(request, MAX_STATE_BYTES)
+    if (body.__tooLarge) return tooLarge(env)
+    return decorate(await callDO(env, code, 'update', { ...body, ip }), env)
   }
   return json({ error: 'not found' }, 404, env)
 }

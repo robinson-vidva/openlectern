@@ -41,11 +41,17 @@ const HINT_LABELS = {
   'no-prev': 'No earlier reference',
   'pinned-ok': 'Pinned',
   'pinned-dup': 'Already pinned',
-  copied: 'Copied'
+  copied: 'Copied',
+  'not-driving': 'Another admin is driving the screen. Tap "Take control" first.'
 }
 
 function Console({ row, creds }) {
   const code = row.code
+  // This tab's identity for the "who is driving the screen" model (see driver
+  // below). Per tab, so two tabs of the same person are two controllers.
+  const clientIdRef = useRef(null)
+  if (!clientIdRef.current) clientIdRef.current = crypto.randomUUID()
+  const clientId = clientIdRef.current
   const [config, setConfig] = useState(row.config || {})
   const versions = config?.versions || []
   const [state, setState] = useState(row.state)
@@ -78,9 +84,9 @@ function Console({ row, creds }) {
     clearTimeout(blankTitleTimer.current)
     if (v) {
       clearAutoUndo()
-      patchState({ blankTitle: v, blank: true })
+      screenPatch({ blankTitle: v, blank: true })
     } else {
-      patchState({ blankTitle: '', blank: false })
+      screenPatch({ blankTitle: '', blank: false })
     }
   }
   const [pinReveal, setPinReveal] = useState(false)
@@ -107,6 +113,7 @@ function Console({ row, creds }) {
   }
   const [listenerMode, setListenerMode] = useState(false)
   const [presenceEntries, setPresenceEntries] = useState([])
+  const presenceIdsRef = useRef(new Set())
   const [listenerBanner, setListenerBanner] = useState('')
   const [qrBig, setQrBig] = useState(false)
   // Show the creator a "session is live -- here's how to share it" popup once per
@@ -162,21 +169,25 @@ function Console({ row, creds }) {
       config: { presence: { key: crypto.randomUUID() }, broadcast: { self: false } }
     })
     // Invite responder: a new device that knows a live invite code gets the PIN
-    // encrypted (never in the clear). Any attempt burns the single-use invite.
+    // encrypted (never in the clear). Only a request with a VALID proof burns the
+    // single-use invite: anyone with the session code can send requests over the
+    // channel, and burning on every attempt would let a viewer kill each invite
+    // the moment it was created. A bad proof just gets a denial (the channel's
+    // per-socket rate limit keeps that from becoming a guessing loop).
     channel.on('broadcast', { event: 'invite-req' }, async ({ payload }) => {
       const inv = inviteRef.current
       if (!payload?.nonce || !isInviteValid(inv, Date.now())) return
+      const res = await buildInviteResponse(inv.code, credsRef.current.pin, payload)
+      if (!res) {
+        channel.send({ type: 'broadcast', event: 'invite-res', payload: { nonce: payload.nonce, denied: true } })
+        return
+      }
+      if (!isInviteValid(inviteRef.current, Date.now())) return // raced: already used
       inviteRef.current = { ...inv, used: true }
       setInvite(null)
       setInviteSecs(0)
-      const res = await buildInviteResponse(inv.code, credsRef.current.pin, payload)
-      if (res) {
-        channel.send({ type: 'broadcast', event: 'invite-res', payload: res })
-        setInviteNote(`${payload.name || 'A device'} joined via your invite.`)
-      } else {
-        channel.send({ type: 'broadcast', event: 'invite-res', payload: { nonce: payload.nonce, denied: true } })
-        setInviteNote('An invite attempt failed; the code was used up.')
-      }
+      channel.send({ type: 'broadcast', event: 'invite-res', payload: res })
+      setInviteNote(`${payload.name || 'A device'} joined via your invite.`)
     })
     channel.on(
       'postgres_changes',
@@ -202,8 +213,9 @@ function Console({ row, creds }) {
       const s = channel.presenceState()
       const entries = Object.values(s)
         .flat()
-        .map((m) => ({ name: m.name || 'Someone', listening: !!m.listening }))
+        .map((m) => ({ name: m.name || 'Someone', listening: !!m.listening, id: m.id || null }))
       setPresenceEntries(entries)
+      presenceIdsRef.current = new Set(entries.map((e) => e.id).filter(Boolean))
       setPresence(entries.map((e) => e.name))
       const curr = activeListeners(entries)
       const dropped = listenerDrops(prevListenersRef.current, curr)
@@ -218,7 +230,7 @@ function Console({ row, creds }) {
       if (ok) {
         everConnectedRef.current = true
         setReconnecting(false)
-        await channel.track({ name: displayName, at: Date.now(), listening: false })
+        await channel.track({ name: displayName, at: Date.now(), listening: false, id: clientId })
       } else if (everConnectedRef.current && (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT')) {
         // Realtime auto-reconnects; surface the recovering state until it resubscribes.
         setReconnecting(true)
@@ -228,18 +240,55 @@ function Console({ row, creds }) {
   }, [code, displayName])
 
   // Push a patch to the shared state (server merges shallowly into state).
-  // A monotonic `rev` lets every client discard stale realtime echoes.
+  // Applied optimistically; `rev` lets every client discard stale echoes. The
+  // server owns the final rev order, so when another admin wrote at the same
+  // time the response (or its echo) carries a higher rev and wins here too --
+  // every controller converges on what the screen actually shows.
   async function patchState(patch) {
     const fullPatch = { ...patch, rev: (stateRef.current.rev || 0) + 1 }
     const next = { ...stateRef.current, ...fullPatch }
     stateRef.current = next
     setState(next)
     try {
-      await updateSession(code, creds.pin, { state: fullPatch })
+      const res = await updateSession(code, creds.pin, { state: fullPatch })
+      const server = res?.state
+      if (server && (server.rev || 0) >= (stateRef.current.rev || 0)) {
+        stateRef.current = server
+        setState(server)
+      }
       setStatus('')
     } catch (err) {
       setStatus(friendlyError(err))
     }
+  }
+
+  // ---- who is driving the screen ----
+  // With two admins, both tapping means the screen flips to whoever's request
+  // lands last and nobody can tell who did it. So the screen has one driver at
+  // a time: any screen change stamps this tab as the driver; other controllers
+  // see "<name> is driving" and must tap Take control before their transport,
+  // shortcuts, or auto-capture can move the screen. A driver who has left
+  // (no longer in presence) doesn't block anyone.
+  function driverStamp() {
+    return { id: clientId, name: displayName, at: Date.now() }
+  }
+  function canDrive() {
+    const d = stateRef.current.driver
+    if (!d || d.id === clientId) return true
+    const ids = presenceIdsRef.current
+    return ids.size > 0 && !ids.has(d.id) // driver has gone
+  }
+  // A screen change: patch + take the wheel. Refused (with a hint) when another
+  // present admin is driving.
+  function screenPatch(patch) {
+    if (!canDrive()) {
+      flash('not-driving')
+      return Promise.resolve(false)
+    }
+    return patchState({ ...patch, driver: driverStamp() }).then(() => true)
+  }
+  function takeControl() {
+    patchState({ driver: driverStamp() })
   }
 
   // Change the session translations (syncs to all) and re-resolve the shown
@@ -285,6 +334,10 @@ function Console({ row, creds }) {
 
   const queue = state.queue || []
   const current = state.current || null
+  // Another admin who is still present holds the wheel.
+  const presentIds = new Set(presenceEntries.map((e) => e.id).filter(Boolean))
+  const otherDriving =
+    !!state.driver && state.driver.id !== clientId && presentIds.size > 0 && presentIds.has(state.driver.id)
   const cursor = state.cursor || null // { queueId, verseIndex, adhoc?, savedPlan? } | null
   const history = state.history || []
   // Track which plan items have been shown, so the list dims what's done and
@@ -309,7 +362,7 @@ function Console({ row, creds }) {
   useEffect(() => {
     const ch = channelRef.current
     if (!ch) return
-    ch.track({ name: displayName, at: Date.now(), listening: listenerMode && voice.micState === 'listening' })
+    ch.track({ name: displayName, at: Date.now(), listening: listenerMode && voice.micState === 'listening', id: clientId })
   }, [listenerMode, voice.micState, displayName])
 
   function toggleListener(on) {
@@ -669,7 +722,7 @@ function Console({ row, creds }) {
     const u = autoUndo
     clearAutoUndo()
     if (!u) return
-    patchState({ current: u.prev.current, cursor: u.prev.cursor, blank: u.prev.blank })
+    screenPatch({ current: u.prev.current, cursor: u.prev.cursor, blank: u.prev.blank })
   }
 
   // ---- showing helpers ----
@@ -694,7 +747,7 @@ function Console({ row, creds }) {
         source
       })
     }
-    await patchState(patch)
+    if (!(await screenPatch(patch))) return
     if (source === 'auto') armAutoUndo(prev, currentObj.reference)
     else clearAutoUndo()
   }
@@ -921,7 +974,7 @@ function Console({ row, creds }) {
     if (c && !c.step) {
       const pageCount = passagePages(c, st.display?.versesPerScreen || 0).length
       if (pageCount > 1 && (c.page || 0) < pageCount - 1) {
-        return patchState({ current: { ...c, page: (c.page || 0) + 1 } })
+        return screenPatch({ current: { ...c, page: (c.page || 0) + 1 } })
       }
     }
     // Ad-hoc stepping: walk one literal verse forward, crossing into the next
@@ -964,7 +1017,7 @@ function Console({ row, creds }) {
     const c = st.current
     // Paginated whole passage: page backward before leaving the passage.
     if (c && !c.step && (c.page || 0) > 0) {
-      return patchState({ current: { ...c, page: c.page - 1 } })
+      return screenPatch({ current: { ...c, page: c.page - 1 } })
     }
     if (cur && cur.adhoc) {
       const a = cur.adhoc
@@ -1026,7 +1079,7 @@ function Console({ row, creds }) {
 
   function toggleBlank() {
     clearAutoUndo()
-    patchState({ blank: !stateRef.current.blank })
+    screenPatch({ blank: !stateRef.current.blank })
   }
 
   // Keyboard + presentation-remote control. Clickers send PageUp/PageDown (and
@@ -1047,7 +1100,7 @@ function Console({ row, creds }) {
     panic() {
       // Panic hide: blank the screen immediately (Blank/Next restores it).
       clearAutoUndo()
-      patchState({ blank: true })
+      screenPatch({ blank: true })
     }
   }
   useEffect(() => {
@@ -1485,7 +1538,14 @@ function Console({ row, creds }) {
           ) : current ? (
             <>
               <div className="now-top">
-                <div className="now-ref">{current.reference}</div>
+                <div className="now-ref">
+                  {current.reference}
+                  {state.driver && (
+                    <span className="now-by" title="Who last changed the screen">
+                      {state.driver.id === clientId ? 'you' : state.driver.name || 'another admin'} · {fmtTime(state.driver.at)}
+                    </span>
+                  )}
+                </div>
                 <div className="now-mode">
                   {pagedWhole ? (
                     <span className="now-pos">{curPage + 1} / {pagedPages.length}</span>
@@ -1638,6 +1698,16 @@ function Console({ row, creds }) {
         )}
 
         <nav className="transport">
+          {otherDriving && (
+            <div className="driver-bar" role="status">
+              <span className="db-text">
+                <b>{state.driver.name || 'Another admin'}</b> is driving the screen
+              </span>
+              <button className="btn small db-btn" onClick={takeControl}>
+                Take control
+              </button>
+            </div>
+          )}
           <div className="transport-sub">
             <button
               className="btn transport-sub-btn"

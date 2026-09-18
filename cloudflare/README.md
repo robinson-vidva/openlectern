@@ -62,6 +62,18 @@ zone on the same account).
 | POST | `/api/session/:code/broadcast` | `{ pin, event, payload, from }` | relays a PIN‑verified peer event (`authed: true`) to the other clients |
 | GET | `/api/session/:code/ws` | — | WebSocket (state / presence / broadcast) |
 
+### Abuse limits
+
+- **Bodies**: create/join/broadcast up to 16 KB, state PATCH up to 256 KB (413 beyond).
+- **WebSocket**: at most 40 sockets per session; per socket 30 messages per 10 s
+  and 16 KB per message (the socket is closed beyond either); presence metadata is
+  reduced to `name` (40 chars), `listening`, `id`, `at`.
+- **PIN**: 5 wrong attempts lock the session with an escalating window (30 s → 32 min).
+  IPs that have already presented the correct PIN keep working through a lockout,
+  so a viewer who knows the code can't freeze the operators. `rev` is assigned by
+  the server so concurrent writes from two controllers order the same everywhere.
+- **Turnstile** (when configured) gates create and join; see the root README.
+
 `patch` may contain `state` (shallow‑merged), `config`, or `admins` (replaced) —
 the same contract as the old `update_session` RPC.
 

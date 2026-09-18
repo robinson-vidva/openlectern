@@ -9,6 +9,14 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const MAX_FAILS = 5 // wrong-PIN attempts before a lockout
 const LOCK_MS = 30 * 1000 // first lockout; doubles each time (capped) so a 4-digit PIN can't be walked
 const MAX_LOCK_DOUBLINGS = 6 // 30s -> 32min
+const MAX_GOOD_IPS = 50 // IPs that have presented the right PIN (bypass a lockout)
+// WebSocket abuse limits: anyone with the code can connect, so cap what one
+// session and one socket can do. Over the limit -> the socket is closed.
+const MAX_SOCKETS = 40
+const MSG_MAX_CHARS = 16 * 1024
+const MSG_RATE = { max: 30, perMs: 10_000 }
+const NAME_MAX = 40
+const KEY_MAX = 64
 
 const enc = new TextEncoder()
 const b64 = (bytes) => btoa(String.fromCharCode(...bytes))
@@ -87,9 +95,14 @@ export class SessionDO {
   // EVERY PIN-bearing action (join, update, broadcast) -- not just join -- so the
   // PIN can't be brute-forced through another endpoint instead. Lockouts escalate
   // (30s, 60s, ... 32min) and never reset, so 10,000 guesses can't fit in a TTL.
+  //
+  // A lockout must not hand a viewer who knows the code a way to freeze the real
+  // operators: IPs that have already presented the correct PIN keep working
+  // through a lockout. An attacker can't join that list without the PIN.
   // Returns null when the PIN is good, else the error Response to send.
-  async checkPin(m, pin) {
-    if (m.lockUntil && Date.now() < m.lockUntil) {
+  async checkPin(m, pin, ip) {
+    const trusted = !!(ip && m.goodIps && m.goodIps[ip])
+    if (m.lockUntil && Date.now() < m.lockUntil && !trusted) {
       return json({ error: 'too many attempts, try again shortly' }, 429)
     }
     if (!(await verifyPin(pin || '', m.pinHash))) {
@@ -103,11 +116,23 @@ export class SessionDO {
       await this.state.storage.put('meta', m)
       return json({ error: 'incorrect pin' }, 401)
     }
+    let dirty = false
     if (m.fails || m.lockUntil) {
       m.fails = 0
       m.lockUntil = 0
-      await this.state.storage.put('meta', m)
+      dirty = true
     }
+    if (ip && !trusted) {
+      const good = { ...(m.goodIps || {}), [ip]: Date.now() }
+      const keys = Object.keys(good)
+      if (keys.length > MAX_GOOD_IPS) {
+        keys.sort((a, b) => good[a] - good[b])
+        for (const k of keys.slice(0, keys.length - MAX_GOOD_IPS)) delete good[k]
+      }
+      m.goodIps = good
+      dirty = true
+    }
+    if (dirty) await this.state.storage.put('meta', m)
     return null
   }
 
@@ -159,8 +184,8 @@ export class SessionDO {
       await this.destroy()
       return json({ error: 'session expired' }, 410)
     }
-    const { pin } = await request.json()
-    const bad = await this.checkPin(m, pin)
+    const { pin, ip } = await request.json()
+    const bad = await this.checkPin(m, pin, ip)
     if (bad) return bad
     return json(await this.publicRow())
   }
@@ -182,8 +207,8 @@ export class SessionDO {
       await this.destroy()
       return json({ error: 'session expired' }, 410)
     }
-    const { pin, patch } = await request.json()
-    const bad = await this.checkPin(m, pin)
+    const { pin, patch, ip } = await request.json()
+    const bad = await this.checkPin(m, pin, ip)
     if (bad) return bad
 
     // Sliding expiry: an active session must not die mid-service. When less than
@@ -197,9 +222,15 @@ export class SessionDO {
     }
 
     // Shallow-merge state (matching the old `state || patch.state`); replace
-    // config / admins outright.
-    if (patch && 'state' in patch) {
-      const next = { ...(await this.currentState()), ...patch.state }
+    // config / admins outright. The server owns `rev`: it always moves forward,
+    // so when two controllers write at once every client converges on the same
+    // order instead of two writes both claiming the same client-guessed rev.
+    // (It never drops below a client's guess, so a client that ran ahead after
+    // a failed request still accepts the echo.)
+    if (patch && patch.state && typeof patch.state === 'object') {
+      const stored = await this.currentState()
+      const next = { ...stored, ...patch.state }
+      next.rev = Math.max((stored.rev || 0) + 1, Number(patch.state.rev) || 0)
       await this.state.storage.put('state', next)
     }
     if (patch && 'config' in patch) {
@@ -229,8 +260,8 @@ export class SessionDO {
       await this.destroy()
       return json({ error: 'session expired' }, 410)
     }
-    const { pin, event, payload, from } = await request.json()
-    const bad = await this.checkPin(m, pin)
+    const { pin, event, payload, from, ip } = await request.json()
+    const bad = await this.checkPin(m, pin, ip)
     if (bad) return bad
     if (typeof event !== 'string' || !event) return json({ error: 'event required' }, 400)
     let except = null
@@ -252,12 +283,13 @@ export class SessionDO {
       return json({ error: 'expected websocket' }, 426)
     }
     if (await this.expired()) return json({ error: 'session expired' }, 410)
+    if (this.sockets.size >= MAX_SOCKETS) return json({ error: 'session is full' }, 429)
 
     const pair = new WebSocketPair()
     const [client, server] = Object.values(pair)
     server.accept()
     this.sockets.add(server)
-    this.presence.set(server, { key: null, meta: null })
+    this.presence.set(server, { key: null, meta: null, bucket: { count: 0, resetAt: 0 } })
 
     server.addEventListener('message', (ev) => this.onMessage(server, ev))
     const close = () => this.onClose(server)
@@ -273,22 +305,55 @@ export class SessionDO {
     return new Response(null, { status: 101, webSocket: client })
   }
 
+  // Per-socket message budget (fixed window). True when this message is allowed.
+  allow(socket) {
+    const entry = this.presence.get(socket)
+    if (!entry) return false
+    const now = Date.now()
+    const b = entry.bucket || (entry.bucket = { count: 0, resetAt: 0 })
+    if (now >= b.resetAt) {
+      b.resetAt = now + MSG_RATE.perMs
+      b.count = 0
+    }
+    b.count += 1
+    return b.count <= MSG_RATE.max
+  }
+  drop(socket, code, reason) {
+    try {
+      socket.close(code, reason)
+    } catch {
+      /* already closed */
+    }
+    this.onClose(socket)
+  }
+
   onMessage(socket, ev) {
+    if (typeof ev.data !== 'string' || ev.data.length > MSG_MAX_CHARS) return this.drop(socket, 1009, 'message too large')
+    if (!this.allow(socket)) return this.drop(socket, 1008, 'too many messages')
     let msg
     try {
       msg = JSON.parse(ev.data)
     } catch {
       return
     }
+    if (!msg || typeof msg !== 'object') return
+    const key = (v) => (typeof v === 'string' && v ? v.slice(0, KEY_MAX) : null)
     if (msg.t === 'hello') {
       const entry = this.presence.get(socket)
-      if (entry) entry.key = msg.key || crypto.randomUUID()
+      if (entry) entry.key = key(msg.key) || crypto.randomUUID()
       this.pushPresence()
     } else if (msg.t === 'track') {
       const entry = this.presence.get(socket)
       if (entry) {
-        entry.key = entry.key || msg.key || crypto.randomUUID()
-        entry.meta = msg.meta || {}
+        entry.key = entry.key || key(msg.key) || crypto.randomUUID()
+        // Presence is shown to other operators, so only known fields, bounded.
+        const meta = msg.meta && typeof msg.meta === 'object' ? msg.meta : {}
+        entry.meta = {
+          name: String(meta.name || '').slice(0, NAME_MAX),
+          listening: !!meta.listening,
+          id: key(meta.id),
+          at: Number(meta.at) || 0
+        }
       }
       this.pushPresence()
     } else if (msg.t === 'broadcast') {
