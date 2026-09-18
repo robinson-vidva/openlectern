@@ -16,6 +16,7 @@ import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.j
 import { appendHistory } from '../lib/history.js'
 import { nextVerse, prevVerse } from '../lib/verseNav.js'
 import { normalizeReading, cycleRole, roleFor, roleForStep, verseKey, READING_PATTERNS, READING_LABELS, ROLE_LABELS, ROLE_SHORT } from '../lib/reading.js'
+import { BUILTIN_LITURGY, allLiturgy, liturgyById, searchLiturgy, parseLiturgyText, liturgyToText, liturgyCurrent, isResponsive, newCustomId } from '../lib/liturgy.js'
 import { makeInviteCode, isInviteValid } from '../lib/crypto.js'
 import { buildInviteResponse } from '../lib/invite.js'
 import { activeListeners, listenerDrops } from '../lib/listener.js'
@@ -69,6 +70,7 @@ function Console({ row, creds }) {
   const clientId = clientIdRef.current
   const [config, setConfig] = useState(row.config || {})
   const versions = config?.versions || []
+  const customLiturgy = config.liturgy || [] // the session's own liturgy texts (see the liturgy section)
   const [state, setState] = useState(row.state)
   // Mirror of the latest state so rapid Next/Back taps read fresh values.
   const stateRef = useRef(row.state)
@@ -327,7 +329,7 @@ function Console({ row, creds }) {
 
   async function reresolveCurrent(newVersions) {
     const c = stateRef.current.current
-    if (!c) return
+    if (!c || c.liturgy) return // liturgy text is not translation-bound
     const rf = c.ref || parseReference(c.reference)
     if (!rf) return
     try {
@@ -580,6 +582,9 @@ function Console({ row, creds }) {
     for (const h of matchAliases(text).slice(0, 4)) {
       for (const ref of h.refs) push({ kind: 'alias', label: h.name, hint: ref, value: ref, action: 'fill' })
     }
+    for (const it of searchLiturgy(customLiturgy, text).slice(0, 4)) {
+      push({ kind: 'liturgy', label: it.title, hint: isResponsive(it) ? 'responsive' : 'said together', value: it.id, action: 'liturgy' })
+    }
     const partial = parsePartialRef(text)
     const endsWithSpace = /\s$/.test(text)
     const bookSettled = !!(partial && partial.book && (partial.chapter != null || endsWithSpace))
@@ -643,6 +648,12 @@ function Console({ row, creds }) {
     if (opt.action === 'show') {
       setComboOpen(false)
       showNow()
+      return
+    }
+    if (opt.action === 'liturgy') {
+      setComboOpen(false)
+      setInput('')
+      showLiturgyId(opt.value, 'manual')
       return
     }
     setInput(opt.value)
@@ -760,7 +771,8 @@ function Console({ row, creds }) {
     if (source !== 'step') {
       patch.history = appendHistory(stateRef.current.history || [], {
         ref: currentObj.reference,
-        sref: currentObj.ref || null, // structured ref so re-show works in any language
+        // Structured ref so re-show works in any language; liturgy by its id.
+        sref: currentObj.ref || (currentObj.liturgy ? { liturgy: currentObj.liturgy } : null),
         at: Date.now(),
         source
       })
@@ -771,6 +783,7 @@ function Console({ row, creds }) {
   }
 
   async function showItemAtVerse(item, verseIndex) {
+    if (item.liturgy) return showLiturgyId(item.liturgy, 'queue', item.id)
     const p = parseReference(item.input)
     if (!p) return setStatus('That queue item could not be read.')
     try {
@@ -783,6 +796,7 @@ function Console({ row, creds }) {
   }
 
   async function showItemWhole(item) {
+    if (item.liturgy) return showLiturgyId(item.liturgy, 'queue', item.id)
     const p = parseReference(item.input)
     if (!p) return setStatus('That queue item could not be read.')
     try {
@@ -798,6 +812,7 @@ function Console({ row, creds }) {
   }
 
   async function enterItemEnd(item) {
+    if (item.liturgy) return showLiturgyId(item.liturgy, 'queue', item.id)
     if (item.whole) {
       const p = parseReference(item.input)
       if (!p) return setStatus('That queue item could not be read.')
@@ -825,6 +840,7 @@ function Console({ row, creds }) {
   }
 
   async function countOf(item) {
+    if (item.liturgy) return liturgyById(customLiturgy, item.liturgy)?.lines.length || 0
     const p = parseReference(item.input)
     if (!p) return 0
     try {
@@ -832,6 +848,67 @@ function Console({ row, creds }) {
     } catch {
       return 0
     }
+  }
+
+  // ---- liturgy (creeds, prayers, responses) ----
+  // Built-in texts plus the session's own (config.liturgy, synced to every
+  // controller and remembered on the device that added them). `customLiturgy`
+  // itself is declared with the config at the top of the component, since the
+  // search combobox reads it during render.
+  async function showLiturgy(item, source = 'manual', queueId = null) {
+    const c = liturgyCurrent(item)
+    const cur = stateRef.current.cursor || null
+    const savedPlan =
+      queueId != null ? null : cur && cur.queueId != null ? { queueId: cur.queueId, verseIndex: cur.verseIndex ?? null } : cur?.savedPlan || null
+    await commitShow(c, { queueId, verseIndex: null, savedPlan }, source)
+  }
+  function showLiturgyId(id, source, queueId = null) {
+    const item = liturgyById(customLiturgy, id)
+    if (!item) return setStatus('That liturgy text is not available in this session.')
+    return showLiturgy(item, source, queueId)
+  }
+  function pinLiturgy(item) {
+    if (queue.some((q) => q.liturgy === item.id)) return flash('pinned-dup')
+    const entry = { id: crypto.randomUUID(), input: `liturgy:${item.id}`, label: item.title, whole: true, liturgy: item.id }
+    patchState({ queue: [...queue, entry] })
+    flash('pinned-ok')
+  }
+  // Picker + editor sheet.
+  const [liturgyOpen, setLiturgyOpen] = useState(false)
+  const [litDraft, setLitDraft] = useState(null) // { id?, basedOn?, title, text, text2 } | null
+  function editLiturgy(item) {
+    setLitDraft({
+      id: item.custom ? item.id : null,
+      basedOn: item.custom ? item.basedOn || null : item.id,
+      title: item.custom ? item.title : `${item.title} (ours)`,
+      text: liturgyToText(item.lines),
+      text2: liturgyToText(item.lines2 || [])
+    })
+  }
+  function saveLiturgyDraft() {
+    const d = litDraft
+    if (!d) return
+    const title = d.title.trim().slice(0, 80)
+    const lines = parseLiturgyText(d.text)
+    if (!title || !lines.length) return setStatus('Give the text a title and at least one line.')
+    const lines2 = parseLiturgyText(d.text2)
+    const item = {
+      id: d.id || newCustomId(),
+      basedOn: d.basedOn || undefined,
+      title,
+      lines,
+      lang: 'en',
+      lines2: lines2.length ? lines2 : undefined,
+      lang2: lines2.length ? versions[1]?.language || 'ta' : undefined
+    }
+    const next = d.id ? customLiturgy.map((x) => (x.id === d.id ? item : x)) : [...customLiturgy, item]
+    patchConfig({ ...config, liturgy: next })
+    setLitDraft(null)
+    setStatus('')
+  }
+  function deleteLiturgy(id) {
+    patchConfig({ ...config, liturgy: customLiturgy.filter((x) => x.id !== id) })
+    if (litDraft?.id === id) setLitDraft(null)
   }
 
   // Ad-hoc show (Show now / voice). Sets an ad-hoc cursor so Back/Next continue
@@ -921,6 +998,7 @@ function Console({ row, creds }) {
   // Prefer the structured ref (works in any language); fall back to parsing the
   // English display string for older entries.
   function reShow(entry) {
+    if (entry.sref?.liturgy) return showLiturgyId(entry.sref.liturgy, 'manual')
     const p = entry.sref?.bookId ? entry.sref : parseReference(entry.ref)
     if (!p || !p.bookId) return setStatus('Could not re-read that reference.')
     return showAdhoc(p, 'manual')
@@ -1190,6 +1268,10 @@ function Console({ row, creds }) {
 
   // Pin from a structured ref (display string may be localized).
   function pinRef(ref, fallback) {
+    if (ref?.liturgy) {
+      const item = liturgyById(customLiturgy, ref.liturgy)
+      return item ? pinLiturgy(item) : setStatus('That liturgy text is not available in this session.')
+    }
     return pin((ref && ref.bookId ? labelFromRef(ref) : '') || fallback || '')
   }
 
@@ -1236,6 +1318,7 @@ function Console({ row, creds }) {
   }
 
   async function toggleWhole(item) {
+    if (item.liturgy) return
     const updated = { ...item, whole: !item.whole }
     await patchState({ queue: queue.map((q) => (q.id === item.id ? updated : q)) })
     if (cursor?.queueId === item.id) {
@@ -1250,7 +1333,7 @@ function Console({ row, creds }) {
     const data = {
       openlectern: 'queue',
       version: 1,
-      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole })),
+      items: queue.map((q) => ({ input: q.input, label: q.label, whole: !!q.whole, liturgy: q.liturgy || undefined })),
       history: history.map((e) => ({ ref: e.ref, sref: e.sref || null, at: e.at, source: e.source }))
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -1272,6 +1355,10 @@ function Console({ row, creds }) {
         const data = JSON.parse(reader.result)
         const items = (data.items || [])
           .map((it) => {
+            if (it.liturgy) {
+              const item = liturgyById(customLiturgy, it.liturgy)
+              return item ? { id: crypto.randomUUID(), input: `liturgy:${item.id}`, label: item.title, whole: true, liturgy: item.id } : null
+            }
             const p = parseReference(it.input || it.label || '')
             if (!p) return null
             return { id: crypto.randomUUID(), input: it.input || it.label, label: formatLabel(p), whole: !!it.whole }
@@ -1353,7 +1440,7 @@ function Console({ row, creds }) {
   // The verses of the passage on the Now card, with their position and key, in
   // every mode: whole passage, a stepped pinned item, or a stepped ad-hoc span.
   function nowVerseList() {
-    if (!current) return []
+    if (!current || current.liturgy) return []
     if (!current.step && current.ref && current.primary) {
       const total = current.primary.verses.length
       return current.primary.verses.map((v, index) => ({
@@ -1421,7 +1508,7 @@ function Console({ row, creds }) {
   // Anchor is the current verse in step mode, the passage's first verse in whole
   // mode -- current.ref.verseStart is exactly that in both cases.
   const relatedAnchor = useMemo(() => {
-    if (!current) return null
+    if (!current || current.liturgy) return null
     const r = current.ref || parseReference(current.reference)
     if (!r || !r.bookId) return null
     return { bookId: r.bookId, chapter: r.chapter, verse: r.verseStart || 1 }
@@ -1651,7 +1738,7 @@ function Console({ row, creds }) {
                   <p className="now-full-block" lang={nowPrimary.language}>
                     {nowPrimary.verses.map((v) => (
                       <span key={v.c ? `${v.c}:${v.n}` : v.n}>
-                        {!current.step && <span className="now-vn">{v.label ?? v.n}</span>}
+                        {!current.step && !current.liturgy && <span className="now-vn">{v.label ?? v.n}</span>}
                         {v.text}{' '}
                       </span>
                     ))}
@@ -1661,14 +1748,14 @@ function Console({ row, creds }) {
                   <p className="now-full-block" lang={nowSecondary.language}>
                     {nowSecondary.verses.map((v) => (
                       <span key={v.c ? `${v.c}:${v.n}` : v.n}>
-                        {!current.step && <span className="now-vn">{v.label ?? v.n}</span>}
+                        {!current.step && !current.liturgy && <span className="now-vn">{v.label ?? v.n}</span>}
                         {v.text}{' '}
                       </span>
                     ))}
                   </p>
                 )}
               </div>
-              {!nowSingleVerse && (
+              {!nowSingleVerse && !current.liturgy && (
                 <div className="now-modeswitch" role="group" aria-label="How to show this passage">
                   <button className={`nm-opt${!current.step ? ' on' : ''}`} onClick={() => current.step && toggleNowMode()} aria-pressed={!current.step}>
                     Whole passage
@@ -1678,7 +1765,7 @@ function Console({ row, creds }) {
                   </button>
                 </div>
               )}
-              {!nowSingleVerse && (
+              {!nowSingleVerse && !current.liturgy && (
                 <div className="reading-row">
                   <span className="mini-label">Responsive reading</span>
                   <div className="now-modeswitch reading-switch" role="group" aria-label="Responsive reading pattern">
@@ -1931,6 +2018,9 @@ function Console({ row, creds }) {
                 <button className="btn" onClick={addToQueue} disabled={!parsedNow}>
                   Pin
                 </button>
+                <button className="btn" onClick={() => setLiturgyOpen(true)} title="Creeds, prayers and responses said together">
+                  Liturgy
+                </button>
               </div>
         </section>
         </main>
@@ -2081,6 +2171,92 @@ function Console({ row, creds }) {
       )}
 
       {hint && <div className="plan-hint">{HINT_LABELS[hint] || ''}</div>}
+
+      {liturgyOpen && (
+        <div className="settings-scrim" role="dialog" aria-label="Liturgy" onClick={() => setLiturgyOpen(false)}>
+          <div className="settings-sheet liturgy-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-head">
+              <h2>Liturgy</h2>
+              <button className="btn small" onClick={() => setLiturgyOpen(false)}>Done</button>
+            </div>
+            <div className="liturgy-body">
+              <p className="muted">
+                Creeds, prayers and responses said together. Show one now or pin it for later. Built-in texts use the
+                traditional wording; edit any of them to match your church, or add your own in any language.
+              </p>
+              {[
+                ['Your texts', customLiturgy.map((x) => ({ ...x, custom: true }))],
+                ['Built in', BUILTIN_LITURGY]
+              ].map(
+                ([title, list]) =>
+                  list.length > 0 && (
+                    <section key={title} className="liturgy-group">
+                      <h3 className="section-title">{title}</h3>
+                      {list.map((item) => (
+                        <div className="liturgy-row" key={item.id}>
+                          <div className="lr-main">
+                            <div className="lr-title">
+                              {item.title}
+                              {isResponsive(item) && <span className="badge">responsive</span>}
+                              {item.lines2?.length > 0 && <span className="badge">2 languages</span>}
+                            </div>
+                            <div className="lr-preview muted">{item.lines[0]?.text}</div>
+                          </div>
+                          <div className="lr-actions">
+                            <button
+                              className="btn small primary"
+                              onClick={() => {
+                                showLiturgy(item, 'manual')
+                                setLiturgyOpen(false)
+                              }}
+                            >
+                              Show
+                            </button>
+                            <button className="btn small" onClick={() => pinLiturgy(item)}>Pin</button>
+                            <button className="btn small" onClick={() => editLiturgy(item)}>{item.custom ? 'Edit' : 'Edit a copy'}</button>
+                            {item.custom && (
+                              <button className="btn small danger" onClick={() => deleteLiturgy(item.id)}>Delete</button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </section>
+                  )
+              )}
+              <section className="liturgy-form">
+                <h3 className="section-title">{litDraft ? (litDraft.id ? 'Edit text' : 'New text') : 'Add your own'}</h3>
+                {!litDraft ? (
+                  <button className="btn" onClick={() => setLitDraft({ id: null, basedOn: null, title: '', text: '', text2: '' })}>
+                    Add a text
+                  </button>
+                ) : (
+                  <>
+                    <div className="field">
+                      <label htmlFor="lit-title">Title</label>
+                      <input id="lit-title" type="text" maxLength={80} value={litDraft.title} onChange={(e) => setLitDraft({ ...litDraft, title: e.target.value })} placeholder="e.g. Our Prayer of Confession" />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="lit-text">Text</label>
+                      <textarea id="lit-text" rows={8} value={litDraft.text} onChange={(e) => setLitDraft({ ...litDraft, text: e.target.value })} placeholder={'One line per line on the screen.\nStart a line with L:, P: or All: for a responsive text.'} />
+                      <p className="muted small">
+                        One line per line on the screen. Start a line with <b>L:</b> (leader), <b>P:</b> (people) or <b>All:</b> to make it responsive.
+                      </p>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="lit-text2">Second language (optional)</label>
+                      <textarea id="lit-text2" rows={5} value={litDraft.text2} onChange={(e) => setLitDraft({ ...litDraft, text2: e.target.value })} placeholder="The same lines, in order, in the other language" />
+                    </div>
+                    <div className="toolbar">
+                      <button className="btn primary" onClick={saveLiturgyDraft}>Save</button>
+                      <button className="btn" onClick={() => setLitDraft(null)}>Cancel</button>
+                    </div>
+                  </>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
 
       {panelOpen && (
         <div className="settings-scrim" role="dialog" aria-label="Screen settings" onClick={() => setPanelOpen(false)}>

@@ -39,6 +39,13 @@ the PIN under a fresh key agreement instead of sharing it in the clear.
   Bible structure, so `John → 3 → 16` needs no punctuation.
 - **Named passages** — search by name: "the prodigal son", "the love chapter",
   "the armor of God" resolve to references.
+- **Liturgy** — the Lord's Prayer, the Apostles' and Nicene Creeds, Gloria Patri,
+  the Doxology, Kyrie, Sursum Corda, Sanctus, Agnus Dei and a prayer of
+  confession, built in with the traditional wording, shown line by line with an
+  *All together* label (or leader / people for responses). Edit any of them to
+  your church's wording or add your own in any language; they're shared with
+  every controller in the session and can be pinned like a passage. Type
+  "creed" or "our father" in the search box, or open **Liturgy**.
 - **Responsive reading** — the leader reads a verse, the congregation the next,
   and everyone the last one together. Turn it on from the Now card: the screen
   labels each stepped verse *Leader* / *Congregation* / *All together*, or bolds

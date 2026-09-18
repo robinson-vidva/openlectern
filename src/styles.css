@@ -1282,6 +1282,84 @@ select:focus {
   border-style: dashed;
 }
 
+/* ---- Liturgy (creeds, prayers, responses) ---- */
+/* Lines of a prayer or creed break one per line, unlike flowing verses. */
+.present-lines > span,
+.pv-lines > span {
+  display: block;
+}
+.present-lines > span + span {
+  margin-top: 0.35em;
+}
+.pv-lines > span + span {
+  margin-top: 0.25em;
+}
+.liturgy-body {
+  padding: 1rem 1.2rem 1.4rem;
+}
+.liturgy-group {
+  margin-top: 0.8rem;
+}
+.liturgy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.liturgy-row .lr-main {
+  min-width: 0;
+}
+.liturgy-row .lr-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.liturgy-row .lr-preview {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48ch;
+}
+.liturgy-row .lr-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.liturgy-form {
+  margin-top: 1.2rem;
+}
+.liturgy-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--panel);
+  color: var(--ink);
+  resize: vertical;
+}
+.liturgy-form .small {
+  font-size: 0.8rem;
+  margin: 0.3rem 0 0;
+}
+@media (max-width: 640px) {
+  .liturgy-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .liturgy-row .lr-actions {
+    justify-content: flex-start;
+  }
+}
+
 /* ---- Two admins: who is driving the screen ---- */
 .driver-bar {
   display: flex;

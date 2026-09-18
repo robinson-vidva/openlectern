@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "about": "Creeds, prayers and responses said together in worship. Built-in texts use the traditional English wording (Book of Common Prayer 1662 and older sources), which is in the public domain; modern ecumenical wordings are copyrighted and vary by denomination, so every item is editable and churches add their own. Lines are shown one per line on the screen. A line's role is 'all' (unison) unless marked 'leader' or 'people' (responsive).",
+  "license": "Texts: public domain (traditional wording). Curation: MIT with the rest of the project.",
+  "items": [
+    {
+      "id": "lords-prayer",
+      "title": "The Lord's Prayer",
+      "keywords": ["our father", "lords prayer", "pater noster"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "Our Father, who art in heaven, hallowed be thy name;" },
+        { "text": "thy kingdom come; thy will be done on earth as it is in heaven." },
+        { "text": "Give us this day our daily bread." },
+        { "text": "And forgive us our trespasses, as we forgive those who trespass against us." },
+        { "text": "And lead us not into temptation, but deliver us from evil." },
+        { "text": "For thine is the kingdom, the power, and the glory, for ever and ever. Amen." }
+      ]
+    },
+    {
+      "id": "lords-prayer-debts",
+      "title": "The Lord's Prayer (debts)",
+      "keywords": ["our father", "lords prayer", "debts", "debtors"],
+      "source": "Traditional (Presbyterian / Reformed wording)",
+      "lines": [
+        { "text": "Our Father, who art in heaven, hallowed be thy name;" },
+        { "text": "thy kingdom come; thy will be done on earth as it is in heaven." },
+        { "text": "Give us this day our daily bread." },
+        { "text": "And forgive us our debts, as we forgive our debtors." },
+        { "text": "And lead us not into temptation, but deliver us from evil." },
+        { "text": "For thine is the kingdom, and the power, and the glory, for ever. Amen." }
+      ]
+    },
+    {
+      "id": "apostles-creed",
+      "title": "The Apostles' Creed",
+      "keywords": ["apostles creed", "i believe in god the father almighty", "creed"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "I believe in God the Father Almighty, Maker of heaven and earth:" },
+        { "text": "And in Jesus Christ his only Son our Lord," },
+        { "text": "who was conceived by the Holy Ghost, born of the Virgin Mary," },
+        { "text": "suffered under Pontius Pilate, was crucified, dead, and buried;" },
+        { "text": "he descended into hell; the third day he rose again from the dead;" },
+        { "text": "he ascended into heaven, and sitteth on the right hand of God the Father Almighty;" },
+        { "text": "from thence he shall come to judge the quick and the dead." },
+        { "text": "I believe in the Holy Ghost; the holy catholic Church; the communion of saints;" },
+        { "text": "the forgiveness of sins; the resurrection of the body; and the life everlasting. Amen." }
+      ]
+    },
+    {
+      "id": "nicene-creed",
+      "title": "The Nicene Creed",
+      "keywords": ["nicene creed", "nicea", "i believe in one god", "creed"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "I believe in one God the Father Almighty, Maker of heaven and earth, and of all things visible and invisible:" },
+        { "text": "And in one Lord Jesus Christ, the only-begotten Son of God, begotten of his Father before all worlds," },
+        { "text": "God of God, Light of Light, very God of very God, begotten, not made, being of one substance with the Father, by whom all things were made:" },
+        { "text": "who for us men and for our salvation came down from heaven, and was incarnate by the Holy Ghost of the Virgin Mary, and was made man," },
+        { "text": "and was crucified also for us under Pontius Pilate. He suffered and was buried," },
+        { "text": "and the third day he rose again according to the Scriptures, and ascended into heaven, and sitteth on the right hand of the Father." },
+        { "text": "And he shall come again with glory to judge both the quick and the dead: whose kingdom shall have no end." },
+        { "text": "And I believe in the Holy Ghost, the Lord and giver of life, who proceedeth from the Father and the Son," },
+        { "text": "who with the Father and the Son together is worshipped and glorified, who spake by the Prophets." },
+        { "text": "And I believe one holy catholic and apostolic Church. I acknowledge one Baptism for the remission of sins." },
+        { "text": "And I look for the resurrection of the dead, and the life of the world to come. Amen." }
+      ]
+    },
+    {
+      "id": "gloria-patri",
+      "title": "Gloria Patri",
+      "keywords": ["gloria patri", "glory be to the father", "glory be"],
+      "source": "Traditional",
+      "lines": [
+        { "text": "Glory be to the Father, and to the Son, and to the Holy Ghost;" },
+        { "text": "as it was in the beginning, is now, and ever shall be, world without end. Amen." }
+      ]
+    },
+    {
+      "id": "doxology",
+      "title": "The Doxology",
+      "keywords": ["doxology", "praise god from whom all blessings flow"],
+      "source": "Thomas Ken, 1674",
+      "lines": [
+        { "text": "Praise God, from whom all blessings flow;" },
+        { "text": "praise him, all creatures here below;" },
+        { "text": "praise him above, ye heavenly host;" },
+        { "text": "praise Father, Son, and Holy Ghost. Amen." }
+      ]
+    },
+    {
+      "id": "gloria-in-excelsis",
+      "title": "Gloria in Excelsis",
+      "keywords": ["gloria", "glory be to god on high", "gloria in excelsis"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "Glory be to God on high, and in earth peace, good will towards men." },
+        { "text": "We praise thee, we bless thee, we worship thee, we glorify thee, we give thanks to thee for thy great glory," },
+        { "text": "O Lord God, heavenly King, God the Father Almighty." },
+        { "text": "O Lord, the only-begotten Son, Jesu Christ; O Lord God, Lamb of God, Son of the Father," },
+        { "text": "that takest away the sins of the world, have mercy upon us." },
+        { "text": "Thou that takest away the sins of the world, have mercy upon us." },
+        { "text": "Thou that takest away the sins of the world, receive our prayer." },
+        { "text": "Thou that sittest at the right hand of God the Father, have mercy upon us." },
+        { "text": "For thou only art holy; thou only art the Lord;" },
+        { "text": "thou only, O Christ, with the Holy Ghost, art most high in the glory of God the Father. Amen." }
+      ]
+    },
+    {
+      "id": "kyrie",
+      "title": "Kyrie (Lord, have mercy)",
+      "keywords": ["kyrie", "lord have mercy", "christ have mercy"],
+      "source": "Traditional",
+      "lines": [
+        { "text": "Lord, have mercy upon us.", "role": "leader" },
+        { "text": "Lord, have mercy upon us.", "role": "people" },
+        { "text": "Christ, have mercy upon us.", "role": "leader" },
+        { "text": "Christ, have mercy upon us.", "role": "people" },
+        { "text": "Lord, have mercy upon us.", "role": "leader" },
+        { "text": "Lord, have mercy upon us.", "role": "people" }
+      ]
+    },
+    {
+      "id": "sursum-corda",
+      "title": "Sursum Corda (Lift up your hearts)",
+      "keywords": ["sursum corda", "lift up your hearts", "the lord be with you"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "The Lord be with you.", "role": "leader" },
+        { "text": "And with thy spirit.", "role": "people" },
+        { "text": "Lift up your hearts.", "role": "leader" },
+        { "text": "We lift them up unto the Lord.", "role": "people" },
+        { "text": "Let us give thanks unto our Lord God.", "role": "leader" },
+        { "text": "It is meet and right so to do.", "role": "people" }
+      ]
+    },
+    {
+      "id": "sanctus",
+      "title": "Sanctus (Holy, holy, holy)",
+      "keywords": ["sanctus", "holy holy holy lord god of hosts"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "Holy, holy, holy, Lord God of hosts," },
+        { "text": "heaven and earth are full of thy glory." },
+        { "text": "Glory be to thee, O Lord most high. Amen." }
+      ]
+    },
+    {
+      "id": "agnus-dei",
+      "title": "Agnus Dei (O Lamb of God)",
+      "keywords": ["agnus dei", "lamb of god", "o lamb of god"],
+      "source": "Traditional (Book of Common Prayer)",
+      "lines": [
+        { "text": "O Lamb of God, that takest away the sins of the world, have mercy upon us." },
+        { "text": "O Lamb of God, that takest away the sins of the world, have mercy upon us." },
+        { "text": "O Lamb of God, that takest away the sins of the world, grant us thy peace." }
+      ]
+    },
+    {
+      "id": "general-confession",
+      "title": "Prayer of Confession",
+      "keywords": ["confession", "general confession", "almighty and most merciful father", "we have erred and strayed"],
+      "source": "Traditional (Book of Common Prayer, Morning Prayer)",
+      "lines": [
+        { "text": "Almighty and most merciful Father; we have erred, and strayed from thy ways like lost sheep." },
+        { "text": "We have followed too much the devices and desires of our own hearts." },
+        { "text": "We have offended against thy holy laws." },
+        { "text": "We have left undone those things which we ought to have done; and we have done those things which we ought not to have done; and there is no health in us." },
+        { "text": "But thou, O Lord, have mercy upon us, miserable offenders." },
+        { "text": "Spare thou them, O God, which confess their faults. Restore thou them that are penitent;" },
+        { "text": "according to thy promises declared unto mankind in Christ Jesu our Lord." },
+        { "text": "And grant, O most merciful Father, for his sake; that we may hereafter live a godly, righteous, and sober life," },
+        { "text": "to the glory of thy holy Name. Amen." }
+      ]
+    }
+  ]
+}

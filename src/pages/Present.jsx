@@ -144,9 +144,15 @@ function Stage({ state, code }) {
   // the single verse's role (step mode). Page slices keep their passage index.
   const reading = normalizeReading(state?.reading)
   const readingOn = reading.pattern !== 'off'
-  const allRoles = readingOn && current && !current.step ? rolesForPassage(reading, current.ref, current.primary?.verses || []) : null
+  // Liturgy (a creed or prayer): roles come with the text itself. Unison shows
+  // one "All together" label; a responsive text (Kyrie) marks each line.
+  const isLiturgy = !!current?.liturgy
+  const allRoles = isLiturgy
+    ? current.unison ? null : current.roles
+    : readingOn && current && !current.step ? rolesForPassage(reading, current.ref, current.primary?.verses || []) : null
   const pageRoles = allRoles ? (pageVerses ? pageVerses.map((i) => allRoles[i]) : allRoles) : null
-  const stepRole = readingOn ? roleForStep(reading, current) : null
+  const stepRole = isLiturgy ? (current.unison ? 'all' : null) : readingOn ? roleForStep(reading, current) : null
+  const legendPattern = isLiturgy ? 'alternate-all' : reading.pattern
 
   const fitKey = blank ? 'blank' : `${current?.id || 'empty'}:${pageIdx}:${reading.pattern}:${stepRole || ''}`
   useAutoFit(blockRef, fitKey, scale)
@@ -218,9 +224,13 @@ function Stage({ state, code }) {
           >
             <div className="present-ref">{current.reference}</div>
             {stepRole && <div className={`present-role role-${stepRole}`}>{ROLE_LABELS[stepRole]}</div>}
-            {pageRoles && <ReadingLegend pattern={reading.pattern} />}
-            {showPrimary && <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} roles={pageRoles} />}
-            {showSecondary && <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} roles={pageRoles} />}
+            {pageRoles && <ReadingLegend pattern={legendPattern} />}
+            {showPrimary && (
+              <VerseBlock block={pagePrimary} className={`present-primary${isLiturgy ? ' present-lines' : ''}`} hideNumber={current.step || isLiturgy} roles={pageRoles} />
+            )}
+            {showSecondary && (
+              <VerseBlock block={pageSecondary} className={`present-secondary${isLiturgy ? ' present-lines' : ''}`} hideNumber={current.step || isLiturgy} roles={pageRoles} />
+            )}
           </div>
         ) : blank ? (
           <div className="present-block" ref={blockRef}>
