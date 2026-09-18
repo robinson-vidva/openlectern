@@ -95,10 +95,39 @@ account.
    ```bash
    npm install
    cp .env.example .env     # VITE_API_BASE=same-origin (or a deployed Worker URL)
-   npm run dev              # UI only; run `npx wrangler dev` in cloudflare/ for the API
+   npm run dev              # the UI; /api is proxied to `npx wrangler dev` in cloudflare/ (port 8787)
    ```
 
 Run the test suite with `npm test`.
+
+## Bot protection (optional)
+
+Session creation can be gated with [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/)
+so scripts can't mass‑create sessions. It's off until you add the keys:
+
+1. Dashboard → **Turnstile** → **Add widget** (hostname = your domain, mode
+   *Managed*). Copy the site key and secret key.
+2. In [`cloudflare/wrangler.toml`](cloudflare/wrangler.toml) set `[vars]`
+   `TURNSTILE_SITE_KEY` to the **site key** and `TURNSTILE_HOSTNAMES` to the
+   hostname(s) the app is served on (tokens solved anywhere else are refused).
+   Then add the **secret key** as a GitHub repository secret named
+   `TURNSTILE_SECRET` (Settings → Secrets and variables → Actions). The deploy
+   workflow pushes it to the Worker as a Worker secret on every deploy. If you
+   deploy by hand instead, set it directly:
+
+   ```bash
+   cd cloudflare && npx wrangler secret put TURNSTILE_SECRET
+   ```
+
+3. Deploy. The app reads the site key from `/api/config` at runtime (no rebuild),
+   shows the check on the landing page, and the Worker verifies each token
+   server‑side (success, action `create-session`, and hostname) before creating a
+   session. To turn it off, delete the Worker secret (dashboard → the Worker →
+   Settings → Variables and Secrets) and remove the GitHub secret so a later
+   deploy doesn't restore it.
+
+For local development, Cloudflare's test keys always pass: site key
+`1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`.
 
 ## Architecture
 

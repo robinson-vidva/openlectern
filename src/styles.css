@@ -1150,6 +1150,15 @@ select:focus {
 .lcard-foot {
   margin-top: auto;
 }
+/* Turnstile (bot check) renders here only when a challenge needs interaction. */
+.turnstile-slot:not(:empty) {
+  margin-bottom: 0.6rem;
+}
+.turnstile-note {
+  text-align: center;
+  font-size: 0.8rem;
+  margin: 0.5rem 0 0;
+}
 .lcard-alt {
   display: block;
   text-align: center;

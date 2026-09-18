@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { useVoice } from '../components/useVoice.js'
-import { updateSession, joinSession, sessionChannel } from '../lib/session.js'
+import { updateSession, joinSession, sessionChannel, broadcastSession } from '../lib/session.js'
 import { friendlyError } from '../lib/backendConfig.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
@@ -15,7 +15,7 @@ import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
 import { nextVerse, prevVerse } from '../lib/verseNav.js'
-import { makeInviteCode, isInviteValid, hmacKey, signMsg, verifyMsg } from '../lib/crypto.js'
+import { makeInviteCode, isInviteValid } from '../lib/crypto.js'
 import { buildInviteResponse } from '../lib/invite.js'
 import { activeListeners, listenerDrops } from '../lib/listener.js'
 import { loadXrefBook, lookupXrefs } from '../lib/xrefs.js'
@@ -135,19 +135,22 @@ function Console({ row, creds }) {
   }
   const voiceRef = useRef(null)
   const channelRef = useRef(null)
-  const keyRef = useRef(null)
   const prevListenersRef = useRef([])
-  async function getSigKey() {
-    if (!keyRef.current) keyRef.current = await hmacKey('pin:' + credsRef.current.pin)
-    return keyRef.current
-  }
-  // Broadcast a local detection (signed) so operating controllers see a labeled chip.
+  // Broadcast a local detection so operating controllers see a labeled chip. It
+  // goes over the PIN-verified HTTP path, so receivers get it `authed`; nothing
+  // derived from the PIN ever crosses the public channel (a PIN-keyed signature
+  // would let any viewer brute-force the 4-digit PIN offline).
   async function broadcastDetect(cand) {
     const ch = channelRef.current
     if (!ch) return
-    const msg = JSON.stringify({ cand, from: credsRef.current.name || 'Someone', at: Date.now() })
     try {
-      ch.send({ type: 'broadcast', event: 'detect', payload: { msg, sig: await signMsg(await getSigKey(), msg) } })
+      await broadcastSession(
+        code,
+        credsRef.current.pin,
+        'detect',
+        { cand, from: credsRef.current.name || 'Someone', at: Date.now() },
+        ch.presenceKey
+      )
     } catch {
       /* ignore transient send errors */
     }
@@ -188,16 +191,12 @@ function Console({ row, creds }) {
         setState(incoming)
       }
     )
-    // Shared voice chips from other listening devices (signed by a PIN holder).
-    channel.on('broadcast', { event: 'detect' }, async ({ payload }) => {
-      if (!payload?.msg || !payload?.sig) return
-      if (!(await verifyMsg(await getSigKey(), payload.msg, payload.sig))) return
-      try {
-        const data = JSON.parse(payload.msg)
-        voiceRef.current?.addSharedChip?.(data.cand, data.from)
-      } catch {
-        /* ignore malformed */
-      }
+    // Shared voice chips from other listening devices. Only server-authenticated
+    // (PIN-verified) events count; a viewer can relay anything over the raw
+    // WebSocket, but the server never marks that `authed`.
+    channel.on('broadcast', { event: 'detect' }, ({ payload, authed }) => {
+      if (!authed || !payload?.cand) return
+      voiceRef.current?.addSharedChip?.(payload.cand, payload.from)
     })
     channel.on('presence', { event: 'sync' }, () => {
       const s = channel.presenceState()
@@ -1033,43 +1032,60 @@ function Console({ row, creds }) {
   // Keyboard + presentation-remote control. Clickers send PageUp/PageDown (and
   // often arrows); map those plus Space to Next/Back and B/period to Blank. Ignored
   // while typing in a field so the search box is unaffected.
+  //
+  // The listener is bound once, so it dispatches through a ref that is refreshed
+  // every render. Calling the handlers captured on mount would resolve verses
+  // against the translations (and per-screen settings) from the FIRST render: a
+  // clicker press after a translation switch showed the old translation.
+  const keyActionsRef = useRef(null)
+  keyActionsRef.current = {
+    goNext,
+    goBack,
+    toggleBlank,
+    goPinNext,
+    goPinPrev,
+    panic() {
+      // Panic hide: blank the screen immediately (Blank/Next restores it).
+      clearAutoUndo()
+      patchState({ blank: true })
+    }
+  }
   useEffect(() => {
     const onKey = (e) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
       const el = e.target
       if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return
+      const k = keyActionsRef.current
       switch (e.key) {
         case 'ArrowRight':
         case 'PageDown':
         case ' ':
         case 'Spacebar':
           e.preventDefault()
-          goNext()
+          k.goNext()
           break
         case 'ArrowLeft':
         case 'PageUp':
           e.preventDefault()
-          goBack()
+          k.goBack()
           break
         case 'b':
         case 'B':
         case '.':
           e.preventDefault()
-          toggleBlank()
+          k.toggleBlank()
           break
         case ']':
           e.preventDefault()
-          goPinNext()
+          k.goPinNext()
           break
         case '[':
           e.preventDefault()
-          goPinPrev()
+          k.goPinPrev()
           break
         case 'Escape':
-          // Panic hide: blank the screen immediately (Blank/Next restores it).
           e.preventDefault()
-          clearAutoUndo()
-          patchState({ blank: true })
+          k.panic()
           break
         default:
           break
@@ -1077,7 +1093,6 @@ function Console({ row, creds }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ---- pinned verses (the running list on the right rail) ----

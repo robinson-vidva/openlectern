@@ -33,6 +33,21 @@ new_sqlite_classes = ["SessionDO"]
 tag = "v2"
 new_sqlite_classes = ["RateLimiterDO"]
 
+# Bot protection for session creation (Cloudflare Turnstile).
+#   - TURNSTILE_SITE_KEY: the widget's public site key (the app reads it from
+#     /api/config at runtime, so changing it needs no rebuild).
+#   - TURNSTILE_HOSTNAMES: comma-separated hostnames a token may be solved on.
+#     Tokens from any other host are refused. Never list localhost in production.
+#   - TURNSTILE_SECRET: the widget's secret, stored as a Worker secret (not here):
+#         npx wrangler secret put TURNSTILE_SECRET
+#     The gate is skipped until the secret exists, so a deploy without it still works.
+# Local dev against `wrangler dev`: use a .dev.vars file with the always-pass test
+# pair (site key 1x00000000000000000000AA, secret 1x0000000000000000000000000000000AA)
+# and TURNSTILE_HOSTNAMES=localhost.
+[vars]
+TURNSTILE_SITE_KEY = "0x4AAAAAAE7wkjc8WmGtmET-"
+TURNSTILE_HOSTNAMES = "openlectern.askdevotions.com"
+
 # The custom domain is attached in the Cloudflare dashboard (Workers -> this
 # Worker -> Domains & Routes), which provisions DNS + HTTPS automatically because
 # askdevotions.com is a zone on this account. The app is same-origin, so it works

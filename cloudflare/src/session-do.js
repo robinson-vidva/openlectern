@@ -6,8 +6,9 @@
 
 const TTL_MS = 24 * 60 * 60 * 1000
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-const MAX_FAILS = 5 // wrong-PIN attempts before a short lockout
-const LOCK_MS = 30 * 1000
+const MAX_FAILS = 5 // wrong-PIN attempts before a lockout
+const LOCK_MS = 30 * 1000 // first lockout; doubles each time (capped) so a 4-digit PIN can't be walked
+const MAX_LOCK_DOUBLINGS = 6 // 30s -> 32min
 
 const enc = new TextEncoder()
 const b64 = (bytes) => btoa(String.fromCharCode(...bytes))
@@ -82,6 +83,34 @@ export class SessionDO {
     return !m || Date.parse(m.expiresAt) <= Date.now()
   }
 
+  // Verify a PIN against the session, counting failures toward the lockout for
+  // EVERY PIN-bearing action (join, update, broadcast) -- not just join -- so the
+  // PIN can't be brute-forced through another endpoint instead. Lockouts escalate
+  // (30s, 60s, ... 32min) and never reset, so 10,000 guesses can't fit in a TTL.
+  // Returns null when the PIN is good, else the error Response to send.
+  async checkPin(m, pin) {
+    if (m.lockUntil && Date.now() < m.lockUntil) {
+      return json({ error: 'too many attempts, try again shortly' }, 429)
+    }
+    if (!(await verifyPin(pin || '', m.pinHash))) {
+      m.fails = (m.fails || 0) + 1
+      if (m.fails >= MAX_FAILS) {
+        const lockouts = m.lockouts || 0
+        m.lockUntil = Date.now() + LOCK_MS * 2 ** Math.min(lockouts, MAX_LOCK_DOUBLINGS)
+        m.lockouts = lockouts + 1
+        m.fails = 0
+      }
+      await this.state.storage.put('meta', m)
+      return json({ error: 'incorrect pin' }, 401)
+    }
+    if (m.fails || m.lockUntil) {
+      m.fails = 0
+      m.lockUntil = 0
+      await this.state.storage.put('meta', m)
+    }
+    return null
+  }
+
   // ---- routing ---------------------------------------------------------------
   async fetch(request) {
     const url = new URL(request.url)
@@ -95,6 +124,7 @@ export class SessionDO {
       if (action === 'join') return await this.join(request)
       if (action === 'view') return await this.view()
       if (action === 'update') return await this.update(request)
+      if (action === 'broadcast') return await this.broadcastAuthed(request)
     } catch (e) {
       return json({ error: e.message || 'error' }, 400)
     }
@@ -129,24 +159,9 @@ export class SessionDO {
       await this.destroy()
       return json({ error: 'session expired' }, 410)
     }
-    if (m.lockUntil && Date.now() < m.lockUntil) {
-      return json({ error: 'too many attempts, try again shortly' }, 429)
-    }
     const { pin } = await request.json()
-    if (!(await verifyPin(pin || '', m.pinHash))) {
-      m.fails = (m.fails || 0) + 1
-      if (m.fails >= MAX_FAILS) {
-        m.lockUntil = Date.now() + LOCK_MS
-        m.fails = 0
-      }
-      await this.state.storage.put('meta', m)
-      return json({ error: 'incorrect pin' }, 401)
-    }
-    if (m.fails || m.lockUntil) {
-      m.fails = 0
-      m.lockUntil = 0
-      await this.state.storage.put('meta', m)
-    }
+    const bad = await this.checkPin(m, pin)
+    if (bad) return bad
     return json(await this.publicRow())
   }
 
@@ -168,7 +183,8 @@ export class SessionDO {
       return json({ error: 'session expired' }, 410)
     }
     const { pin, patch } = await request.json()
-    if (!(await verifyPin(pin || '', m.pinHash))) return json({ error: 'incorrect pin' }, 401)
+    const bad = await this.checkPin(m, pin)
+    if (bad) return bad
 
     // Sliding expiry: an active session must not die mid-service. When less than
     // half the TTL remains, push the expiry (and the cleanup alarm) out. Cheap
@@ -197,6 +213,37 @@ export class SessionDO {
     const row = await this.publicRow()
     this.broadcast({ t: 'state', row }) // push to every connected client
     return json(row)
+  }
+
+  // Authenticated peer broadcast. A PIN holder posts { pin, event, payload, from }
+  // over HTTP; the DO verifies the PIN and relays the event marked `authed: true`
+  // -- a flag the WebSocket relay path (open to view-only clients) never sets, so
+  // receivers can trust it. This replaces client-side HMAC signatures keyed by the
+  // PIN: any viewer on the channel could brute-force a 4-digit PIN from such a
+  // signature offline in milliseconds. `from` is the sender's presence key, so
+  // its own socket is skipped (like a `self: false` channel).
+  async broadcastAuthed(request) {
+    const m = await this.meta()
+    if (!m) return json({ error: 'session not found' }, 404)
+    if (await this.expired()) {
+      await this.destroy()
+      return json({ error: 'session expired' }, 410)
+    }
+    const { pin, event, payload, from } = await request.json()
+    const bad = await this.checkPin(m, pin)
+    if (bad) return bad
+    if (typeof event !== 'string' || !event) return json({ error: 'event required' }, 400)
+    let except = null
+    if (from) {
+      for (const [socket, entry] of this.presence) {
+        if (entry.key === from) {
+          except = socket
+          break
+        }
+      }
+    }
+    this.broadcast({ t: 'broadcast', event, payload, authed: true }, except)
+    return json({ ok: true })
   }
 
   // ---- websockets ------------------------------------------------------------
@@ -245,9 +292,11 @@ export class SessionDO {
       }
       this.pushPresence()
     } else if (msg.t === 'broadcast') {
-      // Relay a peer broadcast (invite-req / invite-res / detect) to everyone
-      // else. These payloads are self-secured (ECDH or HMAC-signed).
-      this.broadcast({ t: 'broadcast', event: msg.event, payload: msg.payload }, socket)
+      // Relay a peer broadcast (invite-req / invite-res) to everyone else. Anyone
+      // with the code can send these, so they are explicitly NOT authed; the
+      // invite exchange secures itself (ECDH). PIN-holder events go through
+      // broadcastAuthed instead.
+      this.broadcast({ t: 'broadcast', event: msg.event, payload: msg.payload, authed: false }, socket)
     }
   }
 

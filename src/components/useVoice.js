@@ -38,6 +38,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
   const backoffRef = useRef(300)
   const wakeRef = useRef(null)
   const indexRef = useRef(null)
+  const indexGenRef = useRef(0) // bumps per build so a stale build can't win a race
   const recentRef = useRef(new Map()) // ref -> last time a CHIP was created (de-dupe)
   const autoFiredRef = useRef(new Map()) // ref -> last time it AUTO-SHOWED (separate de-dupe)
   const lastRefRef = useRef(null) // { bookName, chapter } of the most recent citation, for "verse N" continuation
@@ -66,6 +67,7 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
 
   async function ensureIndex() {
     if (indexRef.current) return indexRef.current
+    const gen = ++indexGenRef.current
     const vers = versionsRef.current
     const primary = vers[0]
     // Detection validates against the primary version's structure. If a
@@ -83,8 +85,12 @@ export function useVoice({ versions, defaultLang, onShow, onDetect }) {
     const tamilId = tamil?.id || 'tam_irv'
     const idx = await loadIndex(tamilId).catch(() => null)
     if (idx) tamilNames = Object.fromEntries(idx.map((b) => [b.id, b.name]))
-    indexRef.current = buildBookIndex(structure, tamilNames)
-    return indexRef.current
+    const built = buildBookIndex(structure, tamilNames)
+    // Translations switched again while this build was loading: the newer build
+    // owns indexRef; never overwrite it with an index for the old translations.
+    if (gen !== indexGenRef.current) return indexRef.current || built
+    indexRef.current = built
+    return built
   }
 
   // Rebuild the book index when the active translations change.

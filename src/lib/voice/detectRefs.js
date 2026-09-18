@@ -321,18 +321,24 @@ function altReadings(num, struct) {
 function buildCandidates(after, match, pos, bookIndex) {
   const book = bookIndex.byId[match.id] || BOOK_BY_ID[match.id]
   let spec = parseNumberSpec(after)
-  // "Jude verse 5": single-chapter books can name a verse with no chapter.
+  // "Jude verse 5" / "Jude verse 3 through 5": single-chapter books can name a
+  // verse with no chapter. Parse it as chapter 1 so ranges still work.
   if (!spec && book?.singleChapter && (after[0] === 'verse' || after[0] === 'verses') && isNumberStart(after, 1)) {
-    const v = readNumber(after, 1)
-    spec = { chapter: 1, verseStart: v.value, verseEnd: null, hadChapterWord: true }
+    spec = parseNumberSpec(['1', ...after])
+    if (spec) spec.hadChapterWord = true
   }
   if (!spec) return []
 
   let { chapter, verseStart, verseEnd, endChapter } = spec
-  // Single-chapter books: "Jude 5" means chapter 1, verse 5.
+  // Single-chapter books: "Jude 5" means chapter 1, verse 5, and "Jude 3 through
+  // 5" is a verse range (the parser read it as chapters 3-5, which can't exist).
   if (book?.singleChapter && verseStart == null && !spec.hadChapterWord) {
     verseStart = chapter
     chapter = 1
+    if (endChapter != null) {
+      verseEnd = endChapter
+      endChapter = 1
+    }
   }
 
   const struct = bookIndex.structure[match.id]

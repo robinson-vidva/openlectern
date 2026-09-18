@@ -27,5 +27,6 @@ export function friendlyError(error) {
   if (msg.includes('expired')) return 'That session has expired.'
   if (msg.includes('pin')) return 'Incorrect PIN.'
   if (msg.includes('too many')) return 'Too many attempts. Please wait a moment.'
+  if (msg.includes('verification')) return 'Human verification did not pass. Please try again.'
   return error.message || 'Something went wrong.'
 }

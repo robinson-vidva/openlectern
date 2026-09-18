@@ -30,6 +30,27 @@ function check(cases) {
 describe('detectRefs (English)', () => check(FIXTURES))
 describe('detectRefs (Tamil)', () => check(TAMIL_FIXTURES))
 
+describe('single-chapter books read a bare number as a verse', () => {
+  const cases = [
+    ['Jude 5', { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null }],
+    ['Jude 3 through 5', { bookId: 'JUD', chapter: 1, verseStart: 3, verseEnd: 5 }],
+    ['Philemon 4 to 7', { bookId: 'PHM', chapter: 1, verseStart: 4, verseEnd: 7 }],
+    ['Jude verse 3 through 5', { bookId: 'JUD', chapter: 1, verseStart: 3, verseEnd: 5 }],
+    ['Jude 1 5', { bookId: 'JUD', chapter: 1, verseStart: 5, verseEnd: null }]
+  ]
+  for (const [text, want] of cases) {
+    it(text, () => {
+      const top = detectRefs(text, bookIndex)[0]
+      expect(top, 'expected a detection').toBeTruthy()
+      expect(top.bookId).toBe(want.bookId)
+      expect(top.chapter).toBe(want.chapter)
+      expect(top.endChapter).toBe(1)
+      expect(top.verseStart ?? null).toBe(want.verseStart)
+      expect(top.verseEnd ?? null).toBe(want.verseEnd)
+    })
+  }
+})
+
 describe('trailing filler words do not swallow a chapter reference', () => {
   // "oh"/"o"/"zero" are common speech fillers. Previously a bare one right after a
   // chapter number parsed as verse 0 and got the whole candidate rejected.

@@ -54,10 +54,12 @@ zone on the same account).
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/api/session` | `{ pin, config }` | new session row (unique code) |
+| GET | `/api/config` | — | `{ turnstileSiteKey }` public runtime config |
+| POST | `/api/session` | `{ pin, config, turnstile? }` | new session row (unique code); `turnstile` token required when `TURNSTILE_SECRET` is set |
 | POST | `/api/session/:code/join` | `{ pin }` | session row, or 401 |
 | GET | `/api/session/:code/view` | — | session row (read‑only, no PIN) |
 | PATCH | `/api/session/:code` | `{ pin, patch }` | merged row; pushes to all clients |
+| POST | `/api/session/:code/broadcast` | `{ pin, event, payload, from }` | relays a PIN‑verified peer event (`authed: true`) to the other clients |
 | GET | `/api/session/:code/ws` | — | WebSocket (state / presence / broadcast) |
 
 `patch` may contain `state` (shallow‑merged), `config`, or `admins` (replaced) —

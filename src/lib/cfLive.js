@@ -34,10 +34,17 @@ async function unwrap(res) {
   return data
 }
 
-export const cfCreate = (pin, config) => post('/api/session', { pin, config })
+// `turnstile` is the Turnstile token when the server has bot protection on.
+export const cfCreate = (pin, config, turnstile) => post('/api/session', { pin, config, turnstile: turnstile || undefined })
+export const cfAppConfig = () => get('/api/config')
 export const cfJoin = (code, pin) => post(`/api/session/${encodeURIComponent(code)}/join`, { pin })
 export const cfView = (code) => get(`/api/session/${encodeURIComponent(code.trim().toUpperCase())}/view`)
 export const cfUpdate = (code, pin, patch_) => patch(`/api/session/${encodeURIComponent(code)}`, { pin, patch: patch_ })
+// PIN-verified peer event: the server relays it to every other client marked
+// `authed: true`, which the plain WebSocket relay never sets. `from` is this
+// client's presence key so its own socket is skipped.
+export const cfBroadcast = (code, pin, event, payload, from) =>
+  post(`/api/session/${encodeURIComponent(code)}/broadcast`, { pin, event, payload, from })
 
 // A Supabase-channel-shaped wrapper over one session WebSocket. Auto-reconnects
 // with backoff and reports status transitions (SUBSCRIBED / CLOSED /
@@ -81,7 +88,9 @@ export function cfChannel(code) {
         presence = m.state || {}
         handlers.presence.forEach((cb) => cb())
       } else if (m.t === 'broadcast') {
-        ;(handlers.broadcast[m.event] || []).forEach((cb) => cb({ payload: m.payload }))
+        // `authed` is set only by the server for PIN-verified (HTTP) broadcasts.
+        const authed = m.authed === true
+        ;(handlers.broadcast[m.event] || []).forEach((cb) => cb({ payload: m.payload, authed }))
       }
     }
     ws.onclose = () => {
@@ -101,6 +110,8 @@ export function cfChannel(code) {
   }
 
   return {
+    // This client's presence key (pass as `from` to cfBroadcast to skip self).
+    presenceKey: key,
     on(kind, filter, cb) {
       const fn = cb || filter
       if (kind === 'postgres_changes') handlers.postgres.push(fn)

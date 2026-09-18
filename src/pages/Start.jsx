@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadManifest } from '../lib/bibleData.js'
-import { createSession, joinSession } from '../lib/session.js'
+import { createSession, joinSession, loadAppConfig } from '../lib/session.js'
+import Turnstile from '../components/Turnstile.jsx'
 import { friendlyError, backendConfigured } from '../lib/backendConfig.js'
 import { generatePin } from '../lib/newpin.js'
 import { loadPrefs } from '../lib/prefs.js'
@@ -19,6 +20,24 @@ export default function Start() {
   const [viewCode, setViewCode] = useState('') // watch card
   const controlBusy = useRef(false)
 
+  // Bot protection on session creation (Cloudflare Turnstile). The backend says
+  // whether it is on by publishing its site key; when it is, Start waits for a
+  // token and sends it along. Tokens are single-use: a failed create resets the
+  // widget so the retry carries a fresh one.
+  const [appCfg, setAppCfg] = useState(null)
+  const [tsToken, setTsToken] = useState(null)
+  const [tsReset, setTsReset] = useState(0)
+  const [tsError, setTsError] = useState(false)
+  useEffect(() => {
+    let live = true
+    loadAppConfig().then((c) => live && setAppCfg(c || {}))
+    return () => {
+      live = false
+    }
+  }, [])
+  const needsHuman = !!appCfg?.turnstileSiteKey
+  const humanReady = !needsHuman || !!tsToken
+
   // Only needed when there is no remembered config: pick the bundled default.
   useEffect(() => {
     if (loadPrefs().config?.versions?.length) return
@@ -36,10 +55,11 @@ export default function Start() {
     const remembered = loadPrefs()
     const config = remembered.config?.versions?.length ? { versions: remembered.config.versions } : defaultConfig
     if (!config) return setError('Still loading. Try again in a moment.')
+    if (!humanReady) return setError('Still checking that you are human. Try again in a moment.')
     setBusy(true)
     try {
       const newPin = generatePin()
-      const row = await createSession(newPin, config)
+      const row = await createSession(newPin, config, tsToken)
       const creds = { code: row.code, pin: newPin, name: '', creator: true }
       saveCreds(creds)
       setHandoff({ row, creds })
@@ -47,6 +67,7 @@ export default function Start() {
     } catch (err) {
       setError(friendlyError(err))
       setBusy(false)
+      if (needsHuman) setTsReset((k) => k + 1) // the token was spent; get a new one
     }
   }
 
@@ -109,9 +130,27 @@ export default function Start() {
             <h2>New session</h2>
             <p className="lcard-desc">Create a screen and become the controller. You get a code, QR, and PIN to share.</p>
             <div className="lcard-foot">
-              <button className="btn primary wide" onClick={start} disabled={busy}>
+              {needsHuman && (
+                <Turnstile
+                  siteKey={appCfg.turnstileSiteKey}
+                  onToken={(t) => {
+                    setTsToken(t)
+                    if (t) setTsError(false)
+                  }}
+                  onError={() => setTsError(true)}
+                  resetKey={tsReset}
+                />
+              )}
+              <button className="btn primary wide" onClick={start} disabled={busy || !humanReady}>
                 {busy ? 'Starting…' : 'Start a session'}
               </button>
+              {needsHuman && !tsToken && (
+                <p className="muted turnstile-note" role="status">
+                  {tsError
+                    ? 'The human check could not load. Turn off content blockers for this site and reload.'
+                    : 'Checking that you are human…'}
+                </p>
+              )}
             </div>
           </section>
 

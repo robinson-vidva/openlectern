@@ -2,10 +2,12 @@
 // routes each session to its Durable Object, adds security headers to every
 // response, and rate-limits session creation. Replaces Supabase entirely.
 //
-//   POST   /api/session              { pin, config }        -> create, returns row
+//   GET    /api/config                                       -> public runtime config (Turnstile site key)
+//   POST   /api/session              { pin, config, turnstile } -> create, returns row
 //   POST   /api/session/:code/join   { pin }                -> join (PIN), returns row
 //   GET    /api/session/:code/view                          -> view (no PIN), returns row
 //   PATCH  /api/session/:code        { pin, patch }         -> update, returns merged row
+//   POST   /api/session/:code/broadcast { pin, event, payload, from } -> PIN-verified peer event
 //   GET    /api/session/:code/ws                            -> WebSocket (state/presence/broadcast)
 //   everything else                                         -> the static app (SPA)
 
@@ -13,14 +15,23 @@ import { SessionDO, RateLimiterDO, CODE_ALPHABET } from './session-do.js'
 
 export { SessionDO, RateLimiterDO }
 
+// Session codes are exactly 6 characters from CODE_ALPHABET. Reject anything
+// else before it reaches a Durable Object: idFromName() would otherwise spin up
+// (and bill) a fresh DO for every garbage code a scanner throws at /api.
+const CODE_RE = new RegExp(`^[${CODE_ALPHABET}]{6}$`)
+
 // Allow Cloudflare Web Analytics' beacon (enabled in the dashboard) without
 // loosening anything else.
 const ANALYTICS = 'https://static.cloudflareinsights.com'
+// Cloudflare Turnstile: the widget script + its challenge iframe.
+const TURNSTILE = 'https://challenges.cloudflare.com'
+const TURNSTILE_VERIFY = `${TURNSTILE}/turnstile/v0/siteverify`
 
 function securityHeaders() {
   const csp = [
     "default-src 'self'",
-    `script-src 'self' ${ANALYTICS}`,
+    `script-src 'self' ${ANALYTICS} ${TURNSTILE}`,
+    `frame-src ${TURNSTILE}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data:",
@@ -100,6 +111,54 @@ async function allowCreate(env, ip) {
   }
 }
 
+// Cloudflare Turnstile check for session creation. Enabled by setting the
+// TURNSTILE_SECRET secret (plus the TURNSTILE_SITE_KEY and TURNSTILE_HOSTNAMES
+// vars) on the Worker; with no secret configured it is skipped, so a fresh deploy
+// works before the keys exist. Fails CLOSED: a bot gate that waves everyone
+// through when it can't verify isn't one. Tokens are single-use, so the client
+// fetches a fresh one per attempt.
+//
+// Beyond `success`, the token must have been minted for THIS action and on one of
+// OUR hostnames: a token solved on another site (or another form) using the same
+// widget is not accepted. TURNSTILE_HOSTNAMES is a comma-separated allowlist;
+// production must not include localhost.
+const TURNSTILE_ACTION = 'create-session'
+function turnstileHostnames(env) {
+  return new Set(
+    String(env.TURNSTILE_HOSTNAMES || '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean)
+  )
+}
+async function verifyTurnstile(env, token, ip) {
+  if (!env.TURNSTILE_SECRET) return null
+  if (typeof token !== 'string' || !token || token.length > 2048) {
+    return { status: 403, error: 'verification required' }
+  }
+  const hosts = turnstileHostnames(env)
+  if (!hosts.size) return { status: 503, error: 'verification misconfigured (no TURNSTILE_HOSTNAMES)' }
+  try {
+    const form = new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token })
+    if (ip && ip !== 'unknown') form.set('remoteip', ip)
+    const res = await fetch(TURNSTILE_VERIFY, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form,
+      signal: AbortSignal.timeout(10_000)
+    })
+    const data = await res.json()
+    const ok =
+      data &&
+      data.success === true &&
+      data.action === TURNSTILE_ACTION &&
+      hosts.has(String(data.hostname || '').toLowerCase())
+    return ok ? null : { status: 403, error: 'verification failed' }
+  } catch {
+    return { status: 503, error: 'verification unavailable, try again' }
+  }
+}
+
 async function handleApi(request, env, parts) {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: { ...securityHeaders(), ...corsHeaders(env) } })
@@ -111,7 +170,9 @@ async function handleApi(request, env, parts) {
     if (!(await allowCreate(env, ip))) {
       return json({ error: 'too many sessions created, try again shortly' }, 429, env)
     }
-    const body = await request.json().catch(() => ({}))
+    const { turnstile, ...body } = await request.json().catch(() => ({}))
+    const human = await verifyTurnstile(env, turnstile, ip)
+    if (human) return json({ error: human.error }, human.status, env)
     for (let attempt = 0; attempt < 6; attempt++) {
       const code = randomCode()
       const res = await callDO(env, code, 'create', { ...body, code })
@@ -123,6 +184,7 @@ async function handleApi(request, env, parts) {
 
   const code = (parts[2] || '').toUpperCase()
   const action = parts[3] || ''
+  if (!CODE_RE.test(code)) return json({ error: 'not found' }, 404, env)
 
   // GET /api/session/:code/ws -> WebSocket upgrade (forward original request).
   if (action === 'ws' && request.method === 'GET') {
@@ -134,6 +196,10 @@ async function handleApi(request, env, parts) {
   }
   if (action === 'view' && request.method === 'GET') {
     return decorate(await callDO(env, code, 'view', null), env)
+  }
+  if (action === 'broadcast' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}))
+    return decorate(await callDO(env, code, 'broadcast', body), env)
   }
   if (!action && request.method === 'PATCH') {
     const body = await request.json().catch(() => ({}))
@@ -150,6 +216,11 @@ export default {
     // Lightweight health check for uptime monitors (e.g. UptimeRobot).
     if (parts[0] === 'api' && parts[1] === 'health') {
       return json({ ok: true, service: 'openlectern', time: new Date().toISOString() }, 200, env)
+    }
+    // Public runtime config, so the app needs no rebuild when keys change. Only
+    // the Turnstile SITE key (public by design) -- never the secret.
+    if (parts[0] === 'api' && parts[1] === 'config') {
+      return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY || null }, 200, env)
     }
     if (parts[0] === 'api' && parts[1] === 'session') {
       return handleApi(request, env, parts)
