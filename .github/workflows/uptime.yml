@@ -1,0 +1,41 @@
+name: Uptime
+
+# Free uptime monitor: every 15 minutes, fetch the health endpoint and the app
+# shell. A failed run emails the repository owner (GitHub notifies on failed
+# scheduled workflows), so an outage is noticed without a third-party service.
+# Runs are skipped by GitHub after 60 days without a push; any commit re-arms it.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE: https://openlectern.askdevotions.com
+    steps:
+      - name: API health
+        run: |
+          for attempt in 1 2 3; do
+            body=$(curl -sS --max-time 15 "$SITE/api/health" || true)
+            if echo "$body" | grep -q '"ok":true'; then echo "healthy: $body"; exit 0; fi
+            echo "attempt $attempt failed: ${body:-no response}"; sleep 20
+          done
+          echo "::error::$SITE/api/health is failing"; exit 1
+      - name: App shell
+        run: |
+          code=$(curl -sS -o /tmp/root.html -w '%{http_code}' --max-time 15 "$SITE/")
+          if [ "$code" = "200" ] && grep -q 'OpenLectern' /tmp/root.html; then echo "shell ok"; exit 0; fi
+          echo "::error::$SITE/ returned $code or unexpected content"; exit 1
+      - name: Bot gate still on
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 -X POST "$SITE/api/session" \
+            -H 'content-type: application/json' -d '{"pin":"1234","config":{}}')
+          if [ "$code" = "403" ]; then echo "turnstile gate on"; exit 0; fi
+          echo "::warning::session creation without a Turnstile token returned $code (expected 403); is TURNSTILE_SECRET still set on the Worker?"

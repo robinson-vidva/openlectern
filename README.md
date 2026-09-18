@@ -131,6 +131,14 @@ only, read‑only) is never gated. It's off until you add the keys:
 For local development, Cloudflare's test keys always pass: site key
 `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`.
 
+## Monitoring
+
+[`.github/workflows/uptime.yml`](.github/workflows/uptime.yml) checks the health
+endpoint, the app shell, and that the Turnstile gate is still on every 15
+minutes. A failed run emails the repository owner through GitHub's normal
+workflow notifications, so no separate uptime service is needed. Run it by hand
+from the Actions tab to test.
+
 ## Architecture
 
 - **Frontend** — Vite + React 18, plain CSS, hash routing (`#/`, `#/present`,
