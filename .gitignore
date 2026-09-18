@@ -6,3 +6,5 @@ dist
 *.log
 scripts/.cache
 .claude
+# Written by `npm run build` (the HTML shell, served by the Worker)
+cloudflare/src/shell.generated.js

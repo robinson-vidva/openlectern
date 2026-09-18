@@ -2,16 +2,18 @@ name = "openlectern"
 main = "src/index.js"
 compatibility_date = "2026-09-05"
 
-# Serve the built React app (repo-root dist/) as static assets, with /api/* (and
-# the /api/session/:code/ws WebSocket) handled by the Worker. Unknown paths fall
-# back to index.html for the hash-routed SPA. One origin, no CORS.
+# The built app's files (repo-root dist/: hashed JS/CSS, icons, bible JSON) are
+# static assets. The HTML shell is NOT an asset: `npm run build` moves it into the
+# Worker (src/shell.generated.js), which serves it for / and every non-file path
+# with the security headers. In production the asset layer serves existing files
+# without invoking the Worker, and run_worker_first / _headers did not take
+# effect, so this is the only way every HTML document carries the headers.
 [assets]
 directory = "../dist"
 binding = "ASSETS"
-not_found_handling = "single-page-application"
-# Run the Worker first for every route so it can add security headers to the app
-# responses too (not just /api). The Worker serves assets via env.ASSETS.
-run_worker_first = ["/*"]
+not_found_handling = "none"
+html_handling = "none"
+run_worker_first = true
 
 # The session Durable Object. SQLite-backed classes are available on the free
 # Workers plan and never pause on inactivity -- they go dormant and are recreated

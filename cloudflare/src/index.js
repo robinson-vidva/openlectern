@@ -9,10 +9,13 @@
 //   PATCH  /api/session/:code        { pin, patch }         -> update, returns merged row
 //   POST   /api/session/:code/broadcast { pin, event, payload, from } -> PIN-verified peer event
 //   GET    /api/session/:code/ws                            -> WebSocket (state/presence/broadcast)
-//   everything else                                         -> the static app (SPA)
+//   everything else                                         -> the static app: files from
+//                                                              the asset layer, the HTML shell
+//                                                              from the Worker (with headers)
 
 import { SessionDO, RateLimiterDO, CODE_ALPHABET } from './session-do.js'
 import { securityHeaders, SOURCE_HEADER, TURNSTILE } from './headers.js'
+import { SHELL } from './shell.generated.js'
 
 export { SessionDO, RateLimiterDO }
 
@@ -195,8 +198,26 @@ export default {
     if (parts[0] === 'api' && parts[1] === 'session') {
       return handleApi(request, env, parts)
     }
-    // Everything else is the static app. Serve it via the assets binding and add
-    // the security headers (assets alone can't set them).
-    return decorate(await env.ASSETS.fetch(request), env)
+    // Everything else is the static app. Files (hashed JS/CSS, icons, bible JSON)
+    // come from the asset layer. The HTML shell is served by the Worker itself for
+    // / and any path that isn't a file, so every document carries the security
+    // headers (the asset layer serves existing files without running the Worker).
+    const res = await env.ASSETS.fetch(request)
+    if (res.status !== 404) return decorate(res, env)
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return json({ error: 'method not allowed' }, 405, env)
+    }
+    // A missing FILE (e.g. a bible chunk that isn't bundled) is a real 404 so the
+    // client falls back cleanly, unless a browser is navigating to it as a page.
+    const looksLikeFile = /\.[a-z0-9]+$/i.test(url.pathname)
+    const wantsHtml = (request.headers.get('Accept') || '').includes('text/html')
+    if (looksLikeFile && !wantsHtml) return decorate(res, env)
+    return decorate(
+      new Response(request.method === 'HEAD' ? null : SHELL, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' }
+      }),
+      env
+    )
   }
 }

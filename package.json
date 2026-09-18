@@ -25,14 +25,15 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:headers && vite build",
+    "build": "npm run build:headers && vite build && node scripts/postbuild.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "convert:usfx": "node scripts/convert-usfx.mjs",
     "fetch:helloao": "node scripts/fetch-helloao.mjs",
     "fetch:scrollmapper": "node scripts/fetch-scrollmapper.mjs",
     "build:xrefs": "node scripts/build-xrefs.mjs",
-    "build:headers": "node scripts/write-headers.mjs"
+    "build:headers": "node scripts/write-headers.mjs",
+    "pretest": "node scripts/ensure-shell.mjs"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4",
