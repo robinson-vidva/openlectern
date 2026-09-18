@@ -6,3 +6,4 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: microphone=(self), fullscreen=(self), camera=(), geolocation=()
+  X-OpenLectern-Source: assets

@@ -12,7 +12,7 @@
 //   everything else                                         -> the static app (SPA)
 
 import { SessionDO, RateLimiterDO, CODE_ALPHABET } from './session-do.js'
-import { securityHeaders, TURNSTILE } from './headers.js'
+import { securityHeaders, SOURCE_HEADER, TURNSTILE } from './headers.js'
 
 export { SessionDO, RateLimiterDO }
 
@@ -38,6 +38,7 @@ function decorate(res, env) {
   const h = new Headers(res.headers)
   for (const [k, v] of Object.entries(securityHeaders())) h.set(k, v)
   for (const [k, v] of Object.entries(corsHeaders(env))) h.set(k, v)
+  h.set(SOURCE_HEADER, 'worker')
   return new Response(res.body, { status: res.status, headers: h })
 }
 function json(body, status, env) {

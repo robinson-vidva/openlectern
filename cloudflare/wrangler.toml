@@ -11,7 +11,7 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 # Run the Worker first for every route so it can add security headers to the app
 # responses too (not just /api). The Worker serves assets via env.ASSETS.
-run_worker_first = true
+run_worker_first = ["/*"]
 
 # The session Durable Object. SQLite-backed classes are available on the free
 # Workers plan and never pause on inactivity -- they go dormant and are recreated
