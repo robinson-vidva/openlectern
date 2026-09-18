@@ -4,17 +4,32 @@ import { subscribeSession, joinView } from '../lib/session.js'
 import { friendlyError } from '../lib/backendConfig.js'
 import { passagePages } from '../lib/resolve.js'
 import { MIN_FONT_VMIN } from '../lib/paginate.js'
+import { normalizeReading, rolesForPassage, roleForStep, ROLE_LABELS } from '../lib/reading.js'
 
-function VerseBlock({ block, className, hideNumber }) {
+// `roles` (optional) is aligned with block.verses: responsive-reading role per
+// verse, rendered hymnal-style (congregation bold, all-together bold italic).
+function VerseBlock({ block, className, hideNumber, roles }) {
   if (!block) return null
   return (
     <div className={className} lang={block.language}>
-      {block.verses.map((v) => (
-        <span key={v.c ? `${v.c}:${v.n}` : v.n}>
+      {block.verses.map((v, i) => (
+        <span key={v.c ? `${v.c}:${v.n}` : v.n} className={roles?.[i] ? `role-${roles[i]}` : undefined}>
           {!hideNumber && <span className="present-verse-n">{v.label ?? v.n}</span>}
           {v.text}{' '}
         </span>
       ))}
+    </div>
+  )
+}
+
+// Responsive reading legend for a whole passage (the congregation needs to know
+// what bold means) and the big role label for a single stepped verse.
+function ReadingLegend({ pattern }) {
+  return (
+    <div className="present-legend" aria-label="Responsive reading">
+      <span className="role-leader">Leader</span>
+      <span className="role-people">Congregation</span>
+      {pattern === 'alternate-all' && <span className="role-all">All together</span>}
     </div>
   )
 }
@@ -125,7 +140,15 @@ function Stage({ state, code }) {
   const showPrimary = effShow !== 'secondary'
   const showSecondary = effShow !== 'primary'
 
-  const fitKey = blank ? 'blank' : `${current?.id || 'empty'}:${pageIdx}`
+  // Responsive reading: roles per verse of the chosen passage (whole mode) or
+  // the single verse's role (step mode). Page slices keep their passage index.
+  const reading = normalizeReading(state?.reading)
+  const readingOn = reading.pattern !== 'off'
+  const allRoles = readingOn && current && !current.step ? rolesForPassage(reading, current.ref, current.primary?.verses || []) : null
+  const pageRoles = allRoles ? (pageVerses ? pageVerses.map((i) => allRoles[i]) : allRoles) : null
+  const stepRole = readingOn ? roleForStep(reading, current) : null
+
+  const fitKey = blank ? 'blank' : `${current?.id || 'empty'}:${pageIdx}:${reading.pattern}:${stepRole || ''}`
   useAutoFit(blockRef, fitKey, scale)
 
   const rootRef = useRef(null)
@@ -194,8 +217,10 @@ function Stage({ state, code }) {
             ref={blockRef}
           >
             <div className="present-ref">{current.reference}</div>
-            {showPrimary && <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} />}
-            {showSecondary && <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} />}
+            {stepRole && <div className={`present-role role-${stepRole}`}>{ROLE_LABELS[stepRole]}</div>}
+            {pageRoles && <ReadingLegend pattern={reading.pattern} />}
+            {showPrimary && <VerseBlock block={pagePrimary} className="present-primary" hideNumber={current.step} roles={pageRoles} />}
+            {showSecondary && <VerseBlock block={pageSecondary} className="present-secondary" hideNumber={current.step} roles={pageRoles} />}
           </div>
         ) : blank ? (
           <div className="present-block" ref={blockRef}>

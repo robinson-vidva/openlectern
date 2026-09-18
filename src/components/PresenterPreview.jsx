@@ -1,15 +1,16 @@
 import { useLayoutEffect, useRef } from 'react'
 import { passagePages } from '../lib/resolve.js'
+import { normalizeReading, rolesForPassage, roleForStep, ROLE_LABELS } from '../lib/reading.js'
 import Icon from './Icon.jsx'
 
 // A live "program monitor" of the presenter screen, rendered from the same
 // state the controller already holds, so it reflects every change instantly.
-function PvVerses({ block, hideNumber }) {
+function PvVerses({ block, hideNumber, roles }) {
   if (!block) return null
   return (
     <div className="pv-verses" lang={block.language}>
-      {block.verses.map((v) => (
-        <span key={v.c ? `${v.c}:${v.n}` : v.n}>
+      {block.verses.map((v, i) => (
+        <span key={v.c ? `${v.c}:${v.n}` : v.n} className={roles?.[i] ? `role-${roles[i]}` : undefined}>
           {!hideNumber && <span className="pv-vn">{v.label ?? v.n}</span>}
           {v.text}{' '}
         </span>
@@ -87,11 +88,18 @@ export default function PresenterPreview({ state, onOpen }) {
   const showPrimary = effShow !== 'secondary'
   const showSecondary = effShow !== 'primary'
 
+  // Responsive reading, mirrored from the presenter.
+  const reading = normalizeReading(state?.reading)
+  const readingOn = reading.pattern !== 'off'
+  const allRoles = readingOn && current && !current.step ? rolesForPassage(reading, current.ref, current.primary?.verses || []) : null
+  const pageRoles = allRoles ? (pageVerses ? pageVerses.map((i) => allRoles[i]) : allRoles) : null
+  const stepRole = readingOn ? roleForStep(reading, current) : null
+
   const screenRef = useRef(null)
   const bodyRef = useRef(null)
   const fitKey = blank
     ? 'blank'
-    : `${current?.id || 'empty'}:${pageIdx}:${current?.step ? 1 : 0}:${effShow}`
+    : `${current?.id || 'empty'}:${pageIdx}:${current?.step ? 1 : 0}:${effShow}:${reading.pattern}:${stepRole || ''}`
   useFitPreview(bodyRef, screenRef, fitKey, scale)
 
   return (
@@ -110,8 +118,16 @@ export default function PresenterPreview({ state, onOpen }) {
             ref={bodyRef}
           >
             <div className="pv-ref">{current.reference}</div>
-            {showPrimary && <PvVerses block={primary} hideNumber={current.step} />}
-            {showSecondary && <PvVerses block={secondary} hideNumber={current.step} />}
+            {stepRole && <div className={`pv-role role-${stepRole}`}>{ROLE_LABELS[stepRole]}</div>}
+            {pageRoles && (
+              <div className="pv-legend">
+                <span className="role-leader">Leader</span>
+                <span className="role-people">Congregation</span>
+                {reading.pattern === 'alternate-all' && <span className="role-all">All</span>}
+              </div>
+            )}
+            {showPrimary && <PvVerses block={primary} hideNumber={current.step} roles={pageRoles} />}
+            {showSecondary && <PvVerses block={secondary} hideNumber={current.step} roles={pageRoles} />}
           </div>
         ) : (
           <div className="pv-hint">Waiting for the first verse...</div>

@@ -15,6 +15,7 @@ import { pageOfVerse } from '../lib/paginate.js'
 import { loadStructure, loadManifest, loadHelloaoList } from '../lib/bibleData.js'
 import { appendHistory } from '../lib/history.js'
 import { nextVerse, prevVerse } from '../lib/verseNav.js'
+import { normalizeReading, cycleRole, roleFor, roleForStep, verseKey, READING_PATTERNS, READING_LABELS, ROLE_LABELS, ROLE_SHORT } from '../lib/reading.js'
 import { makeInviteCode, isInviteValid } from '../lib/crypto.js'
 import { buildInviteResponse } from '../lib/invite.js'
 import { activeListeners, listenerDrops } from '../lib/listener.js'
@@ -48,9 +49,23 @@ const HINT_LABELS = {
 function Console({ row, creds }) {
   const code = row.code
   // This tab's identity for the "who is driving the screen" model (see driver
-  // below). Per tab, so two tabs of the same person are two controllers.
+  // below). Per tab (two tabs of the same person are two controllers) and kept
+  // across a reload, so a refreshed controller is still recognised as the
+  // driver instead of being told it is someone else.
   const clientIdRef = useRef(null)
-  if (!clientIdRef.current) clientIdRef.current = crypto.randomUUID()
+  if (!clientIdRef.current) {
+    let id = null
+    try {
+      id = sessionStorage.getItem('ol-client-id')
+      if (!id) {
+        id = crypto.randomUUID()
+        sessionStorage.setItem('ol-client-id', id)
+      }
+    } catch {
+      id = id || crypto.randomUUID()
+    }
+    clientIdRef.current = id
+  }
   const clientId = clientIdRef.current
   const [config, setConfig] = useState(row.config || {})
   const versions = config?.versions || []
@@ -275,8 +290,11 @@ function Console({ row, creds }) {
   function canDrive() {
     const d = stateRef.current.driver
     if (!d || d.id === clientId) return true
+    // Only a driver who is provably still here blocks. With presence not yet
+    // synced (just connected, or the link is down) refusing would strand the
+    // operator, so the check fails open.
     const ids = presenceIdsRef.current
-    return ids.size > 0 && !ids.has(d.id) // driver has gone
+    return ids.size === 0 || !ids.has(d.id)
   }
   // A screen change: patch + take the wheel. Refused (with a hint) when another
   // present admin is driving.
@@ -879,10 +897,18 @@ function Console({ row, creds }) {
       const results = await resolveItem(versions, ref)
       const c = stepCurrent(results, ref, 0)
       const count = chapterCount(adhoc.bookId, chapter) || verseCount(results)
+      // Keep the chosen span while the verse is inside it (same chapter), so the
+      // verse chips, the n/total indicator and responsive-reading roles all
+      // stay anchored to the passage; walking past its end shrinks it to the
+      // verse on screen.
+      const inSpan = adhoc.span && chapter === adhoc.chapter && verse >= adhoc.span.first && verse <= adhoc.span.last
+      const span = inSpan ? adhoc.span : { first: verse, last: verse }
+      c.verseIndex = verse - span.first
+      c.verseTotal = span.last - span.first + 1
       const cursorNext = {
         queueId: null,
         verseIndex: null,
-        adhoc: { ...adhoc, chapter, first: verse, last: verse, count, span: { first: verse, last: verse } },
+        adhoc: { ...adhoc, chapter, first: verse, last: verse, count, span },
         savedPlan: stateRef.current.cursor?.savedPlan || null
       }
       await commitShow(c, cursorNext, 'step')
@@ -1312,6 +1338,50 @@ function Console({ row, creds }) {
     return showAdhocVerse({ bookId: rf.bookId, chapter: rf.chapter, first: span.first, last: span.last, count, span }, span.first)
   }
 
+  // ---- responsive reading (leader / congregation / all) ----
+  // Session-wide so every device and the screen agree. Pattern presets plus a
+  // per-verse override (tap a verse chip). Changing it is a screen change, so
+  // it follows the driver model like any other.
+  const reading = normalizeReading(state.reading)
+  const readingOn = reading.pattern !== 'off'
+  function setReadingPattern(pattern) {
+    screenPatch({ reading: { ...reading, pattern } })
+  }
+  function cycleVerseRole(key) {
+    screenPatch({ reading: cycleRole(reading, key) })
+  }
+  // The verses of the passage on the Now card, with their position and key, in
+  // every mode: whole passage, a stepped pinned item, or a stepped ad-hoc span.
+  function nowVerseList() {
+    if (!current) return []
+    if (!current.step && current.ref && current.primary) {
+      const total = current.primary.verses.length
+      return current.primary.verses.map((v, index) => ({
+        label: v.label ?? v.n,
+        index,
+        total,
+        key: verseKey(current.ref.bookId, v.c ?? current.ref.chapter, v.n)
+      }))
+    }
+    if (stepping && stepResults && activeItem) {
+      const p = parseReference(activeItem.input)
+      const vs = stepResults[0].verses
+      return p
+        ? vs.map((v, index) => ({ label: v.label ?? v.n, index, total: vs.length, key: verseKey(p.bookId, v.c ?? p.chapter, v.n) }))
+        : []
+    }
+    if (adhocStepping) {
+      const total = adhocSpan.last - adhocSpan.first + 1
+      return Array.from({ length: total }, (_, index) => {
+        const n = adhocSpan.first + index
+        return { label: n, index, total, key: verseKey(adhocCur.bookId, adhocCur.chapter, n) }
+      })
+    }
+    return []
+  }
+  const nowRoleChips = readingOn ? nowVerseList() : []
+  const nowStepRole = readingOn ? roleForStep(reading, current) : null
+
   // Paginated whole passage (for the Now card page indicator + verse jump).
   // Pages are computed live from the current verses-per-screen setting.
   const allWholePages = current && !current.step ? passagePages(current, perPage) : null
@@ -1554,6 +1624,7 @@ function Console({ row, creds }) {
                   ) : adhocStepping && current.ref?.verseStart >= adhocSpan.first && current.ref?.verseStart <= adhocSpan.last ? (
                     <span className="now-pos">{current.ref.verseStart - adhocSpan.first + 1} / {adhocSpan.last - adhocSpan.first + 1}</span>
                   ) : null}
+                  {nowStepRole && <span className={`role-pill role-${nowStepRole}`}>{ROLE_LABELS[nowStepRole]}</span>}
                   {modeLabel && <span className={`mode-pill mp-${modeLabel}`}>{modeLabel}</span>}
                   <button
                     className="iconbtn sm copy-now"
@@ -1605,6 +1676,44 @@ function Console({ row, creds }) {
                   <button className={`nm-opt${current.step ? ' on' : ''}`} onClick={() => !current.step && toggleNowMode()} aria-pressed={current.step}>
                     Verse by verse
                   </button>
+                </div>
+              )}
+              {!nowSingleVerse && (
+                <div className="reading-row">
+                  <span className="mini-label">Responsive reading</span>
+                  <div className="now-modeswitch reading-switch" role="group" aria-label="Responsive reading pattern">
+                    {READING_PATTERNS.map((p) => (
+                      <button
+                        key={p}
+                        className={`nm-opt${reading.pattern === p ? ' on' : ''}`}
+                        aria-pressed={reading.pattern === p}
+                        onClick={() => reading.pattern !== p && setReadingPattern(p)}
+                        title={p === 'off' ? 'Everyone reads the whole passage' : p === 'alternate' ? 'Leader and congregation alternate verse by verse' : 'Alternate, and everyone reads the last verse together'}
+                      >
+                        {READING_LABELS[p]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {nowRoleChips.length > 1 && (
+                <div className="role-chips scroll-x" role="group" aria-label="Who reads each verse (tap to change)">
+                  {nowRoleChips.map((v) => {
+                    const role = roleFor(reading, v)
+                    const overridden = !!reading.roles[v.key]
+                    return (
+                      <button
+                        key={v.key}
+                        className={`vchip role-chip role-${role}${overridden ? ' pinned' : ''}`}
+                        onClick={() => cycleVerseRole(v.key)}
+                        title={`Verse ${v.label}: ${ROLE_LABELS[role]}${overridden ? ' (set by hand; tap to cycle)' : ' (tap to change)'}`}
+                        aria-label={`Verse ${v.label}, ${ROLE_LABELS[role]}. Tap to change.`}
+                      >
+                        <span className="rc-n">{v.label}</span>
+                        <span className="rc-role">{ROLE_SHORT[role]}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               )}
               {stepping && stepResults && (

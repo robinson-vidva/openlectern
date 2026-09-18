@@ -75,6 +75,7 @@ export function stepCurrent(results, parsed, verseIndex) {
     id: crypto.randomUUID(),
     step: true,
     verseIndex,
+    verseTotal: p.verses.length, // position within the passage (responsive reading roles)
     verseNumber: pv.n,
     reference: formatRange(p.bookName, { bookId: parsed.bookId, chapter: c, verseStart: pv.n, endChapter: c, verseEnd: pv.n }),
     ref: { bookId: parsed.bookId, chapter: c, verseStart: pv.n, endChapter: c, verseEnd: pv.n },

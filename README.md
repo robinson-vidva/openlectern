@@ -39,6 +39,11 @@ the PIN under a fresh key agreement instead of sharing it in the clear.
   Bible structure, so `John → 3 → 16` needs no punctuation.
 - **Named passages** — search by name: "the prodigal son", "the love chapter",
   "the armor of God" resolve to references.
+- **Responsive reading** — the leader reads a verse, the congregation the next,
+  and everyone the last one together. Turn it on from the Now card: the screen
+  labels each stepped verse *Leader* / *Congregation* / *All together*, or bolds
+  the congregation's verses in a whole passage. Tap any verse to change who
+  reads it.
 - **Verse‑by‑verse or whole passage** — step through a passage one verse at a
   time, or show it whole with automatic, legible pagination. Choose how many
   verses appear per screen.

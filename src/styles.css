@@ -1150,6 +1150,138 @@ select:focus {
 .lcard-foot {
   margin-top: auto;
 }
+/* ---- Responsive reading (leader / congregation / all) ---- */
+/* Presenter: hymnal convention -- congregation in bold, all-together bold italic. */
+.present-primary .role-people,
+.present-secondary .role-people,
+.pv-verses .role-people {
+  font-weight: 700;
+}
+.present-primary .role-all,
+.present-secondary .role-all,
+.pv-verses .role-all {
+  font-weight: 700;
+  font-style: italic;
+}
+.present-role {
+  display: inline-block;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 2.6vmin;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent);
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  padding: 0.25em 0.9em;
+  margin-bottom: 2.5vmin;
+}
+.present-role.role-people {
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+}
+.present-role.role-all {
+  font-style: italic;
+}
+.present-legend {
+  display: flex;
+  justify-content: center;
+  gap: 2.2em;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 2vmin;
+  color: var(--ink-soft);
+  margin-bottom: 2vmin;
+}
+.present-legend .role-people {
+  font-weight: 700;
+  color: var(--ink);
+}
+.present-legend .role-all {
+  font-weight: 700;
+  font-style: italic;
+  color: var(--ink);
+}
+/* Mini preview equivalents (sizes are em-relative to the fitted body). */
+.pv-role {
+  display: inline-block;
+  font-size: 0.55em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.1em 0.6em;
+  margin-bottom: 0.4em;
+}
+.pv-role.role-people {
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+}
+.pv-legend {
+  display: flex;
+  gap: 1.2em;
+  font-size: 0.5em;
+  color: var(--ink-soft);
+  margin-bottom: 0.4em;
+}
+.pv-legend .role-people,
+.pv-legend .role-all {
+  color: var(--ink);
+}
+/* Console: pattern switch + per-verse role chips. */
+.reading-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.7rem;
+  margin-top: 0.6rem;
+}
+.reading-switch {
+  margin-top: 0;
+}
+.role-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+.role-pill.role-people {
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+}
+.role-chips {
+  margin-top: 0.5rem;
+}
+.role-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.role-chip .rc-role {
+  font-size: 0.7em;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.role-chip.role-people {
+  font-weight: 700;
+}
+.role-chip.role-people .rc-role {
+  color: var(--accent);
+}
+.role-chip.role-all {
+  font-style: italic;
+  font-weight: 700;
+}
+.role-chip.pinned {
+  border-style: dashed;
+}
+
 /* ---- Two admins: who is driving the screen ---- */
 .driver-bar {
   display: flex;
