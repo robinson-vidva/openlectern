@@ -4,7 +4,7 @@
 //
 //   GET    /api/config                                       -> public runtime config (Turnstile site key)
 //   POST   /api/session              { pin, config, turnstile } -> create, returns row
-//   POST   /api/session/:code/join   { pin }                -> join (PIN), returns row
+//   POST   /api/session/:code/join   { pin, turnstile }     -> join (PIN), returns row
 //   GET    /api/session/:code/view                          -> view (no PIN), returns row
 //   PATCH  /api/session/:code        { pin, patch }         -> update, returns merged row
 //   POST   /api/session/:code/broadcast { pin, event, payload, from } -> PIN-verified peer event
@@ -95,7 +95,13 @@ async function allowCreate(env, ip) {
 // OUR hostnames: a token solved on another site (or another form) using the same
 // widget is not accepted. TURNSTILE_HOSTNAMES is a comma-separated allowlist;
 // production must not include localhost.
-const TURNSTILE_ACTION = 'create-session'
+//
+// Gated actions: creating a session (mass-creation abuse) and joining one with
+// the PIN (a 4-digit PIN is the obvious brute-force target; the per-session
+// lockout slows a bot, this stops it from scripting the attempts at all).
+// Viewing (code only, read-only) is not gated: presenter links open on their own
+// with no one at the keyboard to solve a challenge.
+export const TURNSTILE_ACTIONS = { create: 'create-session', join: 'join-session' }
 function turnstileHostnames(env) {
   return new Set(
     String(env.TURNSTILE_HOSTNAMES || '')
@@ -104,7 +110,7 @@ function turnstileHostnames(env) {
       .filter(Boolean)
   )
 }
-async function verifyTurnstile(env, token, ip) {
+async function verifyTurnstile(env, token, ip, action) {
   if (!env.TURNSTILE_SECRET) return null
   if (typeof token !== 'string' || !token || token.length > 2048) {
     return { status: 403, error: 'verification required' }
@@ -124,7 +130,7 @@ async function verifyTurnstile(env, token, ip) {
     const ok =
       data &&
       data.success === true &&
-      data.action === TURNSTILE_ACTION &&
+      data.action === action &&
       hosts.has(String(data.hostname || '').toLowerCase())
     return ok ? null : { status: 403, error: 'verification failed' }
   } catch {
@@ -144,7 +150,7 @@ async function handleApi(request, env, parts) {
       return json({ error: 'too many sessions created, try again shortly' }, 429, env)
     }
     const { turnstile, ...body } = await request.json().catch(() => ({}))
-    const human = await verifyTurnstile(env, turnstile, ip)
+    const human = await verifyTurnstile(env, turnstile, ip, TURNSTILE_ACTIONS.create)
     if (human) return json({ error: human.error }, human.status, env)
     for (let attempt = 0; attempt < 6; attempt++) {
       const code = randomCode()
@@ -164,7 +170,10 @@ async function handleApi(request, env, parts) {
     return sessionStub(env, code).fetch(request) // 101 response: never decorate
   }
   if (action === 'join' && request.method === 'POST') {
-    const body = await request.json().catch(() => ({}))
+    const { turnstile, ...body } = await request.json().catch(() => ({}))
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+    const human = await verifyTurnstile(env, turnstile, ip, TURNSTILE_ACTIONS.join)
+    if (human) return json({ error: human.error }, human.status, env)
     return decorate(await callDO(env, code, 'join', body), env)
   }
   if (action === 'view' && request.method === 'GET') {

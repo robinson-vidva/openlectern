@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import JoinForm from '../components/JoinForm.jsx'
 import { useVoice } from '../components/useVoice.js'
-import { updateSession, joinSession, sessionChannel, broadcastSession } from '../lib/session.js'
+import { updateSession, joinView, sessionChannel, broadcastSession } from '../lib/session.js'
 import { friendlyError } from '../lib/backendConfig.js'
 import { takeHandoff, saveCreds, loadCreds, clearCreds } from '../lib/handoff.js'
 import { loadPrefs, savePrefs, clearPrefs } from '../lib/prefs.js'
@@ -2098,7 +2098,11 @@ export default function Control({ params }) {
       setResolving(false)
       return
     }
-    joinSession(code, cached.pin)
+    // Reload with cached creds: fetch the row without the PIN (the PIN join is
+    // behind a human check that nothing can solve silently). The cached PIN was
+    // verified when it was saved; if it has gone stale the first update fails
+    // with "Incorrect PIN" and the operator re-joins.
+    joinView(code)
       .then((r) => {
         setRow(r)
         setCreds(cached)

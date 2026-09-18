@@ -37,7 +37,8 @@ async function unwrap(res) {
 // `turnstile` is the Turnstile token when the server has bot protection on.
 export const cfCreate = (pin, config, turnstile) => post('/api/session', { pin, config, turnstile: turnstile || undefined })
 export const cfAppConfig = () => get('/api/config')
-export const cfJoin = (code, pin) => post(`/api/session/${encodeURIComponent(code)}/join`, { pin })
+export const cfJoin = (code, pin, turnstile) =>
+  post(`/api/session/${encodeURIComponent(code)}/join`, { pin, turnstile: turnstile || undefined })
 export const cfView = (code) => get(`/api/session/${encodeURIComponent(code.trim().toUpperCase())}/view`)
 export const cfUpdate = (code, pin, patch_) => patch(`/api/session/${encodeURIComponent(code)}`, { pin, patch: patch_ })
 // PIN-verified peer event: the server relays it to every other client marked

@@ -23,8 +23,10 @@ export function loadAppConfig() {
   return appConfigPromise
 }
 
-export function joinSession(code, pin) {
-  return cfJoin(code, pin)
+// `turnstile`: the Turnstile token (action 'join-session'), required when the
+// backend has bot protection enabled.
+export function joinSession(code, pin, turnstile) {
+  return cfJoin(code, pin, turnstile)
 }
 
 // View-only (presenter) join: code only, no PIN, read-only.

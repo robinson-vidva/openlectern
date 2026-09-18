@@ -1,18 +1,25 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadTurnstile } from '../lib/turnstile.js'
 
-// Cloudflare Turnstile widget (explicit render). Reports its token through
-// onToken, and null when the token expires or the widget errors. Bumping
-// `resetKey` resets the widget: tokens are single-use, so a failed or retried
-// request needs a fresh one. `appearance: interaction-only` keeps the widget
-// invisible unless Cloudflare actually needs the person to interact.
-export default function Turnstile({ siteKey, onToken, onError, resetKey = 0 }) {
+// Cloudflare Turnstile widget (explicit render) for one protected action.
+// Reports its token through onToken, and null when the token expires or the
+// widget errors. Bumping `resetKey` resets the widget: tokens are single-use, so
+// a failed or retried request needs a fresh one. `appearance: interaction-only`
+// keeps the widget invisible unless Cloudflare actually needs the person to
+// interact. Shows its own one-line status while no token is held.
+export default function Turnstile({ siteKey, action, onToken, resetKey = 0 }) {
   const elRef = useRef(null)
   const idRef = useRef(null)
   const onTokenRef = useRef(onToken)
   onTokenRef.current = onToken
-  const onErrorRef = useRef(onError)
-  onErrorRef.current = onError
+  const [hasToken, setHasToken] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  const report = (token) => {
+    setHasToken(!!token)
+    if (token) setFailed(false)
+    onTokenRef.current?.(token)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -21,21 +28,21 @@ export default function Turnstile({ siteKey, onToken, onError, resetKey = 0 }) {
         if (cancelled || !elRef.current) return
         idRef.current = ts.render(elRef.current, {
           sitekey: siteKey,
-          action: 'create-session', // the Worker only accepts tokens minted for this action
+          action, // the Worker only accepts tokens minted for the matching action
           size: 'flexible',
           appearance: 'interaction-only',
-          callback: (token) => onTokenRef.current?.(token),
-          'expired-callback': () => onTokenRef.current?.(null),
-          'timeout-callback': () => onTokenRef.current?.(null),
+          callback: (token) => report(token),
+          'expired-callback': () => report(null),
+          'timeout-callback': () => report(null),
           'error-callback': () => {
-            onTokenRef.current?.(null)
-            onErrorRef.current?.()
+            report(null)
+            setFailed(true)
             return true // handled; don't also log to the console
           }
         })
       })
       .catch(() => {
-        if (!cancelled) onErrorRef.current?.()
+        if (!cancelled) setFailed(true)
       })
     return () => {
       cancelled = true
@@ -46,17 +53,30 @@ export default function Turnstile({ siteKey, onToken, onError, resetKey = 0 }) {
       }
       idRef.current = null
     }
-  }, [siteKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteKey, action])
 
   useEffect(() => {
     if (!resetKey || idRef.current == null) return
     try {
       window.turnstile?.reset(idRef.current)
-      onTokenRef.current?.(null)
+      report(null)
     } catch {
       /* ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey])
 
-  return <div className="turnstile-slot" ref={elRef} />
+  return (
+    <>
+      <div className="turnstile-slot" ref={elRef} />
+      {!hasToken && (
+        <p className="muted turnstile-note" role="status">
+          {failed
+            ? 'The human check could not load. Turn off content blockers for this site and reload.'
+            : 'Checking that you are human…'}
+        </p>
+      )}
+    </>
+  )
 }

@@ -102,8 +102,10 @@ Run the test suite with `npm test`.
 
 ## Bot protection (optional)
 
-Session creation can be gated with [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/)
-so scripts can't mass‑create sessions. It's off until you add the keys:
+Creating a session and joining one with the PIN can be gated with
+[Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/), so scripts
+can't mass‑create sessions or brute‑force a 4‑digit PIN. Watching a screen (code
+only, read‑only) is never gated. It's off until you add the keys:
 
 1. Dashboard → **Turnstile** → **Add widget** (hostname = your domain, mode
    *Managed*). Copy the site key and secret key.
@@ -120,11 +122,11 @@ so scripts can't mass‑create sessions. It's off until you add the keys:
    ```
 
 3. Deploy. The app reads the site key from `/api/config` at runtime (no rebuild),
-   shows the check on the landing page, and the Worker verifies each token
-   server‑side (success, action `create-session`, and hostname) before creating a
-   session. To turn it off, delete the Worker secret (dashboard → the Worker →
-   Settings → Variables and Secrets) and remove the GitHub secret so a later
-   deploy doesn't restore it.
+   shows the check on the landing page and the join form, and the Worker verifies
+   each token server‑side (success, the matching action `create-session` or
+   `join-session`, and hostname) before acting. To turn it off, delete the Worker
+   secret (dashboard → the Worker → Settings → Variables and Secrets) and remove
+   the GitHub secret so a later deploy doesn't restore it.
 
 For local development, Cloudflare's test keys always pass: site key
 `1x00000000000000000000AA`, secret `1x0000000000000000000000000000000AA`.

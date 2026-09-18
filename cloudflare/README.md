@@ -56,7 +56,7 @@ zone on the same account).
 | --- | --- | --- | --- |
 | GET | `/api/config` | — | `{ turnstileSiteKey }` public runtime config |
 | POST | `/api/session` | `{ pin, config, turnstile? }` | new session row (unique code); `turnstile` token required when `TURNSTILE_SECRET` is set |
-| POST | `/api/session/:code/join` | `{ pin }` | session row, or 401 |
+| POST | `/api/session/:code/join` | `{ pin, turnstile? }` | session row, or 401; `turnstile` token (action `join-session`) required when `TURNSTILE_SECRET` is set |
 | GET | `/api/session/:code/view` | — | session row (read‑only, no PIN) |
 | PATCH | `/api/session/:code` | `{ pin, patch }` | merged row; pushes to all clients |
 | POST | `/api/session/:code/broadcast` | `{ pin, event, payload, from }` | relays a PIN‑verified peer event (`authed: true`) to the other clients |

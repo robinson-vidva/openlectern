@@ -238,6 +238,31 @@ describe('Turnstile gate on session creation', () => {
     expect(res.status).toBe(403)
     expect(spy).not.toHaveBeenCalled()
   })
+  it('gates the PIN join with its own action and strips the token before the DO', async () => {
+    // Create with the gate off, then join with the gate on.
+    const env = fakeEnv()
+    const created = await (await create(env, { pin: '1234', config: {} })).json()
+    const gated = { ...env, ...ON }
+    const join = (body) =>
+      worker.fetch(new Request(`https://x/api/session/${created.code}/join`, { method: 'POST', body: JSON.stringify(body) }), gated)
+    expect((await join({ pin: '1234' })).status).toBe(403) // no token
+    stubVerify(true, { action: 'create-session', hostname: 'openlectern.askdevotions.com' })
+    expect((await join({ pin: '1234', turnstile: 'tok' })).status).toBe(403) // wrong action
+    stubVerify(true, { action: 'join-session', hostname: 'openlectern.askdevotions.com' })
+    const ok = await join({ pin: '1234', turnstile: 'tok' })
+    expect(ok.status).toBe(200)
+    expect((await ok.json()).code).toBe(created.code)
+    stubVerify(true, { action: 'join-session', hostname: 'openlectern.askdevotions.com' })
+    expect((await join({ pin: '0000', turnstile: 'tok' })).status).toBe(401) // human, wrong PIN
+  })
+  it('never gates the read-only view', async () => {
+    const env = fakeEnv()
+    const created = await (await create(env, { pin: '1234', config: {} })).json()
+    const spy = stubVerify(false)
+    const res = await worker.fetch(new Request(`https://x/api/session/${created.code}/view`), { ...env, ...ON })
+    expect(res.status).toBe(200)
+    expect(spy).not.toHaveBeenCalled()
+  })
   it('fails closed when the verify service is unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('down') }))
     const res = await create(fakeEnv(ON), { pin: '1234', config: {}, turnstile: 'tok' })

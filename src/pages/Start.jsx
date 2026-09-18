@@ -20,14 +20,16 @@ export default function Start() {
   const [viewCode, setViewCode] = useState('') // watch card
   const controlBusy = useRef(false)
 
-  // Bot protection on session creation (Cloudflare Turnstile). The backend says
-  // whether it is on by publishing its site key; when it is, Start waits for a
-  // token and sends it along. Tokens are single-use: a failed create resets the
+  // Bot protection (Cloudflare Turnstile) on creating a session and on joining
+  // one with the PIN. The backend says whether it is on by publishing its site
+  // key; when it is, each card waits for its own token (one widget per action)
+  // and sends it along. Tokens are single-use: a failed request resets that
   // widget so the retry carries a fresh one.
   const [appCfg, setAppCfg] = useState(null)
-  const [tsToken, setTsToken] = useState(null)
+  const [tsToken, setTsToken] = useState(null) // create-session
   const [tsReset, setTsReset] = useState(0)
-  const [tsError, setTsError] = useState(false)
+  const [joinToken, setJoinToken] = useState(null) // join-session
+  const [joinReset, setJoinReset] = useState(0)
   useEffect(() => {
     let live = true
     loadAppConfig().then((c) => live && setAppCfg(c || {}))
@@ -37,6 +39,7 @@ export default function Start() {
   }, [])
   const needsHuman = !!appCfg?.turnstileSiteKey
   const humanReady = !needsHuman || !!tsToken
+  const joinReady = !needsHuman || !!joinToken
 
   // Only needed when there is no remembered config: pick the bundled default.
   useEffect(() => {
@@ -77,11 +80,12 @@ export default function Start() {
     const c = code.trim().toUpperCase()
     if (c.length < 4) return setError('Enter the screen code.')
     if (!/^\d{4}$/.test(pin)) return setError('The PIN is 4 digits.')
+    if (!joinReady) return setError('Still checking that you are human. Try again in a moment.')
     if (controlBusy.current) return
     controlBusy.current = true
     setBusy(true)
     try {
-      const row = await joinSession(c, pin)
+      const row = await joinSession(c, pin, joinToken)
       const creds = { code: c, pin, name: '' }
       saveCreds(creds)
       setHandoff({ row, creds })
@@ -90,6 +94,7 @@ export default function Start() {
       setError(friendlyError(err))
       setBusy(false)
       controlBusy.current = false
+      if (needsHuman) setJoinReset((k) => k + 1) // the token was spent; get a new one
     }
   }
 
@@ -131,26 +136,11 @@ export default function Start() {
             <p className="lcard-desc">Create a screen and become the controller. You get a code, QR, and PIN to share.</p>
             <div className="lcard-foot">
               {needsHuman && (
-                <Turnstile
-                  siteKey={appCfg.turnstileSiteKey}
-                  onToken={(t) => {
-                    setTsToken(t)
-                    if (t) setTsError(false)
-                  }}
-                  onError={() => setTsError(true)}
-                  resetKey={tsReset}
-                />
+                <Turnstile siteKey={appCfg.turnstileSiteKey} action="create-session" onToken={setTsToken} resetKey={tsReset} />
               )}
               <button className="btn primary wide" onClick={start} disabled={busy || !humanReady}>
                 {busy ? 'Starting…' : 'Start a session'}
               </button>
-              {needsHuman && !tsToken && (
-                <p className="muted turnstile-note" role="status">
-                  {tsError
-                    ? 'The human check could not load. Turn off content blockers for this site and reload.'
-                    : 'Checking that you are human…'}
-                </p>
-              )}
             </div>
           </section>
 
@@ -183,7 +173,10 @@ export default function Start() {
               />
             </div>
             <div className="lcard-foot">
-              <button className="btn primary wide" type="submit" disabled={busy}>Control</button>
+              {needsHuman && (
+                <Turnstile siteKey={appCfg.turnstileSiteKey} action="join-session" onToken={setJoinToken} resetKey={joinReset} />
+              )}
+              <button className="btn primary wide" type="submit" disabled={busy || !joinReady}>Control</button>
               <a className="link-btn lcard-alt" href={`#/control?s=${code.trim().toUpperCase()}&invite=1`}>
                 Join with an invite code instead
               </a>

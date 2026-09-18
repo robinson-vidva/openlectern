@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { joinSession, joinView } from '../lib/session.js'
+import { useEffect, useState } from 'react'
+import { joinSession, joinView, loadAppConfig } from '../lib/session.js'
 import { requestPinViaInvite } from '../lib/invite.js'
 import { friendlyError, backendConfigured } from '../lib/backendConfig.js'
+import Turnstile from './Turnstile.jsx'
 
 // Controllers join with code + PIN (and an optional name) and can write.
 // Presenters/viewers join with the code only (read-only, no PIN).
@@ -18,11 +19,29 @@ export default function JoinForm({ role, initialCode = '', initialInvite = false
   const isControl = role === 'control'
   const inviteMode = isControl && mode === 'invite'
 
+  // Bot protection on the PIN join (Cloudflare Turnstile), when the backend has
+  // it on. Viewing needs no token. Tokens are single-use: a failed join resets
+  // the widget so the retry carries a fresh one.
+  const [siteKey, setSiteKey] = useState(null)
+  const [token, setToken] = useState(null)
+  const [tsReset, setTsReset] = useState(0)
+  useEffect(() => {
+    if (!isControl) return
+    let live = true
+    loadAppConfig().then((c) => live && setSiteKey(c?.turnstileSiteKey || null))
+    return () => {
+      live = false
+    }
+  }, [isControl])
+  const gated = isControl && !!siteKey
+  const humanReady = !gated || !!token
+
   async function submit(e) {
     e.preventDefault()
     setError('')
     const c = code.trim().toUpperCase()
     if (c.length < 4) return setError('Enter the session code.')
+    if (!humanReady) return setError('Still checking that you are human. Try again in a moment.')
     setBusy(true)
     try {
       if (!isControl) {
@@ -30,15 +49,16 @@ export default function JoinForm({ role, initialCode = '', initialInvite = false
       } else if (inviteMode) {
         if (!/^\d{6}$/.test(invite.trim())) throw new Error('Invite code is 6 digits.')
         const recovered = await requestPinViaInvite(c, invite.trim(), name.trim())
-        const row = await joinSession(c, recovered)
+        const row = await joinSession(c, recovered, token)
         onJoined(row, { code: c, pin: recovered, name: name.trim() })
       } else {
         if (!/^\d{4}$/.test(pin)) throw new Error('PIN is 4 digits.')
-        const row = await joinSession(c, pin)
+        const row = await joinSession(c, pin, token)
         onJoined(row, { code: c, pin, name: name.trim() })
       }
     } catch (err) {
       setError(friendlyError(err))
+      if (gated) setTsReset((k) => k + 1) // the token was spent; get a new one
     } finally {
       setBusy(false)
     }
@@ -125,7 +145,9 @@ export default function JoinForm({ role, initialCode = '', initialInvite = false
 
       {error && <p className="error">{error}</p>}
 
-      <button className="btn primary wide" type="submit" disabled={busy}>
+      {gated && <Turnstile siteKey={siteKey} action="join-session" onToken={setToken} resetKey={tsReset} />}
+
+      <button className="btn primary wide" type="submit" disabled={busy || !humanReady}>
         {busy ? (inviteMode ? 'Requesting...' : 'Joining...') : isControl ? 'Join' : 'Open'}
       </button>
 
